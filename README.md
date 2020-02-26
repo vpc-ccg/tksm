@@ -1,0 +1,2 @@
+# RNAInFuser
+simulate gene fusions.
