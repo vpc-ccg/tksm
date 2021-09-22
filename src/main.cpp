@@ -10,17 +10,24 @@
 #include <utility>
 #include <sstream>
 #include <map>
+#include <memory>
 
 #include <cctype>
 #include <cassert>
 
 #include "IITree.h"
 
+
+
+
+
 using std::string;
 using std::vector;
 using std::cout;
 using std::string_view;
 using std::map;
+using std::ostream;
+
 
 enum class cigar_character_type{
     matched, onquery, ontemplate, hardclip, softclip, notcigar,
@@ -92,17 +99,57 @@ class ginterval: public interval{
             chr(chr), interval(start, end){}
 };
 
-class annotation: public ginterval{
-    string gene;
-    string transcript;
-    string exon;
+
+struct gene: public ginterval{
+    string gene_id;
+    string gene_name;
     string strand;
-    public:
-    annotation(string chr, int start, int end, string strand, string gene,
-            string transcript, string exon) : ginterval(chr, start, end),
+
+    gene() : ginterval(),gene_id("NAN"), gene_name("NAN"), strand("+") {}
+    gene(string chr, int start, int end, string strand, string gene_id,
+            string gene_name) : ginterval(chr, start, end),
     strand(strand),
-    gene(gene), transcript(transcript), exon(exon){}
+    gene_id(gene_id), gene_name(gene_name){}
 };
+
+namespace std
+{
+    template<> struct hash<gene>
+    {
+        std::size_t operator()(gene const& s) const noexcept
+        {
+            return std::hash<std::string>{}(s.gene_id);
+        }
+    };
+}
+
+struct exon: public ginterval{
+    string gene_id;
+    string transcript_id;
+    string exon_id;
+    string strand;
+    exon(string chr, int start, int end, string strand, string gene_id,
+            string transcript_id, string exon_id) : ginterval(chr, start, end),
+    strand(strand),
+    gene_id(gene_id), transcript_id(transcript_id), exon_id(exon_id){}
+    int distance( const exon &other) const{
+        if( other.start < this->start){
+            return other.distance(*this);
+        }
+        return other.start - this->end;
+    }
+};
+
+
+ostream &operator << ( ostream &ost, const ginterval &ex){
+    ost << ex.chr << ":" << ex.start << "-" << ex.end;
+    return ost;
+}
+
+ostream &operator << ( ostream &ost, const exon &ex){
+    ost << (ginterval) ex << " " << ex.strand << " " << ex.gene_id << " " << ex.transcript_id;
+    return ost;
+}
 
 struct segment{
     ginterval tmplt;
@@ -113,16 +160,17 @@ struct segment{
         tmplt(chr, s2, e2), query(start,end), reverse_complemented(reverse_complemented)  {}
 };
 
-class read{
+struct read{
+    string rid;
     vector<segment> segments;
-    public:
+    bool primary;
     read(const string &paf, int max_skip){
 
         std::istringstream ps(paf);
 
-        std::string id;
-        ps >> id;
 
+        ps >> rid;
+        
         int rlen;
         int rstart;
         int rend;
@@ -135,6 +183,7 @@ class read{
         bool complemented = strand == "-";
         std::string chr;
         ps >> chr;
+
         if(chr.find("chr")!= std::string::npos){
             chr = chr.substr(3);
         }
@@ -149,13 +198,23 @@ class read{
         ps >> template_len >> template_start >> template_end >> num_matches >> alig_block_len >> mapq;
 
         ps >> field;
-        while(!ps.eof() && field.substr(0,2) != "cg"){ ps >> field;}
+        string cigar_str = "-1";
 
-        if( field.substr(0,2) != "cg"){
+        while(!ps.eof()){ 
+            ps >> field;
+            if (field.substr(0,2) == "tp"){
+                primary = (field == "tp:A:P");
+            }
+            if (field.substr(0,2) == "cg"){
+                cigar_str = field.substr(5);
+            }
+        }
+
+        if( cigar_str == "-1"){
             std::cerr << "Paf line doesn't include alignment cigar! Exiting!." << std::endl;
             exit(-1);
         }
-        cigar cig(field.substr(5));
+        cigar cig(cigar_str);
 
         std::vector<segment> aligs;
 
@@ -200,8 +259,10 @@ class read{
 
             }
         }
-        std::vector<segment> merged;
-        if( max_skip > 0){
+        if( aligs.size() == 0){
+            std::cerr << "NOALIG " << rid << "\n";
+        }
+        if( max_skip > 0 && aligs.size() > 0){
 
             st = aligs[0].tmplt.start;
             et = aligs[0].tmplt.end;
@@ -218,7 +279,7 @@ class read{
 
                     }
                     else{
-                        merged.emplace_back(chr,sq,eq,st,et,strand=="-");
+                        segments.emplace_back(chr,sq,eq,st,et,strand=="-");
                         auto nxt = std::next(iter);
                         st = nxt->tmplt.start;
                         et = nxt->tmplt.end;
@@ -233,7 +294,7 @@ class read{
                         eq = std::next(iter)->query.end;
                     }
                     else{
-                        merged.emplace_back(chr,sq,eq,st,et,strand=="-");
+                        segments.emplace_back(chr,sq,eq,st,et,strand=="-");
                         auto nxt = std::next(iter);
                         st = nxt->tmplt.start;
                         et = nxt->tmplt.end;
@@ -242,11 +303,11 @@ class read{
                     }
                 }
             }
-            merged.emplace_back(chr,sq,eq,st,et,strand=="-");
+            segments.emplace_back(chr,sq,eq,st,et,strand=="-");
 
         }
         else{
-            merged = aligs;
+            segments = aligs;
         }
     }
 };
@@ -256,9 +317,12 @@ template <class N, class A>
 class graph{
     vector<N> nodes;
     vector< map<size_t, A> > arcs;
-
+    map<N, size_t> reverse_index;
     public:
+    graph(){}
+
     void add( N node){
+        reverse_index[node] = node.size();
         nodes.push_back(node);
         arcs.emplace_back();
     }
@@ -267,6 +331,11 @@ class graph{
         assert(i < nodes.size());
         assert(j < nodes.size());
         return arcs[i][j];
+    }
+    A &arc(const N &a, const N &b){
+        size_t i = reverse_index[a];
+        size_t j = reverse_index[b];
+        return arc(i,j);
     }
 
     class neighbour{
@@ -354,8 +423,8 @@ class lazy_split{
 
         string_view sv(source);
 
-        sv.remove_prefix(known_delimiters[index]);// + delim.size()-1
-        sv.remove_suffix(source.size() - known_delimiters[index+1] + delim.size() );
+        sv.remove_prefix(known_delimiters[index] );
+        sv.remove_suffix(source.size() - known_delimiters[index+1] +1 );
         if(strip.size()>0){
             sv.remove_prefix(std::min(sv.find_first_not_of(strip),sv.size()));
             sv.remove_suffix( sv.size() - std::min(1+sv.find_last_not_of(strip),sv.size()));
@@ -416,11 +485,16 @@ class lazy_split{
     iterator end(){
         return iterator(*this, -1 ,true);
     }
+
 };
 
-vector<annotation> read_gtf_file( string path_to_gtf){
 
-    vector<annotation> annots;
+
+
+graph<gene, double> build_gene_graph( string path_to_gtf){
+
+
+    graph<gene, double> gene_graph;
 
     std::ifstream file(path_to_gtf);
 
@@ -429,7 +503,56 @@ vector<annotation> read_gtf_file( string path_to_gtf){
         if(str[0] == '#'){
             continue;
         }
-        lazy_split fields(str, "\t");
+        lazy_split fields{str, "\t"};
+
+        if(fields[2] != "gene"){
+            continue;
+        }
+        string chr{ fields[0]};
+        int s = stoi(string{fields[3]});
+        int e =  stoi(string{fields[4]});
+
+        string st{ fields[6]};
+
+        string info_str{fields[8]};
+        lazy_split info{info_str, ";", " \n\t"};
+
+
+        string gene_id = ""; 
+        string gene_name = "";
+        int count = 0;
+        for( auto iter = info.begin(); iter != info.end(); ++iter){
+            if((*iter).size() <= 1){ continue;}
+            string f{*iter};
+            lazy_split fs{f , " ", "\""};
+
+
+            if(fs[0] == "gene_id"){
+                gene_id = fs[1];
+                ++ count;
+            }
+            if(fs[0] == "gene_name"){
+                gene_name = fs[1];
+                ++ count;
+            }
+        }
+
+        gene_graph.add(gene{chr, s, e, st, gene_id, gene_name});
+    }
+    return gene_graph;
+}
+vector<exon> read_gtf_exons( string path_to_gtf){
+
+    vector<exon> annots;
+
+    std::ifstream file(path_to_gtf);
+
+    string str;
+    while( std::getline(file, str)){
+        if(str[0] == '#'){
+            continue;
+        }
+        lazy_split fields{str, "\t"};
 
         if(fields[2] != "exon"){
             continue;
@@ -441,7 +564,7 @@ vector<annotation> read_gtf_file( string path_to_gtf){
         string st{ fields[6]};
 
         string info_str{fields[8]};
-        lazy_split info(info_str, ";", " \n\t");
+        lazy_split info{info_str, ";", " \n\t"};
 
 
         string gene_id = ""; 
@@ -451,18 +574,18 @@ vector<annotation> read_gtf_file( string path_to_gtf){
         for( auto iter = info.begin(); iter != info.end(); ++iter){
             if((*iter).size() <= 1){ continue;}
             string f{*iter};
-            lazy_split fs(f , " ", "\"");
+            lazy_split fs{f , " ", "\""};
 
             if(fs[0] == "gene_id"){
-                gene_id = f[1];
+                gene_id = fs[1];
                 ++ count;
             }
             else if(fs[0] == "transcript_id"){
-                transcript_id = f[1];
+                transcript_id = fs[1];
                 ++ count;
             }
             else if(fs[0] == "exon_id"){
-                exon_id = f[1];
+                exon_id = fs[1];
                 ++ count;
             }
             if(count == 3){
@@ -475,17 +598,22 @@ vector<annotation> read_gtf_file( string path_to_gtf){
     return annots;
 }
 
-IITree<int, size_t> make_exon_tree( vector<annotation> &annots){
+map<string, IITree<int, size_t>> make_exon_tree( const vector<exon> &annots){
 
-    IITree<int, size_t> itree;
+    map<string,IITree<int, size_t>> itree;
 
     size_t index = 0;
-    for(annotation &annot: annots){
-        itree.add(annot.start, annot.end, index);
+
+    //for(const exon &annot: annots){
+    for(auto iter = annots.begin(); iter != annots.end(); ++iter){
+        auto &annot = *iter;
+        itree[annot.chr].add(annot.start, annot.end, index);
+ //       std::cerr << annot.chr << "\t" << annot << "\t" << index << "\n";
         ++index;
     }
-    itree.index();
-
+    for( auto &p : itree){
+        p.second.index();
+    }
     return itree;
 }
 
@@ -496,12 +624,70 @@ vector<read> convert_aligs_to_segments(const string &path_to_aligs, int max_skip
     string str;
 
     //0.180525.0      1636    1192    1592    +       18      80373285        3254010 3256236 56      401     60      tp:A:P  mm:i:2  gn:i:343        go:i:3  cg:Z:17M1D3M341I4M2167N20M1I14M
-    while( std::getline(file, str)){
+    while( std::getline(file, str)){ 
         reads.emplace_back(str, max_skip);
     }
     return reads;
 }
 
+
+void count_reads_on_graph( graph<gene, double> &gene_graph,
+                           vector<exon> &exon_ref,
+                           map<string,IITree<int, size_t>> &exon_forest,
+                           vector<read> &reads,
+                           int min_dist,
+                           int max_dist){
+
+    for( const read &r : reads){
+        bool gene_switch_flag;
+        std::map<string, gene> segmap;
+        if( r.segments.begin() == r.segments.end() ){
+            std::cerr << r.rid << " no segments!\n";
+            continue;   
+        }
+        
+        vector<size_t> overlaps;
+        auto l_first_overlap = [&r, &overlaps, &exon_forest, &exon_ref] (const ginterval &inter) -> long{
+            overlaps.clear(); 
+            exon_forest[inter.chr].overlap(inter.start, inter.end,overlaps);
+            if(overlaps.size() > 0){
+                size_t index = overlaps[0];
+                return exon_forest[inter.chr].data(index);
+            }
+            return -1;
+        };
+        long prev_index = -1;
+        for( auto siter = r.segments.begin(); std::next(siter) != r.segments.end(); ++siter){
+            auto nex_it = std::next(siter);
+            long index = l_first_overlap(nex_it->tmplt);
+            if( index > 0 && prev_index > 0){
+                exon &e1 = exon_ref[prev_index];
+                exon &e2 = exon_ref[index];
+                int distance = e1.distance(e2);
+                if( e1.gene_id != e2.gene_id && e1.chr == e2.chr  && distance > min_dist && distance < max_dist ){
+                    ++gene_graph.arc(e1.gene_id,e2.gene_id);
+                    cout << r.rid << "\t" << siter->tmplt << "\t" << exon_ref[prev_index] << " -> " << nex_it->tmplt << "\t" <<  exon_ref[index] << "\t" << index << "\n";
+                }
+
+            }
+            else if(index > 0 ){
+
+                cout << r.rid << "\tNULL -> " << exon_ref[index] << "\n";
+
+            }
+            else if(prev_index > 0){
+                cout << r.rid << "\t" << exon_ref[prev_index] << " -> NULL\n";
+
+
+            }
+            else{
+                cout << r.rid << "\tNULL -> NULL\n";
+            }
+            prev_index = index;
+        }
+    }
+
+}
 
 int main(int argc, char **argv){
 
@@ -510,24 +696,29 @@ int main(int argc, char **argv){
 
     // 0. Read alignments
     // 1. Convert to segments
-/*
+
     vector<read> reads = convert_aligs_to_segments(path_to_aligs);   
 
     // 2. Read GTF file
 
-    vector<annotation> gtf_annot = read_gtf_file(path_to_gtf);
+    vector<exon> gtf_exons = read_gtf_exons(path_to_gtf);
 
-    IITree<int, size_t> exon_tree = make_exon_tree(gtf_annot);
+    map<string, IITree<int, size_t>> exon_tree = make_exon_tree(gtf_exons);
+
+    int min_dist = 1000;
+    int max_dist = 50000;
+    graph<gene, double> gene_graph = build_gene_graph(path_to_gtf);
 
     // 3. Annotate segments
-*/
 
     // 4. Create Graph
 
     // 5. Create Nodes from GTF 
 
     // 6. Create and count edges using the segments
-
+    
+    count_reads_on_graph(gene_graph, gtf_exons, exon_tree, reads, int min_dist, int max_dist);
+    
     // 7. Convert counts to probabilities
 
 
@@ -536,9 +727,9 @@ int main(int argc, char **argv){
     //SPLIT TEST
     //
     //
-    string stest = "Hi,  Hello, Howdy!";
+    string stest = "Hi, Hello, Howdy!";
 
-    lazy_split ltest(stest, "  ", "!,");
+    lazy_split ltest{stest, " ", "!,"};
 
 
 
