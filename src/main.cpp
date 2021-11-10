@@ -1,15 +1,11 @@
 /*
  *  Left to do:
- *      Translocations
- *      Multiple isoforms (Just run the single isoform code #expression times)
- *      Sanity checks on various types of gene 2 gene orientations verify sequences are correct
- *      User entered gene list 2 fuse
  *      Remove unused graph code
  *      Reimplement readthrough with tree
  *      Refactor 
  *      Breakpoint on exons case
- *
  */
+
 
 #include <filesystem>
 #include <iostream>
@@ -20,7 +16,6 @@
 #include <algorithm>
 #include <functional>
 #include <fstream>
-#include <string_view>
 #include <utility>
 #include <sstream>
 #include <map>
@@ -32,15 +27,15 @@
 
 #include <cctype>
 #include <cassert>
+#include <climits>
 
 #include "IITree.h"
-
 #include <zlib.h>
 #include "kekseq.h"
 
-
-#if DEBUG
+#ifdef DEBUG
     using std::cerr;
+    std::cerr << "DEBUG MODE!\n";
 #else
 class mockstream{
     template<class K>
@@ -51,17 +46,14 @@ class mockstream{
 mockstream cerr;
 #endif
 
-
 using std::string;
 using std::vector;
 using std::cout;
-using std::string_view;
 using std::map;
 using std::ostream;
-using std::shared_ptr;
 using std::set;
 
-
+std::mt19937 rand_gen{std::random_device{}()};
 
 namespace reverse_complement{
     template<char C>
@@ -311,7 +303,7 @@ struct exon: public ginterval{
     virtual ~exon() {}
     gene * gene_ref;
 
-    exon(string chr, int start, int end, const string &strand, const string &exon_id, gene* gref, shared_ptr<transcript> tref): 
+    exon(string chr, int start, int end, const string &strand, const string &exon_id, gene* gref): 
         ginterval(chr, start, end, strand), exon_id(exon_id), gene_ref(gref){}
     exon() : exon_id("NULL") {}
 
@@ -349,7 +341,7 @@ ostream &operator << ( ostream &ost, const ginterval &ex){
 ostream &operator << ( ostream &ost, const exon &ex){
     ost << dynamic_cast<const ginterval&>(ex) << " " << ex.strand << " " << ex.exon_id;
     if(ex.gene_ref != nullptr){
-        ost << " " << ex.gene_ref->gene_id;
+        ost << " " << ex.gene_ref->gene_name << " " << (ex.gene_ref->plus_strand?"+":"-");
     }
     return ost;
 }
@@ -374,7 +366,6 @@ struct mapping{
     mapping(const string &paf, int max_skip, int min_segment){
 
         std::istringstream ps(paf);
-
 
         ps >> rid;
 
@@ -688,15 +679,6 @@ string strip_str(const std::string &inpt, const string &chrs)
         return "";
     }
     return inpt.substr(frst, last-frst+1);
-/*
-    auto start_it = inpt.begin();
-    auto end_it = inpt.rbegin();
-    while (std::isspace(*start_it))
-        ++start_it;
-    while (std::isspace(*end_it))
-        ++end_it;
-    return std::string(start_it, end_it.base());
-*/
 }
 void strip_for_each(vector<string> &vec, const string &chrs = " "){
 
@@ -704,104 +686,6 @@ void strip_for_each(vector<string> &vec, const string &chrs = " "){
         st = strip_str(st, chrs);
     }
 }
-/*
-class lazy_split{
-    const string &source;
-    string delim;
-
-    public:
-    vector<size_t> known_delimiters;
-    string strip;
-
-
-    lazy_split(string &source) : source(source), delim(" "), known_delimiters({0}), strip(""){}
-
-    lazy_split(const string &source, const string &delim) : source(source), delim(delim), known_delimiters({0}), strip("") {}
-    lazy_split(const string &source, const string &delim, const string &strip) : source(source), delim(delim), known_delimiters({0}), strip(strip) {}
-
-    string_view operator[](size_t index){
-
-        while(index + 1 >= known_delimiters.size()){
-            auto it = std::search(source.begin()+known_delimiters.back(),source.end(), std::default_searcher(delim.begin(),delim.end()));
-
-            if( it == source.end()){
-                known_delimiters.push_back(source.size() + delim.size() - 1);
-                assert( index + 1< known_delimiters.size());
-                break;
-            }
-            known_delimiters.push_back(it - source.begin() + delim.size());  
-        }
-
-
-        string_view sv(source);
-
-        sv.remove_prefix(known_delimiters[index] );
-        sv.remove_suffix(source.size() - known_delimiters[index+1] + 1 );
-        if(strip.size()>0){
-            sv.remove_prefix(std::min(sv.find_first_not_of(strip),sv.size()));
-            sv.remove_suffix( sv.size() - std::min(1 + sv.find_last_not_of(strip),sv.size()));
-        }
-        return sv;
-
-    }
-    class iterator{
-        public:
-            size_t index;
-            lazy_split &owner;
-            bool end;
-
-
-
-            iterator(lazy_split &owner) : index(0), owner(owner), end(owner.source.size()==0) {
-            }
-
-            iterator(lazy_split &owner, size_t index) : index(index), owner(owner), end(owner.source.size()==0) {}
-            iterator(lazy_split &owner, size_t index, bool end) : index(index), owner(owner), end(end) {}
-
-            string_view operator *(){
-                return owner[index];
-            }
-
-            iterator &operator++(){
-                ++index;
-                if(owner.known_delimiters.back() - owner.delim.size() + 1 == owner.source.size() && index + 2 > owner.known_delimiters.size()){
-                    end = true;
-                    return *this;
-                }
-                owner[index];
-                return *this;
-            }
-            iterator operator++(int){
-                iterator tmp = *this;
-                ++(*this);
-
-                if(owner.known_delimiters.back() - owner.delim.size() + 1== owner.source.size()  && index + 2 == owner.known_delimiters.size()){
-                    end = true;
-                    return *this;
-                }
-                owner[index];
-                return tmp;
-            }
-            friend bool operator== (const iterator& a, const iterator& b) { 
-                if(a.end && b.end){
-                    return true;
-                }
-                return a.index == b.index;
-            }
-            friend bool operator!= (const iterator& a, const iterator& b) { return !(a==b); };
-
-    };
-    iterator begin(){
-        return iterator(*this,0);
-    }
-    iterator end(){
-        return iterator(*this, -1 ,true);
-    }
-
-};
-*/
-
-
 
 graph<gene, double> build_gene_graph( string path_to_gtf, const  map<gene, int> &gene2count,bool coding_only = true){
 
@@ -868,23 +752,22 @@ graph<gene, double> build_gene_graph( string path_to_gtf, const  map<gene, int> 
 auto read_gtf_exons( string path_to_gtf, bool coding_only = true){
 
     vector<exon> annots;
-
     std::ifstream file(path_to_gtf);
-
     string str;
 
     vector<gene *> gptrs;
     gene* current_gene;
-    shared_ptr<transcript> current_transcript;
+
+
     while( std::getline(file, str)){
         if(str[0] == '#'){
             continue;
         }
         vector<string> fields = rsplit(str, "\t");
-        string_view type = fields[2];
+        string type = fields[2];
         string chr{ fields[0]};
-        int s = stoi(string{fields[3]});
-        int e =  stoi(string{fields[4]});
+        int s = stoi(string{fields[3]}) - 1; // GTF is 1 based
+        int e =  stoi(string{fields[4]}); // 1 based but inclusive so we add 1 to make it exclusive - 1 + 1
         string st{ fields[6]};
         
         if( type == "gene"){
@@ -945,11 +828,10 @@ auto read_gtf_exons( string path_to_gtf, bool coding_only = true){
             if( coding_only && (biotype != "protein_coding")){
                 continue;
             }
-            current_transcript = std::make_shared<transcript>(chr,s,e,st,transcript_id,current_gene);
+            //current_transcript = std::make_shared<transcript>(chr,s,e,st,transcript_id,current_gene);
 
         }
         else if( type == "exon"){
-
             string info_str{fields[8]};
 
             vector<string> info = rsplit(info_str, ";");
@@ -980,7 +862,7 @@ auto read_gtf_exons( string path_to_gtf, bool coding_only = true){
             if (coding_only && ( (biotype!="protein_coding") || (tbiotype!="protein_coding"))) {
                 continue;
             }
-            annots.emplace_back(chr,s,e,st,exon_id, current_gene, current_transcript);
+            annots.emplace_back(chr,s,e,st,exon_id, current_gene);
         }
     }
     /*
@@ -1038,7 +920,6 @@ auto read_gtf_exons( string path_to_gtf, bool coding_only = true){
 map<string, IITree<int, size_t>> make_exon_tree( const vector<exon> &annots){
 
     map<string,IITree<int, size_t>> itree;
-
     size_t index = 0;
 
     //for(const exon &annot: annots){
@@ -1091,14 +972,12 @@ auto count_reads_on_tree(
         int min_dist,
         int max_dist){
 
-
     tree<exon, int> exon_transitions{};
     for( const mapping &r : reads){
         std::map<string, gene> segmap;
         if( r.segments.begin() == r.segments.end() ){
             continue;   
         }
-        cerr << "1!\n";
 
         //Find the gene by votes of segments
         auto counts_of_genes = [&exon_forest, &exon_ref] (const mapping &q) -> map<string, int> {
@@ -1129,7 +1008,6 @@ auto count_reads_on_tree(
             return gene_counts;
         }(r);
         
-        cerr << "2!\n";
         auto find_exon = [&counts_of_genes,&exon_ref,&exon_forest] (const ginterval &g) -> exon {
             auto &exon_tree = exon_forest[g.chr];
             vector<size_t> overlaps; 
@@ -1145,7 +1023,6 @@ auto count_reads_on_tree(
             });
             return exon_ref[exon_tree.data(overlaps[0])];
         };
-        cerr << "3!\n";
 
         auto first = r.segments.begin();
         exon e = find_exon(first->tmplt);
@@ -1157,7 +1034,6 @@ auto count_reads_on_tree(
         if(prev->parent != nullptr){
             prev->parent->value(e)++;
         }
-        cerr << "4!\n";
 
         exon preve = find_exon(first->tmplt);//{};
         for( auto siter = std::next(first); siter != r.segments.end(); ++siter){
@@ -1174,8 +1050,6 @@ auto count_reads_on_tree(
             prev = tre;
             preve = e;
         }
-        cerr << "\nDONE\n";
-
     }
     return exon_transitions;
 }
@@ -1189,14 +1063,12 @@ void count_reads_on_graph(
         int min_dist,
         int max_dist){
 
-
     tree<exon, int> exon_transitions{};
     for( const mapping &r : reads){
         std::map<string, gene> segmap;
         if( r.segments.begin() == r.segments.end() ){
             continue;   
         }
-
 
         //Find the gene by votes of segments
         auto counts_of_genes = [&exon_forest, &exon_ref] (const mapping &q){
@@ -1307,27 +1179,7 @@ void count_reads_on_graph(
     }
 }
 
-void build_and_print_updated_cdna_ref( const string &in_path,
-        const string &out_path, graph<gene, double> &gene_graph){
-
-    std::ifstream in_file(in_path);
-    std::ofstream out_file(out_path);
-
-    string header;
-    string seq;
-    while( std::getline(in_file, header)){
-        std::getline(in_file, seq);
-        vector<string> head_fields = rsplit(header, " ");
-        strip_for_each(head_fields, ">");
-//        string_view transcript_id = head_fields[0];
-
-    }
-
-}
-
-
 map<string, std::pair<int,int>> find_gene_counts_per_contig(graph<gene, double> &gene_graph){
-
 
     size_t index = 0;
     string prev_chr = "-1";
@@ -1352,9 +1204,7 @@ map<string, std::pair<int,int>> find_gene_counts_per_contig(graph<gene, double> 
     return chr_range;
 }
 
-vector< std::pair<gene,gene>> generate_random_fusions( graph<gene, double> &gene_graph, map<string, int> fusion_count_per_chrX2, int translocation_count, int seed = 121){
-    std::mt19937 rand_gen{std::random_device{}()};
-    rand_gen.seed(seed);
+vector< std::pair<gene,gene>> generate_random_fusions( graph<gene, double> &gene_graph, map<string, int> fusion_count_per_chrX2, int translocation_count){
     map<string, std::pair<int,int>> gene_ranges_per_contig = find_gene_counts_per_contig(gene_graph);
     vector< std::pair<gene,gene>> fusions;
     vector<gene> translocation_targets;
@@ -1409,7 +1259,7 @@ vector< std::pair<gene,gene>> generate_random_fusions( graph<gene, double> &gene
     return fusions;
 }
 
-vector<std::pair<gene,gene>> generate_random_fusions( graph<gene, double> &gene_graph, int count, int tloc_count, int seed = 42){
+vector<std::pair<gene,gene>> generate_random_fusions( graph<gene, double> &gene_graph, int count, int tloc_count){
         
     map<string, std::pair<int,int>> gene_ranges_per_contig = find_gene_counts_per_contig(gene_graph);
    
@@ -1445,7 +1295,7 @@ vector<std::pair<gene,gene>> generate_random_fusions( graph<gene, double> &gene_
     }
         
 
-    return generate_random_fusions(gene_graph, fusion_count_per_chrX2, tloc_count, seed);
+    return generate_random_fusions(gene_graph, fusion_count_per_chrX2, tloc_count);
 }
 
 
@@ -1562,12 +1412,9 @@ enum class bpstrategy{
     exon_biased,
 };
 
-vector<std::pair<int,int>> generate_fusion_breakpoints( const vector<std::pair<gene,gene>> &gene_pairs, bpstrategy strat, int seed = 1453){
+vector<std::pair<int,int>> generate_fusion_breakpoints( const vector<std::pair<gene,gene>> &gene_pairs, bpstrategy strat){
 
     vector<std::pair<int,int>> breakpoints;
-    std::mt19937 rand_gen{std::random_device{}()};
-    rand_gen.seed(seed);
-
     switch (strat){
         case bpstrategy::uniform:
             for(auto p : gene_pairs){
@@ -1585,7 +1432,7 @@ vector<std::pair<int,int>> generate_fusion_breakpoints( const vector<std::pair<g
     return breakpoints;
 }
 
-map<gene, int>  generate_transcript_expression( const tree<exon, int> &exon_tree){
+map<gene, int> generate_transcript_expression( const tree<exon, int> &exon_tree){
 
     map<gene,int> expressions;
     for( auto p: exon_tree.children){
@@ -1616,44 +1463,29 @@ void  print_normal_transcript_fasta(const tree<exon, int> &exon_tree,
     }
 }
 
-/*
-            auto find_sum = [&sum](int depth, const tree<exon, int> *nod) -> void{
-                if(depth == 1){
-                    sum+= nod->parent->children[nod->data].first;
-                }
-            };
-            child.df_execute2(find_sum);
-         */
-
-vector<exon> fuse_isoforms(const vector<exon> &g1, const vector<exon> &g2, int seed = 42){
-
+vector<exon> fuse_isoforms(const vector<exon> &g1, const vector<exon> &g2, std::pair<int,int> bps){
     vector<exon> fusiso;
     fusiso.reserve(g1.size() + g2.size());
-
-    std::mt19937 rand_gen{std::random_device{}()};
-    rand_gen.seed(seed);
-
-    auto find_breakpoint = [ &rand_gen] (const vector<exon> &g) -> int{
-        int start = g.front().start;
-        int end = g.back().end;
-        std::uniform_int_distribution<> dist(start, end);
-        return dist(rand_gen);
-
-    };
-    
-    auto cut_isoform = [ &fusiso, &find_breakpoint] (const vector<exon> &g) mutable{
-
-        int b1 = find_breakpoint(g);
+    auto cut_isoform = [ &fusiso] (const vector<exon> &g, int b1) mutable -> void{
         auto iter1 = g.begin();
 
         if(g.front().plus_strand){
-            while(iter1->start > b1){
+            while(iter1->end < b1 && iter1 != g.end()){
                 fusiso.push_back(*iter1);
                 ++iter1;
             }
+            //Create a break exon ending at breakpoint if breakpoint is on an exon
+            if(iter1 != g.end() && iter1->start < b1){
+                fusiso.push_back( exon{iter1->chr, iter1->start, b1, iter1->strand, iter1->exon_id + std::to_string(b1), iter1->gene_ref});
+            }
         }
         else{
-            while(iter1->start > b1){
+            while(iter1 != g.end() && iter1->end < b1){
+                ++iter1;
+            }
+            //Create a break exon ending at breakpoint if breakpoint is on an exon
+            if(iter1 != g.end() && iter1->start < b1){
+                fusiso.push_back( exon{iter1->chr, iter1->start, b1, iter1->strand, iter1->exon_id + std::to_string(b1), iter1->gene_ref});
                 ++iter1;
             }
             while(iter1 != g.end()){
@@ -1663,24 +1495,14 @@ vector<exon> fuse_isoforms(const vector<exon> &g1, const vector<exon> &g2, int s
         }
     };
 
-    cut_isoform(g1);
-    cut_isoform(g2);
+    cut_isoform(g1, bps.first);
+    cut_isoform(g2, bps.second);
 
     return fusiso;
 
 }
 
-map<string, vector<isoform>> generate_fusion_isoforms(
-        const vector<std::pair<gene, gene>> &fusions, 
-        const vector<std::pair<int,int>> &fusion_breakpoints, 
-        const vector<int> &fusion_expression,
-        const tree<exon, int> &exon_tree,
-        int seed = 42){
-
-    std::mt19937 rand_gen{std::random_device{}()};
-    rand_gen.seed(seed);
-    map<string, vector<isoform>> isoforms;
-
+map<string, vector<isoform>> generate_normal_isoforms(const tree<exon, int> &exon_tree){
     map<gene, vector<exon>> gene2firstexons; //reverse_index
     map<gene, int>          gene2count;
     for( const auto &pair : exon_tree.children){
@@ -1690,7 +1512,106 @@ map<string, vector<isoform>> generate_fusion_isoforms(
         gene2count[*e.gene_ref]+=  (exon_tree.value(e));
         gene2firstexons[*e.gene_ref].push_back(e);
     }
+    
+    auto find_isoform = [&gene2count, &gene2firstexons, &exon_tree] (const gene &g) -> vector<exon>{
+        vector<exon> isoform;
+//        bool is_forward = g.plus_strand;
+        const tree<exon, int> *current = nullptr;
+        int count = gene2count.at(g);
+        std::uniform_int_distribution<> dist(0, count);
+        int sum = 0;
+        int rand_val = dist(rand_gen);
 
+        for(const exon &e : gene2firstexons[g]){
+            const auto &p = exon_tree.children.at(e);
+            int count = p.first;
+            current = &p.second;
+            sum += count;
+            if(sum > rand_val){
+                break;
+            }
+        }
+
+        while((current->children.size() > 0 )){
+            std::uniform_int_distribution<> dist(0, current->parent->value(current->data));
+            int rand_val = dist(rand_gen);
+            bool flag = false;
+
+            int sum = 0;
+            for(const auto &pc : current->children){
+                int cc = pc.second.first;
+                sum+=cc;
+                if(sum >= rand_val){
+                    isoform.push_back(current->data);
+                    current = &pc.second.second;
+                    flag = true;
+                    break;
+                }   //Decide
+            }
+        }
+        isoform.push_back(current->data);
+
+        return isoform;
+    };
+    map<string, vector<isoform>> isoforms;
+    for( const auto &p : gene2count){
+        const gene &g = p.first;
+        int cnt = p.second;
+
+        for(int i =0; i < cnt; ++i){
+            auto iso = find_isoform(g);
+
+            isoforms[g.gene_id].push_back(isoform{iso});
+        }
+
+    }
+    return isoforms;
+}
+
+map<string, vector<isoform>> generate_fusion_isoforms(
+        const vector<std::pair<gene, gene>> &fusions, 
+        const vector<std::pair<int,int>> &fusion_breakpoints, 
+        const vector<int> &fusion_expression,
+        const tree<exon, int> &exon_tree){
+
+    map<string, vector<isoform>> isoforms;
+
+    map<gene, vector<exon>> gene2firstexons; //reverse_index
+    map<gene, int>          gene2count;
+    map<gene, std::pair<int, int>> gene2largestrange;
+    
+    auto find_largest_range = [] (const tree<exon, int> &t) -> std::pair<int,int>{
+        int start = INT_MAX;
+        int end = 0;
+        auto finder = [&start, &end] (int depth, const tree<exon, int> *current) mutable -> void {
+            if(current->data.start < start){
+                start = current->data.start;
+            }
+            if(current->data.end > end){
+                end = current->data.end;
+            }
+        };
+        t.df_execute2(finder);
+        return std::make_pair(start, end);
+    };
+
+    for( const auto &pair : exon_tree.children){
+        const exon &e = pair.first;
+        gene2count[*e.gene_ref]+=  (exon_tree.value(e));
+        gene2firstexons[*e.gene_ref].push_back(e);
+        gene2largestrange[*e.gene_ref] = find_largest_range(pair.second.second);
+    }
+    auto find_breakpoint = [] (const std::pair<int,int> &range) -> int{
+        int start = range.first;
+        int end = range.second;
+        std::uniform_int_distribution<> dist(start, end);
+        return dist(rand_gen);
+    };
+
+    map<gene, int> gene2bp;
+    for( auto p : gene2largestrange){
+        gene2bp[p.first] = find_breakpoint(p.second);
+    }
 
     cerr << "There are " << gene2firstexons.size()  << " genes!\n";
 /*
@@ -1701,10 +1622,8 @@ map<string, vector<isoform>> generate_fusion_isoforms(
     .   .   .   .   .   .
     \______              \______
 
-
-
    */
-    auto find_isoform = [&gene2count, &gene2firstexons, &exon_tree, &rand_gen ] (const gene &g, int limit){
+    auto find_isoform = [&gene2count, &gene2firstexons, &exon_tree] (const gene &g) -> vector<exon>{
         vector<exon> isoform;
 //        bool is_forward = g.plus_strand;
         const tree<exon, int> *current = nullptr;
@@ -1712,7 +1631,6 @@ map<string, vector<isoform>> generate_fusion_isoforms(
         std::uniform_int_distribution<> dist(0, count);
         int sum = 0;
         int rand_val = dist(rand_gen);
-        std::cerr << gene2firstexons[g].size() << "\n";
         for(const exon &e : gene2firstexons[g]){
             const auto &p = exon_tree.children.at(e);
             int count = p.first;
@@ -1722,23 +1640,7 @@ map<string, vector<isoform>> generate_fusion_isoforms(
                 break;
             }
         }
-        /*
-        if(!is_forward){
-            int sum = 0;
-            while(current->data.start < limit){
-                for(const auto &pc : current->children){
-                    int cc = pc.second.first;
-                    sum+=cc;
-                    if( sum > rand_val){
-                        current = &pc.second.second;
-                        break;
-                    }   //Decide
-                }
-            }
-        }
-        */
-//        while(  ((is_forward && (current->data.end < limit)) ||
-//                (!is_forward && (current->data.start > limit))) &&
+
         while((current->children.size() > 0 ))
         {
             std::uniform_int_distribution<> dist(0, current->parent->value(current->data));
@@ -1755,70 +1657,63 @@ map<string, vector<isoform>> generate_fusion_isoforms(
                     flag = true;
                     break;
                 }   //Decide
-            }/*
-            if( !flag){
-                std::cerr << "\n******\n";
-                std::cerr << sum << "\t" << rand_val << "\t" << current->parent->value(current->data) << "\n";
-                
-                for(const auto &pc : current->children){
-                    std::cerr << pc.second.first << "\t" << pc.first  << "\n";
-                }
-                std::cerr << current->data << "\n";
-                std::cerr << *current->data.gene_ref << "\n";
-                std::cerr << "\n******\n";
-                exit(-1);
-
-            }*/
- //           }
+            }
         }
         isoform.push_back(current->data);
-/*
-        //Breakpoint is on  an exon
-        if( (is_forward && (current->data.start < limit)) ||
-            (!is_forward && (current->data.end > limit))){
-            exon half{current->data};
-            half.end = limit;
-            half.exon_id+= "-";
-            half.exon_id+= std::to_string(limit - half.start);
-            isoform.push_back(half);
-        }
-*/
+
         return isoform;
     };
-    auto bpiter = fusion_breakpoints.begin();
-    auto exiter = fusion_expression.begin();
+
+    auto expiter = fusion_expression.begin();
     for( auto fusion : fusions){
         const gene &g1 = fusion.first;
         const gene &g2 = fusion.second;
+        std::uniform_int_distribution<> dist(0, 1);
+        int direction = dist(rand_gen); // Coin flip 
+        for(int i =0; i < *expiter; ++i){
+            auto iso1 = find_isoform(g1);
+            auto iso2 = find_isoform(g2);
 
-
-
-        auto iso1 = find_isoform(g1, bpiter->first);
-        auto iso2 = find_isoform(g2, bpiter->second);
-        auto fusiso = fuse_isoforms(iso1, iso2);
-//        iso1.reserve(iso1.size()+iso2.size());
-//        iso1.insert(iso1.end(),iso2.begin(),iso2.end());
-        isoforms[g1.gene_id + "_" + g2.gene_id].push_back(isoform{fusiso});
-        
-        ++bpiter;
-        ++exiter;
+            if( g1.plus_strand && g2.plus_strand) { // ++ deletion
+                auto fusiso = fuse_isoforms(iso1, iso2, std::make_pair(gene2bp[g1],gene2bp[g2]));
+                isoforms[g1.gene_id + "_" + g2.gene_id].push_back(isoform{fusiso});
+            }
+            else if( (!g1.plus_strand) && (!g2.plus_strand)){ // -- deletion
+                auto fusiso = fuse_isoforms(iso2, iso1, std::make_pair(gene2bp[g2],gene2bp[g1]));
+                isoforms[g2.gene_id + "_" + g1.gene_id].push_back(isoform{fusiso});
+            }
+            else if( (g1.plus_strand) && (!g2.plus_strand)){ // +- inversion
+                if(direction){
+                    auto fusiso = fuse_isoforms(iso1, iso2, std::make_pair(gene2bp[g1],gene2bp[g2]));
+                    isoforms[g1.gene_id + "_" + g2.gene_id].push_back(isoform{fusiso});
+                }
+                else{
+                    auto fusiso = fuse_isoforms(iso2, iso1, std::make_pair(gene2bp[g2],gene2bp[g1]));
+                    isoforms[g2.gene_id + "_" + g1.gene_id].push_back(isoform{fusiso});
+                }
+            }
+            else if( (!g1.plus_strand) && (g2.plus_strand)){ // -+ inversion
+                if(direction){
+                    auto fusiso = fuse_isoforms(iso2, iso1, std::make_pair(gene2bp[g2],gene2bp[g1]));
+                    isoforms[g2.gene_id + "_" + g1.gene_id].push_back(isoform{fusiso});
+                }
+                else{
+                    auto fusiso = fuse_isoforms(iso1, iso2, std::make_pair(gene2bp[g1],gene2bp[g2]));
+                    isoforms[g1.gene_id + "_" + g2.gene_id].push_back(isoform{fusiso});
+                }
+            }
+        }
+        ++expiter;
     }
 
     return isoforms;
 }
 
-
-
-void generate_and_print_fusion_fasta(
+void generate_and_print_fasta(
         const map<string, vector<isoform>> &isoforms,
         const map<string,string> &sequences,
-        const string &out_cdna_path,
-        int seed = 42){
+        std::ofstream &ost){
 
-    std::mt19937 rand_gen{std::random_device{}()};
-    rand_gen.seed(seed);
-
-    std::ofstream ost(out_cdna_path);
     for( const auto &pair : isoforms){
         string base = pair.first;
         int cnt=0;
@@ -1833,11 +1728,13 @@ void generate_and_print_fusion_fasta(
                     cerr << e << "!\n";
                     throw std::runtime_error("Exon is outside of the chr");
                 }
-                string seq = sequences.at(e.chr).substr( e.start, e.end - e.start);
+                string seq = sequences.at(e.chr).substr( e.start, e.end - e.start); // Maybe string view in the future?
                 if(! e.plus_strand){
                     reverse_complement::complement_inplace(seq);
                 }
-
+#ifdef DEBUG
+                ost << e << "\t";
+#endif
                 ost << seq << "\n";
             }
             ++cnt;
@@ -1857,7 +1754,6 @@ constexpr int roundup32(K x){
     ++x;
     return x;
 }
-
 
 map<string, string> read_fasta_fast( const string &fasta_path){
     string fai_path = fasta_path + ".fai";
@@ -1884,7 +1780,6 @@ map<string, string> read_fasta_fast( const string &fasta_path){
         if( buf[0] == '>'){ //new contig
             std::istringstream str(buf.c_str()+1);
             str >> contig;
-
         }
         else{
             contig2seq[contig] += buf;   
@@ -1893,21 +1788,126 @@ map<string, string> read_fasta_fast( const string &fasta_path){
     return contig2seq;
 }
 
+/*
+ *  Read bedlike file from path and simulate fusions
+ */
+vector<isoform> simulate_given_fusions( const string &path,
+                                        const tree<exon, int> &exon_tree){
+    
+    vector<isoform> fusion_isoforms;
+
+    std::ifstream file(path, std::ios::in);
+
+    string str;
+    map<gene, int> gene2count;
+    map<gene,vector<exon>> gene2firstexons;
+    
+    map<string, gene> name2gene;
+
+    for( const auto &pair : exon_tree.children){
+        const exon &e = pair.first;
+        gene2count[*e.gene_ref]+=  (exon_tree.value(e));
+        gene2firstexons[*e.gene_ref].push_back(e);
+        
+        if(e.gene_ref != nullptr){
+            string id = e.gene_ref->gene_id;
+            string name = e.gene_ref->gene_name;
+
+            //Adding both symbol and id of the gene to a table
+            if( name2gene.find(id) == name2gene.end()){
+                name2gene[id] = *e.gene_ref;
+            }
+            if( name2gene.find(name) == name2gene.end()){
+                name2gene[name] = *e.gene_ref;
+            }
+        }
+    }
+
+    auto find_isoform = [&gene2count, &gene2firstexons, &exon_tree] (const gene &g) -> vector<exon>{
+        vector<exon> isoform;
+//        bool is_forward = g.plus_strand;
+        const tree<exon, int> *current = nullptr;
+        int count = gene2count.at(g);
+        std::uniform_int_distribution<> dist(0, count);
+        int sum = 0;
+        int rand_val = dist(rand_gen);
+        for(const exon &e : gene2firstexons[g]){
+            const auto &p = exon_tree.children.at(e);
+            int count = p.first;
+            current = &p.second;
+            sum += count;
+            if(sum > rand_val){
+                break;
+            }
+        }
+
+        while((current->children.size() > 0 ))
+        {
+            std::uniform_int_distribution<> dist(0, current->parent->value(current->data));
+            int rand_val = dist(rand_gen);
+            bool flag = false;
+
+            int sum = 0;
+            for(const auto &pc : current->children){
+                int cc = pc.second.first;
+                sum+=cc;
+                if(sum >= rand_val){
+                    isoform.push_back(current->data);
+                    current = &pc.second.second;
+                    flag = true;
+                    break;
+                }   //Decide
+            }
+        }
+        isoform.push_back(current->data);
+
+        return isoform;
+    };
+
+    while(std::getline(file, str)){
+        //chr   start   chr2 end    gene1   gene2   count   comment
+        //Transcription starts from the first locus
+        vector<string> fields { rsplit(str, "\t")};
+        string chr1 {fields[0]};
+        string chr2 {fields[2]};
+
+        int start  {stoi(fields[1])};
+        int end    {stoi(fields[3])};
+
+        string gs1  {fields[4]};
+        string gs2  {fields[5]};
+        
+        int count {stoi(fields[6])};
+        string comment {fields[7]};
+        
+        gene g1 = name2gene.at(gs1);
+        gene g2 = name2gene.at(gs2);
+
+        for( int i = 0; i < count; ++i){
+            auto iso1 = find_isoform(g1);
+            auto iso2 = find_isoform(g2);
+
+            auto fusion = fuse_isoforms(iso1, iso2, std::make_pair(start,end));
+            
+            fusion_isoforms.push_back(fusion);
+        }
+    }
+    return fusion_isoforms;
+}
+
 int main(int argc, char **argv){
-
-
     //parameters will be moved to argument parser when done
     string path_to_aligs {argv[1]};
     string path_to_gtf   {argv[2]};
     string path_to_cdna  {argv[3]};
     string path_to_dna   {argv[4]};
     string out_cdna_path {argv[5]};
-    
+    int seed = 42;
+
+    rand_gen.seed(seed);
     int min_dist = 1000;
     int max_dist = 500000;
     
-    //
-
     gzFile gzf = gzopen(path_to_cdna.c_str(), "r");
     kekseq::kseq<gzFile,gzread> fr(gzf); 
 
@@ -1923,47 +1923,57 @@ int main(int argc, char **argv){
     }
     gzclose(gzf);
 
-
-
-/*
-    map<string, string> chr2sequence;
-    do{
-        int r;
-        gzFile gzf = gzopen(path_to_dna.c_str(), "r");
-        kekseq::kseq<gzFile,gzread,3000000> fr(gzf);//load wholegenome 
-        while((r = fr.read()) >= 0){
-            chr2sequence[fr.name.s] = string{fr.seq.s};
-        }
-        gzclose(gzf);
-
-    }while(0);
-*/
-
     map<string, string> chr2contig = read_fasta_fast(path_to_dna);
-
-
-
 
     std::cerr << "Reading FASTqQ!\n";
     vector<mapping> reads = convert_aligs_to_segments(path_to_aligs);   
     std::cerr << "Reading GTF!\n";
     auto [gtf_exons, gene_ptrs] = read_gtf_exons(path_to_gtf);
 
-
     std::cerr << "Flattening GTF!\n";
     auto [merged_exons, merge_index] = flatten_gtf(gtf_exons,0.75); // vector<exon>, map<string, string>
 
-
     std::cerr << "Making GTF interval tree!\n" << " exons: " << merged_exons.size() << "\n";
-
-    //map<string, IITree<int, size_t>> exon_tree = make_exon_tree(merged_exons);
     map<string, IITree<int, size_t>> exon_tree = make_exon_tree(gtf_exons);
-
 
     std::cerr << "Counting reads on tree\n";
     tree<exon, int> ec = count_reads_on_tree(gtf_exons, exon_tree, reads, min_dist,  max_dist);
     std::cerr << "Done.\n";
     
+    map<gene, vector<exon>> gene2firstexons; //reverse_index
+    map<gene, int>          gene2count;
+    for( const auto &pair : ec.children){
+        const exon &e = pair.first;
+        gene2count[*e.gene_ref]+=  (ec.value(e));
+        gene2firstexons[*e.gene_ref].push_back(e);
+    }
+
+    std::cerr << "Building graphs\n";
+    graph<gene, double> gene_graph = build_gene_graph(path_to_gtf, gene2count); // I should replace this
+
+    std::cerr << "Generating fusions\n";
+    vector< std::pair<gene,gene>> fusions = generate_random_fusions(gene_graph,200, 10);
+    vector<std::pair<int,int>> fusion_breakpoints = generate_fusion_breakpoints( fusions, bpstrategy::uniform);
+
+    map<gene,int> transcript_expression = generate_transcript_expression(  ec);//Convert this to transcript 
+    vector<int> fusion_expression = generate_fusion_expression( fusions, ec);
+
+    map<string, vector<isoform>> normal_isoforms = generate_normal_isoforms(ec);
+
+    std::cerr << "Simulating fusionsa\n";
+    map<string, vector<isoform>> fusion_isoforms = generate_fusion_isoforms(fusions, fusion_breakpoints, fusion_expression, ec);
+    std::cerr << "Printing Fasta\n";
+
+    std::ofstream output_cdna_stream(out_cdna_path);
+    generate_and_print_fasta(normal_isoforms, chr2contig, output_cdna_stream);
+    generate_and_print_fasta(fusion_isoforms, chr2contig, output_cdna_stream);
+
+    std::cerr << "Cleaning Up\n";
+    //Cleanup
+    for( auto &pp : gene_ptrs){
+        delete pp;
+    }
+    return 0;
 /*
     cerr << "Printing tree\n";
     ec.df_execute([](int depth, exon data, int arcval){
@@ -1974,57 +1984,4 @@ int main(int argc, char **argv){
     });
     return 0;
 */
-
-    map<gene, vector<exon>> gene2firstexons; //reverse_index
-    map<gene, int>          gene2count;
-    for( const auto &pair : ec.children){
-        const exon &e = pair.first;
-//        int count = pair.second.first;
-//        const tree<exon, int> &child = pair.second.second;
-        gene2count[*e.gene_ref]+=  (ec.value(e));
-        gene2firstexons[*e.gene_ref].push_back(e);
-    }
-    cerr << "Building graphs\n";
-    graph<gene, double> gene_graph = build_gene_graph(path_to_gtf, gene2count); // I should replace this
-    
-    cerr << "Building graphs\n";
-    vector< std::pair<gene,gene>> fusions = generate_random_fusions(gene_graph,200, 10);
-        
-
-    cerr << "Generating breakpoints\n";
-    vector<std::pair<int,int>> fusion_breakpoints = generate_fusion_breakpoints( fusions, bpstrategy::uniform);
-
-    map<gene,int> transcript_expression = generate_transcript_expression(  ec);//Convert this to transcript 
-    vector<int> fusion_expression = generate_fusion_expression( fusions, ec);
-
-
-//    cerr << "Printing Fasta\n";
-//    print_normal_transcript_fasta(ec, out_cdna_path, transcript2sequence, transcript_expression);
-    
-    cerr << "Simulating fusionsa\n";
-    map<string, vector<isoform>> fusion_isoforms = generate_fusion_isoforms(fusions, fusion_breakpoints, fusion_expression, ec);
-    cerr << "Printing Fasta\n";
-    generate_and_print_fusion_fasta(fusion_isoforms, chr2contig, out_cdna_path);
-
-    cerr << "Cleaning Up\n";
-    //Cleanup
-    for( auto &pp : gene_ptrs){
-        delete pp;
-    }
-    return 0;
-/** tree exec example   
-    ec.df_execute2([](int depth, tree<exon, int> *nod){
-        if( nod->parent != nullptr && nod->parent->data != exon{} &&  nod->parent->data.gene_ref != nod->data.gene_ref){
-            print_tsv(nod->parent->data, " -- ", nod->parent->value(nod->data), " --> ", nod->data);
-        }
-    });
-    return 0;
-    ec.df_execute([](int depth, exon data, int arcval){
-        for(int i=0;i<depth;++i){
-            cout << "\t";
-        }
-        cout << data << "\t"  << arcval <<"\n";
-    });
-**/
-    return 0;
 }
