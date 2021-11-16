@@ -6,7 +6,10 @@
  *      Breakpoint on exons case
  */
 
+//Precompiled headers
+#include "libs.h"
 
+//Included again for clarity, include guard should take care of this
 #include <filesystem>
 #include <iostream>
 #include <ostream>
@@ -29,12 +32,17 @@
 #include <cassert>
 #include <climits>
 
-#include "IITree.h"
+
+
+
 #include <zlib.h>
+#include "IITree.h"
 #include "kekseq.h"
-#include "reverse_complement.h"
 #include "cigar.h"
 #include "interval.h"
+#include "graph.h"
+#include "tree.h"
+#include "reverse_complement.h"
 
 #ifdef DEBUG
     using std::cerr;
@@ -75,158 +83,6 @@ vector<string> rsplit(string str, string delim){
 
 
 
-template <class N, class A>
-class tree{
-
-    public:
-    map<N,std::pair<A,tree<N,A>>> children;
-    tree<N,A> *parent;
-    N data;
-
-
-    tree() : parent(nullptr), data(N{}){}
-    tree(const N &data) :parent(nullptr), data(data){}
-    void add_child( const N &n, const A &a){
-        children.emplace(n, std::make_pair(a,tree<N,A>{n}));
-        children.at(n).second.parent = this;
-    }
-
-    tree<N,A> &operator[](const N &n){
-        return children.at(n).second;
-    }
-
-    tree<N,A> &try_get(const N &n, const A &a){
-        if(children.find(n) == children.end()){
-            add_child(n,a);
-        }
-        return children.at(n).second;
-    }
-    A& value(const N &n) {
-        return children.at(n).first;
-    }
-    A value(const N &n) const {
-        return children.at(n).first;
-    }
-
-
-    template< class Func>
-    void df_execute2(int depth, Func foo) const{
-        foo(depth, this);
-        for( auto &p : children){
-            p.second.second.df_execute2(depth+1,foo);
-        }
-    }
-
-    template< class Func>
-    void df_execute2(Func foo)const {
-        foo(0,this);
-        for( auto &p : children){
-            p.second.second.df_execute2(1,foo);
-        }
-    }
-    template< class Func>
-    void df_execute(int depth, A& arc_val, Func foo){
-        foo(depth,data, arc_val);
-        for( auto &p : children){
-            p.second.second.df_execute(depth+1,p.second.first,foo);
-        }
-    }
-    template< class Func>
-    void df_execute(Func foo){
-        foo(0,data,A{});
-        for( auto &p : children){
-            p.second.second.df_execute(1,p.second.first,foo);
-        }
-    }
-};
-
-template <class N, class A>
-class graph{
-    public:
-    vector<std::pair<N,A>> nodes;
-    vector< map<size_t, A> > arcs;
-    map< N, size_t> reverse_index;
-
-    graph(){}
-
-    void add( N node){
-        reverse_index[node] = nodes.size();
-        nodes.push_back(std::make_pair(node,A{}));
-        arcs.emplace_back();
-    }
-
-    A &arc(size_t i, size_t j){
-        assert(i < nodes.size());
-        assert(j < nodes.size());
-        return arcs[i][j];
-    }
-    A &arc(const N &a, const N &b){
-        size_t i = reverse_index[a];
-        size_t j = reverse_index[b];
-        return arc(i,j);
-    }
-    auto begin(){
-        return nodes.begin();
-    }
-    auto end(){
-        return nodes.end();
-    }
-    class neighbour{
-        graph &owner;
-        size_t target;
-        public:
-        neighbour(graph &owner, size_t target) : owner(owner), target(target) {}
-        class nei_iter{
-            graph &owner;
-            size_t target;
-            decltype(owner.arcs[0].begin()) index;
-            public:
-
-            nei_iter(graph &owner, size_t target) : owner(owner), target(target), index(owner.arcs[target].begin()) {}
-            nei_iter(graph &owner, size_t target, decltype(owner.arcs[0].begin()) index) : owner(owner), target(target), index(index) {}
-            auto &operator *(){
-                return owner.nodes[index->first].first;
-            }
-            nei_iter &operator++(){
-                ++index;
-                return *this;
-            }
-            nei_iter operator++(int){
-                nei_iter tmp = *this;
-                ++(*this);
-                return tmp;
-            }
-            friend bool operator== (const nei_iter& a, const nei_iter& b) { return a.target == b.target && a.index == b.index; };
-            friend bool operator!= (const nei_iter& a, const nei_iter& b) { return !(a==b); };
-        };
-        nei_iter begin(){
-            return nei_iter(owner,target);
-        }
-
-        nei_iter end(){
-            return nei_iter(owner,target,owner.arcs[target].end());
-        }
-    };
-    neighbour neighbours(size_t index){
-        assert(index < nodes.size());
-        assert(index >= 0);
-        return neighbour(*this, index);
-    }
-    neighbour neighbours(const N &key){
-        size_t index = reverse_index[key];
-        return neighbour(*this, index);
-    }
-
-    bool in( const N &key){
-        return reverse_index.find(key) != reverse_index.end();
-    }
-    A& value(const N &key){
-        size_t index = reverse_index[key];
-        assert(in(key));
-
-        return nodes[index].second;
-    }
-};
 
 
 string strip_str(const std::string &inpt, const string &chrs)
