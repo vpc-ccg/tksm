@@ -1,0 +1,4 @@
+-stdlib=libc++
+-std=c++20
+-xc++
+-Wall
