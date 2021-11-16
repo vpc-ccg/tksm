@@ -33,6 +33,7 @@
 #include <zlib.h>
 #include "kekseq.h"
 #include "reverse_complement.h"
+#include "cigar.h"
 
 #ifdef DEBUG
     using std::cerr;
@@ -72,57 +73,6 @@ vector<string> rsplit(string str, string delim){
 }
 
 
-enum class cigar_character_type{
-    matched, onquery, ontemplate, hardclip, softclip, notcigar,
-};
-
-#define CIGAR_CHARACTERS "DHIMNPSX="
-cigar_character_type what_is_this_cigar(char c){
-    switch(c){
-        case 'M':
-        case '=':
-        case 'X':
-            return cigar_character_type::matched;
-        case 'D':
-        case 'N':
-            return cigar_character_type::ontemplate;
-        case 'I':
-        case 'P':
-            return cigar_character_type::onquery;
-        case 'H':
-            return cigar_character_type::hardclip;
-        case 'S':
-            return cigar_character_type::softclip;
-        default:
-            return cigar_character_type::notcigar;
-    }
-}
-
-class cigar{
-    std::vector<std::pair<int,char>> cigarray;
-    public:
-    cigar(const string &cgr){
-        size_t prev = -1;
-        size_t index = cgr.find_first_of(CIGAR_CHARACTERS);
-        while(index != string::npos){
-            int len = std::stoi(cgr.substr(1+prev,index));
-            cigarray.push_back(std::make_pair(len,cgr[index]));
-            prev = index;
-            index = cgr.find_first_of(CIGAR_CHARACTERS,index + 1);
-        }
-    }
-    decltype(cigar::cigarray.begin()) begin(){
-        return cigarray.begin();
-    }
-
-    decltype(cigar::cigarray.end()) end(){
-        return cigarray.end();
-    }
-
-    auto operator [](size_t index) const{
-        return cigarray[index];
-    }
-};
 
 
 class interval{
@@ -358,9 +308,9 @@ struct mapping{
         for( auto pair : cig){
             int length = pair.first;
             char c = pair.second;
-            cigar_character_type type = what_is_this_cigar(c);
+            cigar::type type = cigar::what_is_this(c);
 
-            if( type == cigar_character_type::matched){
+            if( type == cigar::type::matched){
                 et = st + length;
 
                 if(complemented){
@@ -375,10 +325,10 @@ struct mapping{
                 sq = eq;
                 st = et;
             }
-            else if( type == cigar_character_type::ontemplate){
+            else if( type == cigar::type::ontemplate){
                 st = st + length;
             }
-            else if( type == cigar_character_type::onquery){
+            else if( type == cigar::type::onquery){
                 if(complemented){
                     sq = sq - length;
                 }   
