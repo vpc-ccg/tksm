@@ -323,7 +323,7 @@ auto read_gtf_exons( string path_to_gtf, bool coding_only = true){
     return make_pair(annots,gptrs);
 }
 
-map<string, IITree<int, size_t>> make_exon_tree( const vector<exon> &annots){
+map<string, IITree<int, size_t>> make_exon_interval_tree( const vector<exon> &annots){
 
     map<string,IITree<int, size_t>> itree;
     size_t index = 0;
@@ -752,39 +752,7 @@ auto flatten_gtf( vector<exon> &exons, double min_overlap = 0.90){
     return make_pair(processed, mergeindex);
 }
 
-int qmain(){
-    tree<int, double> tre(0);
 
-
-    tre.add_child(1,0.5);
-    tre.add_child(2,0.5);
-    tree<int,double> &t2 = tre[2];
-    t2.add_child(3,1);
-    auto &t3 = tre[1];
-
-    t3.add_child(4,0.3);
-    t3.add_child(5,0.7);
-
-
-    vector<int> vals;
-    auto lt3 = [&vals] (int d, int val, double e) -> void{
-        if(e >0.6){
-            vals.push_back(val);
-        }
-    };
-    tre.df_execute(lt3);
-    for(int i: vals){
-        cout << i << "\t";
-    }
-    cout << "\n";
-    tre.df_execute( [](int d, int val, double e) ->void {
-        for(int i=0;i<d;++i){
-            cout << "\t";
-        }
-        cout << val << "\n";
-    });
-    return 0;
-}
 
 template <size_t L>
 class awful_fasta{
@@ -842,7 +810,7 @@ map<gene, int> generate_transcript_expression( const tree<exon, int> &exon_tree)
 
     map<gene,int> expressions;
     for( auto p: exon_tree.children){
-        expressions[*p.first.gene_ref]+= p.second.first;
+        expressions[*p.first.gene_ref]+= p.second.data;
     }
     return expressions;
 
@@ -854,19 +822,6 @@ vector<int>  generate_fusion_expression( const vector<std::pair<gene,gene>> &fus
         expressions.push_back(10);
     }
     return expressions;
-}
-
-void  print_normal_transcript_fasta(const tree<exon, int> &exon_tree,
-        const string &out_cdna_path,
-        const map<string, string> &transcript2sequence,
-        const map<gene, int> &transcriptexpression){
-
-    std::ofstream ost(out_cdna_path, std::ios_base::out);
-
-    for(auto [id, seq] : transcript2sequence){
-        ost << ">" << id <<  " depth=0"  << "\n";//Add depth
-        ost << seq << "\n";
-    }
 }
 
 vector<exon> fuse_isoforms(const vector<exon> &g1, const vector<exon> &g2, std::pair<int,int> bps){
@@ -930,8 +885,8 @@ map<string, vector<isoform>> generate_normal_isoforms(const tree<exon, int> &exo
 
         for(const exon &e : gene2firstexons[g]){
             const auto &p = exon_tree.children.at(e);
-            int count = p.first;
-            current = &p.second;
+            int count = p.data;
+            current = &p;
             sum += count;
             if(sum > rand_val){
                 break;
@@ -939,23 +894,23 @@ map<string, vector<isoform>> generate_normal_isoforms(const tree<exon, int> &exo
         }
 
         while((current->children.size() > 0 )){
-            std::uniform_int_distribution<> dist(0, current->parent->value(current->data));
+            std::uniform_int_distribution<> dist(0, current->data);
             int rand_val = dist(rand_gen);
             bool flag = false;
 
             int sum = 0;
             for(const auto &pc : current->children){
-                int cc = pc.second.first;
+                int cc = pc.second.data;
                 sum+=cc;
                 if(sum >= rand_val){
-                    isoform.push_back(current->data);
-                    current = &pc.second.second;
+                    isoform.push_back(current->identity);
+                    current = &pc.second;
                     flag = true;
                     break;
                 }   //Decide
             }
         }
-        isoform.push_back(current->data);
+        isoform.push_back(current->identity);
 
         return isoform;
     };
@@ -990,11 +945,11 @@ map<string, vector<isoform>> generate_fusion_isoforms(
         int start = INT_MAX;
         int end = 0;
         auto finder = [&start, &end] (int depth, const tree<exon, int> *current) mutable -> void {
-            if(current->data.start < start){
-                start = current->data.start;
+            if(current->identity.start < start){
+                start = current->identity.start;
             }
-            if(current->data.end > end){
-                end = current->data.end;
+            if(current->identity.end > end){
+                end = current->identity.end;
             }
         };
         t.df_execute2(finder);
@@ -1005,7 +960,7 @@ map<string, vector<isoform>> generate_fusion_isoforms(
         const exon &e = pair.first;
         gene2count[*e.gene_ref]+=  (exon_tree.value(e));
         gene2firstexons[*e.gene_ref].push_back(e);
-        gene2largestrange[*e.gene_ref] = find_largest_range(pair.second.second);
+        gene2largestrange[*e.gene_ref] = find_largest_range(pair.second);
     }
     auto find_breakpoint = [] (const std::pair<int,int> &range) -> int{
         int start = range.first;
@@ -1039,8 +994,8 @@ map<string, vector<isoform>> generate_fusion_isoforms(
         int rand_val = dist(rand_gen);
         for(const exon &e : gene2firstexons[g]){
             const auto &p = exon_tree.children.at(e);
-            int count = p.first;
-            current = &p.second;
+            int count = p.data;
+            current = &p;
             sum += count;
             if(sum > rand_val){
                 break;
@@ -1049,23 +1004,23 @@ map<string, vector<isoform>> generate_fusion_isoforms(
 
         while((current->children.size() > 0 ))
         {
-            std::uniform_int_distribution<> dist(0, current->parent->value(current->data));
+            std::uniform_int_distribution<> dist(0, current->data);
             int rand_val = dist(rand_gen);
             bool flag = false;
 
             int sum = 0;
             for(const auto &pc : current->children){
-                int cc = pc.second.first;
+                int cc = pc.second.data;
                 sum+=cc;
                 if(sum >= rand_val){
-                    isoform.push_back(current->data);
-                    current = &pc.second.second;
+                    isoform.push_back(current->identity);
+                    current = &pc.second;
                     flag = true;
                     break;
                 }   //Decide
             }
         }
-        isoform.push_back(current->data);
+        isoform.push_back(current->identity);
 
         return isoform;
     };
@@ -1206,8 +1161,8 @@ vector<isoform> simulate_given_fusions( const string &path,
         int rand_val = dist(rand_gen);
         for(const exon &e : gene2firstexons[g]){
             const auto &p = exon_tree.children.at(e);
-            int count = p.first;
-            current = &p.second;
+            int count = p.data;
+            current = &p;
             sum += count;
             if(sum > rand_val){
                 break;
@@ -1216,23 +1171,23 @@ vector<isoform> simulate_given_fusions( const string &path,
 
         while((current->children.size() > 0 ))
         {
-            std::uniform_int_distribution<> dist(0, current->parent->value(current->data));
+            std::uniform_int_distribution<> dist(0, current->data);
             int rand_val = dist(rand_gen);
             bool flag = false;
 
             int sum = 0;
             for(const auto &pc : current->children){
-                int cc = pc.second.first;
+                int cc = pc.second.data;
                 sum+=cc;
                 if(sum >= rand_val){
-                    isoform.push_back(current->data);
-                    current = &pc.second.second;
+                    isoform.push_back(current->identity);
+                    current = &pc.second;
                     flag = true;
                     break;
                 }   //Decide
             }
         }
-        isoform.push_back(current->data);
+        isoform.push_back(current->identity);
 
         return isoform;
     };
@@ -1366,9 +1321,9 @@ void generate_and_print_fasta_with_pcr(
                     ost << ">" << base << "_" << cnt << " ";
                     mut_tree *current = mt->parent;
                     ost << "lineage:";
-                    ost << mt->data;
+                    ost << mt->identity;
                     while( current != nullptr){ //Print pcr Lineage
-                        ost << "_" << current->data;
+                        ost << "_" << current->identity;
                         current = current->parent;
                     }
                     ost << "\n";
@@ -1384,24 +1339,18 @@ void generate_and_print_fasta_with_pcr(
                         }
                         string seq = sequences.at(e.chr).substr( e.start, e.end - e.start); // Maybe string view in the future?
                         
-                        current = mt->parent;
-                        const mut_tree *prev = mt;
-                        auto apply_mutation = [&] ( const mut_tree *mt, string &seq){
-                            if(mt->parent != null_ptr){
+                        std::function<void(const mut_tree *, string&)> apply_mutation = [&] ( const mut_tree *mt, string &seq) -> void{
+                            if(mt->parent != nullptr){
                                 apply_mutation(mt->parent, seq);
                             }
-                            mt->data
-                        };
-                        while(current != nullptr){
-                            const vector<std::pair<int,char>> &mutations = current->children.at(prev->data).first;
-                            for(const auto &pr : mutations){    //TODO: This can be written in a more efficient way. If you decide to do so, dont forget sorting the mutations
+                            for(const auto &pr: mt->data){
                                 if(pr.first > seq_index && pr.first < seq_index + seq.size()){
                                     seq[ pr.first - seq_index] = pr.second;
                                 }
                             }
-                            prev = current;
-                            current = current->parent;
-                        }
+                        };
+
+                        apply_mutation(mt, seq);
                         if(! e.plus_strand){
                             reverse_complement::complement_inplace(seq);
                         }
@@ -1460,10 +1409,10 @@ int main(int argc, char **argv){
     auto [merged_exons, merge_index] = flatten_gtf(gtf_exons,0.75); // vector<exon>, map<string, string>
 
     std::cerr << "Making GTF interval tree!\n" << " exons: " << merged_exons.size() << "\n";
-    map<string, IITree<int, size_t>> exon_tree = make_exon_tree(gtf_exons);
+    map<string, IITree<int, size_t>> exon_interval_tree = make_exon_interval_tree(gtf_exons);
 
     std::cerr << "Counting reads on tree\n";
-    tree<exon, int> ec = count_reads_on_tree(gtf_exons, exon_tree, reads, min_dist,  max_dist);
+    tree<exon, int> ec = count_reads_on_tree(gtf_exons, exon_interval_tree, reads, min_dist,  max_dist);
     std::cerr << "Done.\n";
     
     map<gene, vector<exon>> gene2firstexons; //reverse_index
