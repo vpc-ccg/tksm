@@ -32,9 +32,6 @@
 #include <cassert>
 #include <climits>
 
-
-
-
 #include <zlib.h>
 #include "IITree.h"
 #include "kekseq.h"
@@ -43,6 +40,13 @@
 #include "graph.h"
 #include "tree.h"
 #include "reverse_complement.h"
+
+using std::string;
+using std::vector;
+using std::cout;
+using std::map;
+using std::ostream;
+using std::set;
 
 #ifdef DEBUG
     using std::cerr;
@@ -58,16 +62,8 @@ class mockstream{
 mockstream cerr;
 #endif
 
-using std::string;
-using std::vector;
-using std::cout;
-using std::map;
-using std::ostream;
-using std::set;
-
+//Random number generator, seed is set in the main function
 std::mt19937 rand_gen{std::random_device{}()};
-
-
 
 vector<string> rsplit(string str, string delim){
     std::vector<std::string> splits;
@@ -80,10 +76,6 @@ vector<string> rsplit(string str, string delim){
     splits.push_back(str.substr(p1));
     return splits;
 }
-
-
-
-
 
 string strip_str(const std::string &inpt, const string &chrs)
 {
@@ -103,7 +95,6 @@ void strip_for_each(vector<string> &vec, const string &chrs = " "){
 }
 
 graph<gene, double> build_gene_graph( string path_to_gtf, const  map<gene, int> &gene2count,bool coding_only = true){
-
 
     graph<gene, double> gene_graph;
 
@@ -1124,39 +1115,6 @@ map<string, vector<isoform>> generate_fusion_isoforms(
     return isoforms;
 }
 
-void generate_and_print_fasta(
-        const map<string, vector<isoform>> &isoforms,
-        const map<string,string> &sequences,
-        std::ofstream &ost){
-
-    for( const auto &pair : isoforms){
-        string base = pair.first;
-        int cnt=0;
-        for( const isoform &i : pair.second){
-            ost << ">" << base << "_" << cnt << "\n";
-            for(const exon &e : i.segments){
-                if( sequences.find(e.chr) == sequences.end()){
-                    cerr << e << "!\n";
-                    throw std::runtime_error("Chr not in fasta");
-                }
-                if( e.end > sequences.at(e.chr).size()){
-                    cerr << e << "!\n";
-                    throw std::runtime_error("Exon is outside of the chr");
-                }
-                string seq = sequences.at(e.chr).substr( e.start, e.end - e.start); // Maybe string view in the future?
-                if(! e.plus_strand){
-                    reverse_complement::complement_inplace(seq);
-                }
-#ifdef DEBUG
-                ost << e << "\t";
-#endif
-                ost << seq << "\n";
-            }
-            ++cnt;
-        }
-
-    }
-}
 
 template<typename K>
 constexpr int roundup32(K x){
@@ -1310,6 +1268,159 @@ vector<isoform> simulate_given_fusions( const string &path,
     return fusion_isoforms;
 }
 
+void generate_and_print_fasta(
+        const map<string, vector<isoform>> &isoforms,
+        const map<string,string> &sequences,
+        std::ofstream &ost){
+
+    for( const auto &pair : isoforms){
+        string base = pair.first;
+        int cnt=0;
+        for( const isoform &i : pair.second){
+            ost << ">" << base << "_" << cnt << "\n";
+            for(const exon &e : i.segments){
+                if( sequences.find(e.chr) == sequences.end()){
+                    cerr << e << "!\n";
+                    throw std::runtime_error("Chr not in fasta");
+                }
+                if( e.end > sequences.at(e.chr).size()){
+                    cerr << e << "!\n";
+                    throw std::runtime_error("Exon is outside of the chr");
+                }
+                string seq = sequences.at(e.chr).substr( e.start, e.end - e.start); // Maybe string view in the future?
+                if(! e.plus_strand){
+                    reverse_complement::complement_inplace(seq);
+                }
+#ifdef DEBUG
+                ost << e << "\t";
+#endif
+                ost << seq << "\n";
+            }
+            ++cnt;
+        }
+
+    }
+}
+
+void generate_and_print_fasta_with_pcr( 
+        const map<string, vector<isoform>> &isoforms,
+        const map<string, string> &sequences,
+        std::ofstream &ost,
+        int cycles,
+        double pcr_duplication_rate,
+        double error_rate,
+        bool add_umi,
+        int number_of_target_reads){
+
+    using mut_tree = tree<int, vector<std::pair< int, char >>>;
+
+//Calculate number of molecules to be produced with pcr
+    int64_t molecule_count = std::accumulate(isoforms.begin(), isoforms.end(), 0, [] ( int64_t sum, const std::pair<string, vector<isoform>> &pair) -> int64_t{
+            return sum + pair.second.size();
+            });
+
+//Calculate expected number of molecules after pcr
+    int64_t expected_number_after_pcr = std::pow((1 + pcr_duplication_rate), cycles) * molecule_count;
+
+    double drop_ratio = static_cast<double>(number_of_target_reads) / expected_number_after_pcr;
+    
+//Convert error_rate to random_error_rate where characters can mutate into same chars (A->A or T->T etc.)
+    error_rate = error_rate * 4.0 / 3.0; 
+
+
+
+    std::uniform_real_distribution<> z1dist(0,1);
+    std::uniform_int_distribution<> basedist(0,3);
+    char bases[] = {'A','C','T','G'};
+    for( const auto &pair : isoforms){
+        string base = pair.first;
+        int cnt=0;
+        for( const isoform &i : pair.second){
+            int molecule_size = 0;
+            for(const exon &e : i.segments){
+                molecule_size += (e.end - e.start);
+            }
+            mut_tree mutation_tree;
+            vector<int> positions(molecule_size);
+            std::iota(positions.begin(), positions.end(), 0);
+            int expected_mutation_count = error_rate * molecule_size; 
+            std::function<void(mut_tree &,int)> do_pcr = 
+                [&] ( mut_tree &mt, int current_cycle) -> void{
+                for(int i = current_cycle + 1; i <= cycles; ++i){
+                    if(z1dist(rand_gen) > pcr_duplication_rate){ // Molecule is not caught in this cycle of pcr
+                        std::shuffle(positions.begin(),positions.end(), rand_gen);
+                        vector<std::pair<int, char>> mutations;
+                        for(int j = 0; j < expected_mutation_count; ++j){ //TODO: We can make this a normal distribution    
+                            mutations.push_back(std::make_pair(positions[j], bases[basedist(rand_gen)]));
+                        }
+                        mt.add_child(i, mutations);
+
+                        do_pcr(mt[i], i);
+                    }
+                }
+            };
+            do_pcr(mutation_tree, 0);
+            
+            auto print_pcr_copies = [&] (int depth, const mut_tree *mt){
+                if( z1dist(rand_gen) < drop_ratio) { //Molecule is captured by sequencing
+                    ost << ">" << base << "_" << cnt << " ";
+                    mut_tree *current = mt->parent;
+                    ost << "lineage:";
+                    ost << mt->data;
+                    while( current != nullptr){ //Print pcr Lineage
+                        ost << "_" << current->data;
+                        current = current->parent;
+                    }
+                    ost << "\n";
+                    int seq_index = 0;
+                    for(const exon &e : i.segments){
+                        if( sequences.find(e.chr) == sequences.end()){
+                            cerr << e << "!\n";
+                            throw std::runtime_error("Chr not in fasta");
+                        }
+                        if( e.end > sequences.at(e.chr).size()){
+                            cerr << e << "!\n";
+                            throw std::runtime_error("Exon is outside of the chr");
+                        }
+                        string seq = sequences.at(e.chr).substr( e.start, e.end - e.start); // Maybe string view in the future?
+                        
+                        current = mt->parent;
+                        const mut_tree *prev = mt;
+                        auto apply_mutation = [&] ( const mut_tree *mt, string &seq){
+                            if(mt->parent != null_ptr){
+                                apply_mutation(mt->parent, seq);
+                            }
+                            mt->data
+                        };
+                        while(current != nullptr){
+                            const vector<std::pair<int,char>> &mutations = current->children.at(prev->data).first;
+                            for(const auto &pr : mutations){    //TODO: This can be written in a more efficient way. If you decide to do so, dont forget sorting the mutations
+                                if(pr.first > seq_index && pr.first < seq_index + seq.size()){
+                                    seq[ pr.first - seq_index] = pr.second;
+                                }
+                            }
+                            prev = current;
+                            current = current->parent;
+                        }
+                        if(! e.plus_strand){
+                            reverse_complement::complement_inplace(seq);
+                        }
+
+#ifdef DEBUG
+                        ost << e << "\t";
+#endif
+                        ost << seq << "\n";
+                        seq_index += seq.size();
+                    }
+                }
+            };
+            mutation_tree.df_execute2(print_pcr_copies);
+            ++cnt;
+        }
+
+    }
+}
+
 int main(int argc, char **argv){
     //parameters will be moved to argument parser when done
     string path_to_aligs {argv[1]};
@@ -1380,7 +1491,7 @@ int main(int argc, char **argv){
     std::cerr << "Printing Fasta\n";
 
     std::ofstream output_cdna_stream(out_cdna_path);
-    generate_and_print_fasta(normal_isoforms, chr2contig, output_cdna_stream);
+    generate_and_print_fasta_with_pcr(normal_isoforms, chr2contig, output_cdna_stream, 6, 0.5, 0.01, true, 100000);
     generate_and_print_fasta(fusion_isoforms, chr2contig, output_cdna_stream);
 
     std::cerr << "Cleaning Up\n";
