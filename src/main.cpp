@@ -931,7 +931,6 @@ map<string, vector<isoform>> generate_normal_isoforms(const tree<exon, int> &exo
 
 map<string, vector<isoform>> generate_fusion_isoforms(
         const vector<std::pair<gene, gene>> &fusions, 
-        const vector<std::pair<int,int>> &fusion_breakpoints, 
         const vector<int> &fusion_expression,
         const tree<exon, int> &exon_tree){
 
@@ -1257,6 +1256,30 @@ void generate_and_print_fasta(
     }
 }
 
+//pcr copy structure that tracks pcr errors introduced
+struct pcr_copy{
+    isoform iso;
+    vector< std::pair< int, char>> errors_so_far;
+
+    pcr_copy( const isoform &iso, auto errors_so_far) :iso(iso), errors_so_far(errors_so_far) {}
+    pcr_copy( const isoform &iso) :iso(iso) {}
+};
+
+//pcr molecule structure that can model paired molecules
+struct pcr_molecule{
+    vector<pcr_copy> paired;
+    pcr_molecule() {}
+
+    pcr_molecule(const pcr_molecule &other) : paired(other.paired) {}
+    pcr_molecule(const isoform &other) {
+        paired.emplace_back(other);
+    }
+    pcr_molecule(const pcr_molecule &first, const pcr_molecule &second) : paired(first.paired) {
+        paired.reserve(first.paired.size() + second.paired.size());
+        paired.insert(paired.end(), second.paired.begin(), second.paired.end());
+    }
+};
+
 void generate_and_print_fasta_with_pcr( 
         const map<string, vector<isoform>> &isoforms,
         const map<string, string> &sequences,
@@ -1265,7 +1288,10 @@ void generate_and_print_fasta_with_pcr(
         double pcr_duplication_rate,
         double error_rate,
         bool add_umi,
-        int number_of_target_reads){
+        int number_of_target_reads,
+        double random_pairing_rate_per_cycle){
+
+    vector< vector< pcr_molecule>> saved_for_rp(cycles);
 
     using mut_tree = tree<int, vector<std::pair< int, char >>>;
 
@@ -1282,64 +1308,79 @@ void generate_and_print_fasta_with_pcr(
 //Convert error_rate to random_error_rate where characters can mutate into same chars (A->A or T->T etc.)
     error_rate = error_rate * 4.0 / 3.0; 
 
-
-
     std::uniform_real_distribution<> z1dist(0,1);
     std::uniform_int_distribution<> basedist(0,3);
     char bases[] = {'A','C','T','G'};
-    for( const auto &pair : isoforms){
-        string base = pair.first;
-        int cnt=0;
-        for( const isoform &i : pair.second){
-            int molecule_size = 0;
-            for(const exon &e : i.segments){
-                molecule_size += (e.end - e.start);
-            }
-            mut_tree mutation_tree;
-            vector<int> positions(molecule_size);
-            std::iota(positions.begin(), positions.end(), 0);
-            int expected_mutation_count = error_rate * molecule_size; 
-            std::function<void(mut_tree &,int)> do_pcr = 
-                [&] ( mut_tree &mt, int current_cycle) -> void{
-                for(int i = current_cycle + 1; i <= cycles; ++i){
-                    if(z1dist(rand_gen) > pcr_duplication_rate){ // Molecule is not caught in this cycle of pcr
-                        std::shuffle(positions.begin(),positions.end(), rand_gen);
-                        vector<std::pair<int, char>> mutations;
-                        for(int j = 0; j < expected_mutation_count; ++j){ //TODO: We can make this a normal distribution    
-                            mutations.push_back(std::make_pair(positions[j], bases[basedist(rand_gen)]));
-                        }
-                        mt.add_child(i, mutations);
 
-                        do_pcr(mt[i], i);
-                    }
+    //PCR lambda function
+    std::function<void(const pcr_molecule&, mut_tree &,int, int, vector<int>&)> do_pcr = 
+        [&do_pcr, &z1dist, pcr_duplication_rate, &bases, &basedist, random_pairing_rate_per_cycle, &saved_for_rp, cycles]
+        (const pcr_molecule &iso, mut_tree &mt, int current_cycle, int expected_mutation_count, vector<int> &positions) -> void{
+        for(int cyc = current_cycle + 1; cyc <= cycles; ++cyc){
+            if(z1dist(rand_gen) < pcr_duplication_rate){ // Molecule is caught in this cycle of pcr
+                                                         // GC bias can be introduced here
+                std::shuffle(positions.begin(),positions.end(), rand_gen);
+                vector<std::pair<int, char>> mutations;
+                for(int j = 0; j < expected_mutation_count; ++j){ //TODO: We can make this a normal distribution    
+                    mutations.push_back(std::make_pair(positions[j], bases[basedist(rand_gen)]));
                 }
-            };
-            do_pcr(mutation_tree, 0);
-            
-            auto print_pcr_copies = [&] (int depth, const mut_tree *mt){
-                if( z1dist(rand_gen) < drop_ratio) { //Molecule is captured by sequencing
-                    ost << ">" << base << "_" << cnt << " ";
-                    mut_tree *current = mt->parent;
-                    ost << "lineage:";
-                    ost << mt->identity;
-                    while( current != nullptr){ //Print pcr Lineage
-                        ost << "_" << current->identity;
+                if(z1dist(rand_gen) < random_pairing_rate_per_cycle){
+                    vector<std::pair<int,char>> mutations_so_far;
+                    mut_tree *current = &mt;
+                    while(current !=nullptr){
+                        for( auto pr : current->data){
+                            mutations_so_far.push_back(pr);
+                        }
                         current = current->parent;
                     }
-                    ost << "\n";
+                    pcr_molecule other(iso);
+                    other.paired[0].errors_so_far = mutations_so_far;
+                    saved_for_rp[current_cycle].push_back(other);
+                }
+                else{
+                    mt.add_child(cyc, mutations);
+                    do_pcr(iso, mt[cyc], cyc, expected_mutation_count, positions);
+                }
+            }
+        }
+    };
+
+    //Makes a printer lambda function to be run on the tree
+    auto make_pcr_printer = [&z1dist, drop_ratio] (ostream &ost, string *_base_id, int copy_number, const map<string, string> *sequences, const pcr_molecule *_pm){
+        return  [&ost, &z1dist, drop_ratio, _base_id, copy_number, sequences, _pm] (int depth, const mut_tree *mt) mutable -> void{
+            string base_id{*_base_id};
+            const pcr_molecule &pm {*_pm};
+            if( z1dist(rand_gen) < drop_ratio) { //Molecule is captured by sequencing
+                ost << ">" << base_id << "_" << copy_number << " ";
+                mut_tree *current = mt->parent;
+                ost << "lineage:";
+                ost << mt->identity;
+                while( current != nullptr){ //Print pcr Lineage
+                    ost << "_" << current->identity;
+                    current = current->parent;
+                }
+                ost << "\n";
+
+                for( const pcr_copy &pcp : pm.paired){
                     int seq_index = 0;
-                    for(const exon &e : i.segments){
-                        if( sequences.find(e.chr) == sequences.end()){
+                    const isoform &iso = pcp.iso;
+                    for(const exon &e : iso.segments){
+                        if( sequences->find(e.chr) == sequences->end()){
                             cerr << e << "!\n";
                             throw std::runtime_error("Chr not in fasta");
                         }
-                        if( e.end > sequences.at(e.chr).size()){
+                        if( e.end > sequences->at(e.chr).size()){
                             cerr << e << "!\n";
                             throw std::runtime_error("Exon is outside of the chr");
                         }
-                        string seq = sequences.at(e.chr).substr( e.start, e.end - e.start); // Maybe string view in the future?
-                        
-                        std::function<void(const mut_tree *, string&)> apply_mutation = [&] ( const mut_tree *mt, string &seq) -> void{
+                        string seq = sequences->at(e.chr).substr( e.start, e.end - e.start); // Maybe string view in the future?
+                       
+                        for( const std::pair<int, char> &pr : pcp.errors_so_far){//Errors so far, only used for random_pairings
+                            if(pr.first > seq_index && pr.first < seq_index + seq.size()){
+                                seq[ pr.first - seq_index] = pr.second;
+                            }
+                        }
+                        std::function<void(const mut_tree *, string&)> apply_mutation = [&apply_mutation, seq_index] ( const mut_tree *mt, string &seq) mutable -> void{
                             if(mt->parent != nullptr){
                                 apply_mutation(mt->parent, seq);
                             }
@@ -1362,11 +1403,63 @@ void generate_and_print_fasta_with_pcr(
                         seq_index += seq.size();
                     }
                 }
-            };
-            mutation_tree.df_execute2(print_pcr_copies);
+            }
+        };
+    };
+    for( const auto &pair : isoforms){
+        string base_id = pair.first;
+        int cnt=0;
+        for( const isoform &iso : pair.second){
+            int molecule_size = 0;
+            for(const exon &e : iso.segments){
+                molecule_size += (e.end - e.start);
+            }
+            pcr_molecule pcm{iso};
+            mut_tree mutation_tree;
+            vector<int> positions(molecule_size);
+            std::iota(positions.begin(), positions.end(), 0);
+            int expected_mutation_count = error_rate * molecule_size; 
+
+            do_pcr(pcm, mutation_tree, 0, expected_mutation_count, positions);
+            auto printer = make_pcr_printer(ost, &base_id, cnt, &sequences, &pcm);
+            mutation_tree.df_execute2(printer);
             ++cnt;
         }
 
+    }
+    int cycle = 1;
+
+    vector<pcr_molecule> random_pairings;
+    for( auto vec_iter = saved_for_rp.begin(); vec_iter !=saved_for_rp.end(); ++vec_iter){
+        vector<pcr_molecule> &pc_vec = *vec_iter; 
+        //After shuffle, pair adjacent elements
+        std::shuffle(pc_vec.begin(), pc_vec.end(), rand_gen);
+        for(auto iter = pc_vec.begin(); iter + 1 != pc_vec.end() && iter !=pc_vec.end(); iter= std::next(iter,2)){
+            auto next_iter = std::next(iter);
+            pcr_molecule rp(*iter, *next_iter);
+            int molecule_size = 0;
+            for( const pcr_copy &cp :rp.paired){
+                for(const exon &e : cp.iso.segments){
+                    molecule_size += (e.end - e.start);
+                }
+            }
+            mut_tree mutation_tree;
+            vector<int> positions(molecule_size);
+            std::iota(positions.begin(), positions.end(), 0);
+            int expected_mutation_count = error_rate * molecule_size; 
+
+            do_pcr(rp, mutation_tree, cycle, expected_mutation_count, positions);
+            string base_id = "RP";
+            for( const pcr_copy &pc : rp.paired){
+                base_id += "_";
+                base_id += pc.iso.segments[0].gene_ref->gene_id;
+            }
+            auto printer = make_pcr_printer(ost, &base_id, cycle, &sequences, &rp);
+            mutation_tree.df_execute2(printer);
+        }
+        
+        //Continue PCR
+        ++cycle;
     }
 }
 
@@ -1400,7 +1493,7 @@ int main(int argc, char **argv){
 
     map<string, string> chr2contig = read_fasta_fast(path_to_dna);
 
-    std::cerr << "Reading FASTqQ!\n";
+    std::cerr << "Reading FASTQ!\n";
     vector<mapping> reads = convert_aligs_to_segments(path_to_aligs);   
     std::cerr << "Reading GTF!\n";
     auto [gtf_exons, gene_ptrs] = read_gtf_exons(path_to_gtf);
@@ -1428,19 +1521,19 @@ int main(int argc, char **argv){
 
     std::cerr << "Generating fusions\n";
     vector< std::pair<gene,gene>> fusions = generate_random_fusions(gene_graph,200, 10);
-    vector<std::pair<int,int>> fusion_breakpoints = generate_fusion_breakpoints( fusions, bpstrategy::uniform);
+//    vector<std::pair<int,int>> fusion_breakpoints = generate_fusion_breakpoints( fusions, bpstrategy::uniform);
 
-    map<gene,int> transcript_expression = generate_transcript_expression(  ec);//Convert this to transcript 
+//    map<gene,int> transcript_expression = generate_transcript_expression(  ec);//Convert this to transcript 
     vector<int> fusion_expression = generate_fusion_expression( fusions, ec);
 
     map<string, vector<isoform>> normal_isoforms = generate_normal_isoforms(ec);
 
-    std::cerr << "Simulating fusionsa\n";
-    map<string, vector<isoform>> fusion_isoforms = generate_fusion_isoforms(fusions, fusion_breakpoints, fusion_expression, ec);
-    std::cerr << "Printing Fasta\n";
-
+    std::cerr << "Simulating fusions\n";
+    map<string, vector<isoform>> fusion_isoforms = generate_fusion_isoforms(fusions, fusion_expression, ec);
+    
+    std::cerr << "Generating molecule sequences\n";
     std::ofstream output_cdna_stream(out_cdna_path);
-    generate_and_print_fasta_with_pcr(normal_isoforms, chr2contig, output_cdna_stream, 6, 0.5, 0.01, true, 100000);
+    generate_and_print_fasta_with_pcr(normal_isoforms, chr2contig, output_cdna_stream, 6, 0.5, 0.01, true, 10000000, 0.001);
     generate_and_print_fasta(fusion_isoforms, chr2contig, output_cdna_stream);
 
     std::cerr << "Cleaning Up\n";
