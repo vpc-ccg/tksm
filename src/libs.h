@@ -36,5 +36,6 @@
 #include "graph.h"
 #include "tree.h"
 #include "reverse_complement.h"
-
+#include "util.h"
+#include "gtf.h"
 #endif
