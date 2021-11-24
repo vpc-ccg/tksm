@@ -5,6 +5,9 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <map>
+
+#include "util.h"
 
 #include "cigar.h"
 
@@ -71,11 +74,80 @@ class ginterval: public interval{
         }
 };
 
+struct gtf: public ginterval{
+    enum class entry_type{
+        gene, transcript, exon,
+        five_prime_utr, three_prime_utr,
+        start_codon, stop_codon,
+        CDS, Selenocysteine,
+        other
+    };
+    static entry_type type_from_string( const std::string& type_str){
+
+        if(type_str == "gene"){
+            return entry_type::gene;
+        }
+        else if(type_str == "transcript"){
+            return entry_type::transcript;
+        }
+        else if(type_str == "exon"){
+            return entry_type::exon;
+        }
+        else if(type_str == "five_prime_utr"){
+            return entry_type::five_prime_utr;
+        }
+
+        else if(type_str == "three_prime_utr"){
+            return entry_type::three_prime_utr;
+        }
+        else if(type_str == "start_codon"){
+            return entry_type::start_codon;
+        }
+        else if(type_str == "stop_codon"){
+            return entry_type::stop_codon;
+        }
+        else if(type_str == "CDS"){
+            return entry_type::CDS;
+        }
+        else if(type_str == "Selenocysteine"){
+            return entry_type::Selenocysteine;
+        }
+        else{
+            return entry_type::other;
+        }
+    }
+
+    entry_type type;
+    std::map<std::string, std::string> info;
+    gtf( const std::string &gtf_line){
+        std::vector<std::string> fields = rsplit(gtf_line, "\t");
+        type = type_from_string(fields[2]);
+        chr = fields[0];
+        start = stoi(fields[3]);
+        end   = stoi(fields[4]);
+        plus_strand = (fields[6] == "+");
+        
+        std::string info_str{fields[8]};
+        std::vector<std::string> info_vec = rsplit(info_str, ";");
+        strip_for_each(info_vec , " ");
+
+        for( auto iter = info_vec.begin(); iter != info_vec.end(); ++iter){
+            if((*iter).size() <= 1){ continue;}
+            std::string f{*iter};
+
+            std::vector<std::string> fs = rsplit(f , " ");
+            strip_for_each(fs, "\"");
+            info[fs[0]] = fs[1];
+        }
+    }
+};
+
 
 struct gene: public ginterval{
     std::string gene_id;
     std::string gene_name;
     gene() : ginterval(),gene_id("NAN"), gene_name("NAN") {}
+    gene(const gtf &entry) : ginterval(entry), gene_id(entry.info.at("gene_id")), gene_name(entry.info.at("gene_name")){}
     gene(const std::string &id) : gene_id(id) {} //Mock constructor for map access
     gene(std::string chr, int start, int end, const std::string &strand, const std::string &gene_id,
             const std::string &gene_name) : ginterval(chr, start, end, strand),
@@ -108,6 +180,8 @@ namespace std
 struct transcript: public ginterval{
     std::string transcript_id;
     gene* gene_ref;
+    transcript() :transcript_id{"NULL"}, gene_ref{nullptr}{}
+    transcript(const gtf &entry, gene *gref) : ginterval(entry), transcript_id(entry.info.at("transcript_id")), gene_ref{gref}{}
     transcript(std::string chr, int start, int end, const std::string &strand, const std::string &transcript_id, gene *gref):
         ginterval(chr, start, end, strand), transcript_id(transcript_id), gene_ref(gref) {}
 };
@@ -121,6 +195,7 @@ struct exon: public ginterval{
 
     exon(std::string chr, int start, int end, const std::string &strand, const std::string &exon_id, gene* gref): 
         ginterval(chr, start, end, strand), exon_id(exon_id), gene_ref(gref){}
+    exon(const gtf &entry, gene *gref) : ginterval(entry), exon_id(entry.info.at("exon_id")), gene_ref{gref}{}
     exon() : exon_id("NULL") {}
 
     exon(const exon &g1, const exon &g2, const std::string &id) : ginterval(g1,g2), exon_id(id), strand(g1.strand), gene_ref(g1.gene_ref)  {
@@ -329,5 +404,13 @@ struct mapping{
             segments = aligs;
         }
     }
+};
+
+
+class isoform{
+    public:
+        std::vector<exon> segments;
+    isoform(std::vector<exon> &segs) : segments(segs){}
+
 };
 #endif

@@ -482,12 +482,6 @@ class awful_fasta{
     }
 };
 
-class isoform{
-    public:
-    vector<exon> segments;
-    isoform(vector<exon> &segs) : segments(segs){}
-
-};
 
 enum class bpstrategy{
     uniform,
