@@ -1222,7 +1222,7 @@ int main(int argc, char **argv){
     string path_to_gtf   {args["gtf"].as<string>()};
     string path_to_cdna  {args["cdna"].as<string>()};
     string path_to_dna   {args["dna"].as<string>()};
-    string out_cdna_path {args["out"].as<string>()};
+    string out_cdna_path {args["output"].as<string>()};
     int seed = args["seed"].as<int>();;
 
     rand_gen.seed(seed);
