@@ -1295,7 +1295,11 @@ int main(int argc, char **argv){
     double pcr_error_rate = args["pcr-error-rate"].as<double>();
     double pcr_random_pairing_rate = args["pcr-random-pairing-rate"].as<double>();
     int umi_length = args["umi"].as<int>();
-    generate_and_print_fasta_with_pcr(normal_isoforms, chr2contig, output_cdna_stream, pcr_cycles, pcr_efficiency, pcr_error_rate, umi_length, 10000000, pcr_random_pairing_rate);
+    int read_count = args["read-count"].as<int>();
+
+    generate_and_print_fasta_with_pcr(normal_isoforms, chr2contig, output_cdna_stream,
+                                    pcr_cycles, pcr_efficiency, pcr_error_rate,
+                                    umi_length, read_count, pcr_random_pairing_rate);
     generate_and_print_fasta(fusion_isoforms, chr2contig, output_cdna_stream);
 
     std::cerr << "Cleaning Up\n";
