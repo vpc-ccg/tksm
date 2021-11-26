@@ -1175,7 +1175,7 @@ int main(int argc, char **argv){
     options.add_options()
         ("p,paf",  "Path to whole genome mappings in paf format", cxxopts::value<string>())
         ("g,gtf",  "Path to gtf annotation file", cxxopts::value<string>())
-        ("c,cdna", "Path to cdna reference file", cxxopts::value<string>())
+//        ("c,cdna", "Path to cdna reference file", cxxopts::value<string>())
         ("d,dna",  "Path to human genome reference file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
 
@@ -1202,7 +1202,7 @@ int main(int argc, char **argv){
         std::cout << options.help() << std::endl;
         return 0;
     }
-    std::vector<string> mandatory {{"paf", "gtf", "cdna", "dna", "output"}};
+    std::vector<string> mandatory {{"paf", "gtf", "dna", "output"}};
 
     int missing_parameters = 0;
     for( string &param : mandatory){
@@ -1220,7 +1220,7 @@ int main(int argc, char **argv){
     //parameters will be moved to argument parser when done
     string path_to_aligs {args["paf"].as<string>()};
     string path_to_gtf   {args["gtf"].as<string>()};
-    string path_to_cdna  {args["cdna"].as<string>()};
+//    string path_to_cdna  {args["cdna"].as<string>()};
     string path_to_dna   {args["dna"].as<string>()};
     string out_cdna_path {args["output"].as<string>()};
     int seed = args["seed"].as<int>();;
@@ -1228,7 +1228,8 @@ int main(int argc, char **argv){
     rand_gen.seed(seed);
     int min_dist = args["rt-minimum-distance"].as<int>();
     int max_dist = args["rt-maximum-distance"].as<int>();
-    
+ 
+    /*
     gzFile gzf = gzopen(path_to_cdna.c_str(), "r");
     kekseq::kseq<gzFile,gzread> fr(gzf); 
 
@@ -1243,7 +1244,7 @@ int main(int argc, char **argv){
         transcript2comment[fr.name.s] = string{fr.comment.s};
     }
     gzclose(gzf);
-
+*/
     map<string, string> chr2contig = read_fasta_fast(path_to_dna);
 
     std::cerr << "Reading FASTQ!\n";
@@ -1294,7 +1295,14 @@ int main(int argc, char **argv){
     double pcr_efficiency = args["pcr-efficiency"].as<double>();
     double pcr_error_rate = args["pcr-error-rate"].as<double>();
     double pcr_random_pairing_rate = args["pcr-random-pairing-rate"].as<double>();
-    int umi_length = args["umi"].as<int>();
+    int umi_length;
+    if(args["umi"].count() > 0){
+        umi_length = args["umi"].as<int>();
+    }
+    else{
+        umi_length = 0;
+    }
+
     int read_count = args["read-count"].as<int>();
 
     generate_and_print_fasta_with_pcr(normal_isoforms, chr2contig, output_cdna_stream,
