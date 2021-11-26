@@ -410,7 +410,40 @@ struct mapping{
 class isoform{
     public:
         std::vector<exon> segments;
-    isoform(std::vector<exon> &segs) : segments(segs){}
+        int depth;
+        std::string gene;
+
+    isoform(std::vector<exon> &segs) : segments(segs), depth(1), gene("NULL"){}
+    isoform(std::vector<exon> &segs, int depth) : segments(segs), depth(depth), gene("NULL"){}
+    isoform(std::vector<exon> &segs, int depth, const std::string &gene) : segments(segs), depth(depth), gene(gene){}
 
 };
+
+
+//pcr copy structure that tracks pcr errors introduced
+struct pcr_copy{
+    isoform iso;
+    std::vector< std::pair< int, char>> errors_so_far;
+    bool reversed;
+
+    pcr_copy( const isoform &iso, auto errors_so_far) :iso(iso), errors_so_far(errors_so_far) {}
+    pcr_copy( const isoform &iso) :iso(iso) {}
+};
+
+//pcr molecule structure that can model paired molecules
+struct pcr_molecule{
+    std::vector<pcr_copy> paired;
+
+    pcr_molecule() {}
+
+    pcr_molecule(const pcr_molecule &other) : paired(other.paired) {}
+    pcr_molecule(const isoform &other) {
+        paired.emplace_back(other);
+    }
+    pcr_molecule(const pcr_molecule &first, const pcr_molecule &second) : paired(first.paired) {
+        paired.reserve(first.paired.size() + second.paired.size());
+        paired.insert(paired.end(), second.paired.begin(), second.paired.end());
+    }
+};
+
 #endif

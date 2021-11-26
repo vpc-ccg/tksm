@@ -42,6 +42,7 @@
 #include "reverse_complement.h"
 #include "util.h"
 #include "gtf.h"
+#include "fasta.h"
 
 #include "extern/cxxopts.hpp"
 
@@ -52,19 +53,6 @@ using std::map;
 using std::ostream;
 using std::set;
 
-#ifdef DEBUG
-    using std::cerr;
-    std::cerr << "DEBUG MODE!\n";
-#else
-
-class mockstream{
-    template<class K>
-    friend mockstream& operator << (mockstream &mock, const K &k){
-        return mock;
-    }
-};
-mockstream cerr;
-#endif
 
 //Random number generator, seed is set in the main function
 std::mt19937 rand_gen{std::random_device{}()};
@@ -81,10 +69,9 @@ map<string, IITree<int, size_t>> make_exon_interval_tree( const vector<exon> &an
 
         ++index;
     }
-    int cnt = 0;
+
     for( auto &p : itree){
         p.second.index();
-        cout << ++cnt <<"\n";
     }
     return itree;
 }
@@ -774,50 +761,6 @@ map<string, vector<isoform>> generate_fusion_isoforms(
 }
 
 
-template<typename K>
-constexpr int roundup32(K x){
-    --x;
-    x|=x>>1;
-    x|=x>>2;
-    x|=x>>4;
-    x|=x>>8;
-    x|=x>>16;
-    ++x;
-    return x;
-}
-
-map<string, string> read_fasta_fast( const string &fasta_path){
-    string fai_path = fasta_path + ".fai";
-    map <string, string> contig2seq;
-
-    string buf;
-    if(std::filesystem::exists(fai_path)){ //This helps saves little time, but keeping it for reference
-        std::cerr << "Index exists... Allocating memory ahead of time!\n";
-        std::ifstream f(fai_path);
-
-        while(std::getline(f, buf)){
-            std::istringstream str(buf);
-            string contig;
-            int base_count;
-            str >> contig >> base_count;
-            contig2seq[contig].reserve( roundup32(base_count));
-        }
-    }
-    
-    std::cerr << "Reading fasta file!\n";
-    string contig;
-    std::ifstream f(fasta_path);
-    while (std::getline(f, buf)){
-        if( buf[0] == '>'){ //new contig
-            std::istringstream str(buf.c_str()+1);
-            str >> contig;
-        }
-        else{
-            contig2seq[contig] += buf;   
-        }
-    }
-    return contig2seq;
-}
 
 /*
  *  Read bedlike file from path and simulate fusions
@@ -959,32 +902,6 @@ void generate_and_print_fasta(
 
     }
 }
-
-//pcr copy structure that tracks pcr errors introduced
-struct pcr_copy{
-    isoform iso;
-    vector< std::pair< int, char>> errors_so_far;
-    bool reversed;
-
-    pcr_copy( const isoform &iso, auto errors_so_far) :iso(iso), errors_so_far(errors_so_far) {}
-    pcr_copy( const isoform &iso) :iso(iso) {}
-};
-
-//pcr molecule structure that can model paired molecules
-struct pcr_molecule{
-    vector<pcr_copy> paired;
-
-    pcr_molecule() {}
-
-    pcr_molecule(const pcr_molecule &other) : paired(other.paired) {}
-    pcr_molecule(const isoform &other) {
-        paired.emplace_back(other);
-    }
-    pcr_molecule(const pcr_molecule &first, const pcr_molecule &second) : paired(first.paired) {
-        paired.reserve(first.paired.size() + second.paired.size());
-        paired.insert(paired.end(), second.paired.begin(), second.paired.end());
-    }
-};
 
 void generate_and_print_fasta_with_pcr( 
         const map<string, vector<isoform>> &isoforms,
