@@ -38,4 +38,6 @@
 #include "reverse_complement.h"
 #include "util.h"
 #include "gtf.h"
+
+#include "extern/cxxopts.hpp"
 #endif

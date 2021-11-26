@@ -43,6 +43,8 @@
 #include "util.h"
 #include "gtf.h"
 
+#include "extern/cxxopts.hpp"
+
 using std::string;
 using std::vector;
 using std::cout;
@@ -962,6 +964,7 @@ void generate_and_print_fasta(
 struct pcr_copy{
     isoform iso;
     vector< std::pair< int, char>> errors_so_far;
+    bool reversed;
 
     pcr_copy( const isoform &iso, auto errors_so_far) :iso(iso), errors_so_far(errors_so_far) {}
     pcr_copy( const isoform &iso) :iso(iso) {}
@@ -970,6 +973,7 @@ struct pcr_copy{
 //pcr molecule structure that can model paired molecules
 struct pcr_molecule{
     vector<pcr_copy> paired;
+
     pcr_molecule() {}
 
     pcr_molecule(const pcr_molecule &other) : paired(other.paired) {}
@@ -989,7 +993,7 @@ void generate_and_print_fasta_with_pcr(
         int cycles,
         double pcr_duplication_rate,
         double error_rate,
-        bool add_umi,
+        int umi_length,
         int number_of_target_reads,
         double random_pairing_rate_per_cycle){
 
@@ -1166,17 +1170,64 @@ void generate_and_print_fasta_with_pcr(
 }
 
 int main(int argc, char **argv){
+    cxxopts::Options options("RNAInfuser", "RNA simulator");
+
+    options.add_options()
+        ("p,paf",  "Path to whole genome mappings in paf format", cxxopts::value<string>())
+        ("g,gtf",  "Path to gtf annotation file", cxxopts::value<string>())
+        ("c,cdna", "Path to cdna reference file", cxxopts::value<string>())
+        ("d,dna",  "Path to human genome reference file", cxxopts::value<string>())
+        ("o,output", "Output path", cxxopts::value<string>())
+
+        ("read-count", "Number of reads to simulate", cxxopts::value<int>()->default_value("100000"))
+        ("fusion-count", "Number of gene fusions to simulate", cxxopts::value<int>()->default_value("0"))
+        ("translocation-ratio", "Percentage of fusions to be simulated as translocations", cxxopts::value<double>()->default_value("0.1"))
+
+        ("rt-minimum-distance", "Minimum distance between readthrough genes to simulate",cxxopts::value<int>()->default_value("1000"))
+        ("rt-maximum-distance", "Maximum distance between readthrough genes to simulate",cxxopts::value<int>()->default_value("500000"))
+    
+        ("umi", "Insert umi sequences to the molecules before pcr. You can specify the length.", cxxopts::value<int>()->implicit_value("16"))
+        ("pcr", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
+        ("pcr-efficiency", "Probability of a molecule being duplicated during each pcr cycle", cxxopts::value<double>()->default_value("0.75"))
+        ("pcr-error-rate", "Probability of substition errors for each base during each pcr cycle", cxxopts::value<double>()->default_value("0.01"))
+        ("pcr-random-pairing-rate", "Probability of molecules randomly attaching to each other during each pcr cycle", cxxopts::value<double>()->default_value("0.0001"))
+
+        ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
+        ("h,help", "Help screen")
+    ;
+
+    auto args = options.parse(argc, argv);
+
+    if(args.count("help") > 0){
+        std::cout << options.help() << std::endl;
+        return 0;
+    }
+    std::vector<string> mandatory {{"paf", "gtf", "cdna", "dna", "output"}};
+
+    int missing_parameters = 0;
+    for( string &param : mandatory){
+        if(args.count(param) == 0){
+            std::cerr << param << " is required!\n";
+            ++missing_parameters;
+        }
+    }
+    if(missing_parameters  > 0){
+        std::cerr << options.help() << std::endl;
+        return 1;
+    }
+
+
     //parameters will be moved to argument parser when done
-    string path_to_aligs {argv[1]};
-    string path_to_gtf   {argv[2]};
-    string path_to_cdna  {argv[3]};
-    string path_to_dna   {argv[4]};
-    string out_cdna_path {argv[5]};
-    int seed = 42;
+    string path_to_aligs {args["paf"].as<string>()};
+    string path_to_gtf   {args["gtf"].as<string>()};
+    string path_to_cdna  {args["cdna"].as<string>()};
+    string path_to_dna   {args["dna"].as<string>()};
+    string out_cdna_path {args["out"].as<string>()};
+    int seed = args["seed"].as<int>();;
 
     rand_gen.seed(seed);
-    int min_dist = 1000;
-    int max_dist = 500000;
+    int min_dist = args["rt-minimum-distance"].as<int>();
+    int max_dist = args["rt-maximum-distance"].as<int>();
     
     gzFile gzf = gzopen(path_to_cdna.c_str(), "r");
     kekseq::kseq<gzFile,gzread> fr(gzf); 
@@ -1201,9 +1252,9 @@ int main(int argc, char **argv){
     auto [gtf_exons, gene_ptrs] = read_gtf_exons(path_to_gtf);
 
     std::cerr << "Flattening GTF!\n";
-    auto [merged_exons, merge_index] = flatten_gtf(gtf_exons,0.75); // vector<exon>, map<string, string>
+//    auto [merged_exons, merge_index] = flatten_gtf(gtf_exons,0.75); // vector<exon>, map<string, string>
 
-    std::cerr << "Making GTF interval tree!\n" << " exons: " << merged_exons.size() << "\n";
+//    std::cerr << "Making GTF interval tree!\n" << " exons: " << merged_exons.size() << "\n";
     map<string, IITree<int, size_t>> exon_interval_tree = make_exon_interval_tree(gtf_exons);
 
     std::cerr << "Counting reads on tree\n";
@@ -1222,7 +1273,10 @@ int main(int argc, char **argv){
     graph<gene, double> gene_graph = build_gene_graph(path_to_gtf, gene2count); // I should replace this
 
     std::cerr << "Generating fusions\n";
-    vector< std::pair<gene,gene>> fusions = generate_random_fusions(gene_graph,200, 10);
+    int fusion_count = args["fusion-count"].as<int>();
+    double translocation_ratio = args["translocation-ratio"].as<double>();
+    
+    vector< std::pair<gene,gene>> fusions = generate_random_fusions(gene_graph, fusion_count * ( 1- translocation_ratio), fusion_count * translocation_ratio);
 //    vector<std::pair<int,int>> fusion_breakpoints = generate_fusion_breakpoints( fusions, bpstrategy::uniform);
 
 //    map<gene,int> transcript_expression = generate_transcript_expression(  ec);//Convert this to transcript 
@@ -1235,7 +1289,13 @@ int main(int argc, char **argv){
     
     std::cerr << "Generating molecule sequences\n";
     std::ofstream output_cdna_stream(out_cdna_path);
-    generate_and_print_fasta_with_pcr(normal_isoforms, chr2contig, output_cdna_stream, 6, 0.5, 0.01, true, 10000000, 0.001);
+
+    int pcr_cycles = args["pcr"].as<int>();
+    double pcr_efficiency = args["pcr-efficiency"].as<double>();
+    double pcr_error_rate = args["pcr-error-rate"].as<double>();
+    double pcr_random_pairing_rate = args["pcr-random-pairing-rate"].as<double>();
+    int umi_length = args["umi"].as<int>();
+    generate_and_print_fasta_with_pcr(normal_isoforms, chr2contig, output_cdna_stream, pcr_cycles, pcr_efficiency, pcr_error_rate, umi_length, 10000000, pcr_random_pairing_rate);
     generate_and_print_fasta(fusion_isoforms, chr2contig, output_cdna_stream);
 
     std::cerr << "Cleaning Up\n";
