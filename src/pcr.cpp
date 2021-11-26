@@ -281,10 +281,10 @@ int main(int argc, char **argv){
 
     ofstream out_stream(args["output"].as<string>());
 
-    int cycles = args["pcr-cycles"].as<int>();
+    int cycles = args["pcr"].as<int>();
     double pcr_duplication_rate = args["pcr-efficiency"].as<double>();
     double error_rate = args["pcr-error-rate"].as<double>();
-    int number_of_target_reads = args["read-count"].as<double>();
+    int number_of_target_reads = args["read-count"].as<int>();
     double random_pairing_rate_per_cycle = args["pcr-random-pairing-rate"].as<double>();
 
     run_pcr( 
