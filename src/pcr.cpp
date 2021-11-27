@@ -13,10 +13,12 @@
 #include "interval.h"
 #include "reverse_complement.h"
 #include "extern/cxxopts.hpp"
+#include <tuple>
 
 using std::string;
 using std::map;
 using std::vector;
+using std::tuple;
 
 using std::ostream;
 using std::ofstream;
@@ -90,7 +92,7 @@ void run_pcr(
         }
     };
 
-    //Makes a printer lambda function to be run on the tree
+    //Makes a prnter lambda function to be run on the tree
     auto make_pcr_printer = [&z1dist, drop_ratio] (ostream &ost, string *_base_id, int copy_number, const map<string, string> *sequences, const pcr_molecule *_pm){
         return  [&ost, &z1dist, drop_ratio, _base_id, copy_number, sequences, _pm] (int depth, const mut_tree *mt) mutable -> void{
             string base_id{*_base_id};
@@ -211,20 +213,35 @@ void run_pcr(
 int main(int argc, char **argv){
 
     cxxopts::Options options("RNAInfuser PCR module", "PCR PCR PCR PTR");
+    
+    map<string, tuple<double, double>> pcr_presets {
+        { "Taq-setting1", {2*std::pow(0.1,4),0.88}},
+        { "Taq-setting2", {7.2*std::pow(0.1,5),0.36}},
+        { "Klenow", {1.3*std::pow(0.1,4),0.80}},
+        { "T7", {3.4*std::pow(0.1,5),0.90}},
+        { "T4", {3.0*std::pow(0.1,6),0.56}},
+        { "Vent", {4.5*std::pow(0.1,5),0.70}},
+    };
+
+    string preset_string = "presets (Cha, R. S., & Thilly, W. G. (1993). Specificity, efficiency, and fidelity of PCR. Genome Research, 3(3), S18-S29.)\n";
+    preset_string.reserve(500);
+    for(const auto &p : pcr_presets){
+        preset_string+= ("- " +p.first + ": " + "efficiency: " + std::to_string(std::get<0>(p.second)) +", error-rate:" + std::to_string(std::get<1>(p.second)) + "\n");
+    }
 
     options.add_options()
         ("m,molecule-description", "Molecule description file", cxxopts::value<string>())
         ("r,references",  "List of comma separated references", cxxopts::value<vector<string>>())
         ("o,output", "Output path", cxxopts::value<string>())
         ("read-count", "Number of reads to simulate", cxxopts::value<int>()->default_value("100000"))
-
-        ("pcr", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
-        ("pcr-efficiency", "Probability of a molecule being duplicated during each pcr cycle", cxxopts::value<double>()->default_value("0.75"))
-        ("pcr-error-rate", "Probability of substition errors for each base during each pcr cycle", cxxopts::value<double>()->default_value("0.01"))
-        ("pcr-random-pairing-rate", "Probability of molecules randomly attaching to each other during each pcr cycle", cxxopts::value<double>()->default_value("0.0001"))
+        ("cycles", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
+        ("efficiency", "Probability of a molecule being duplicated during each pcr cycle", cxxopts::value<double>()->default_value("0.75"))
+        ("error-rate", "Probability of substition errors for each base during each pcr cycle", cxxopts::value<double>()->default_value("0.000001"))
+        ("random-pairing-rate", "Probability of molecules randomly attaching to each other during each pcr cycle", cxxopts::value<double>()->default_value("0.0001"))
 
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("h,help", "Help screen")
+        ("x,pcr-preset", preset_string, cxxopts::value<string>())
     ;
 
     auto args = options.parse(argc, argv);
@@ -233,6 +250,7 @@ int main(int argc, char **argv){
         std::cout << options.help() << std::endl;
         return 0;
     }
+
     std::vector<string> mandatory {{"molecule-description", "references", "output"}};
 
     int missing_parameters = 0;
@@ -247,6 +265,20 @@ int main(int argc, char **argv){
         std::cerr << options.help() << std::endl;
         return 1;
     }
+    
+    int cycles = args["pcr"].as<int>();
+    double pcr_efficiency = args["pcr-efficiency"].as<double>();
+    double error_rate = args["pcr-error-rate"].as<double>();
+    int number_of_target_reads = args["read-count"].as<int>();
+    double random_pairing_rate_per_cycle = args["pcr-random-pairing-rate"].as<double>();
+    if(args["preset"].count() > 0){
+        tuple<double, double> setting = pcr_presets[args["preset"].as<string>()];
+
+        error_rate = std::get<0>(setting);
+        pcr_efficiency = std::get<1>(setting);
+    }
+
+
     int seed = args["seed"].as<int>();;
     rand_gen.seed(seed);
 
@@ -281,18 +313,14 @@ int main(int argc, char **argv){
 
     ofstream out_stream(args["output"].as<string>());
 
-    int cycles = args["pcr"].as<int>();
-    double pcr_duplication_rate = args["pcr-efficiency"].as<double>();
-    double error_rate = args["pcr-error-rate"].as<double>();
-    int number_of_target_reads = args["read-count"].as<int>();
-    double random_pairing_rate_per_cycle = args["pcr-random-pairing-rate"].as<double>();
+
 
     run_pcr( 
         isoforms,
         sequences,
         out_stream,
         cycles,
-        pcr_duplication_rate,
+        pcr_efficiency,
         error_rate,
         number_of_target_reads,
         random_pairing_rate_per_cycle);
