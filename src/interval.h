@@ -52,6 +52,9 @@ class interval{
         double reciprocal(const interval &other) const {
             return static_cast<double>(overlap(other)) / larger_interval(*this, other);
         }
+        bool contains(int pos) const {
+            return pos > start && pos < end;
+        }
 };
 
 
@@ -63,6 +66,8 @@ class ginterval: public interval{
         ginterval(std::string chr, int start, int end, const std::string &strand): 
             interval(start, end), chr(chr), plus_strand(strand=="+"){}
         ginterval( const ginterval &g1, const ginterval &g2) : interval(g1,g2), chr(g1.chr), plus_strand(g1.plus_strand) {} // Merge constructor
+        ginterval( const ginterval &g1) = default;
+        virtual ~ginterval() {}
         int overlap( const ginterval &other) const{
             if( chr != other.chr){
                 return 0;
@@ -71,6 +76,20 @@ class ginterval: public interval{
         } 
         double reciprocal(const ginterval &other) const {
             return static_cast<double>(overlap(other)) / larger_interval(*this, other);
+        }
+        bool operator<( const ginterval &other) const{
+            if( other.chr != chr){
+                return chr < other.chr;
+            }
+            if( start == other.start){
+                return end < other.end;
+            }
+            return start < other.start;
+            //}
+
+        }
+        bool operator==(const ginterval &other) const {
+            return chr == other.chr && start == other.start && end == other.end && plus_strand == other.plus_strand;
         }
 };
 
@@ -204,11 +223,13 @@ struct exon: public ginterval{
     } // Merge constructor
 
     bool operator<( const exon &other) const{
-        if( gene_ref-> chr != other.gene_ref->chr){
-            return gene_ref->chr < other.gene_ref->chr;
-        }
-        if( gene_ref != other.gene_ref){
-            return *gene_ref < *other.gene_ref;
+        if(gene_ref != nullptr){
+            if( gene_ref-> chr != other.gene_ref->chr){
+                return gene_ref->chr < other.gene_ref->chr;
+            }
+            if( gene_ref != other.gene_ref){
+                return *gene_ref < *other.gene_ref;
+            }
         }
         if( start == other.start){
             return end < other.end;
@@ -222,6 +243,12 @@ struct exon: public ginterval{
     }
 };
 
+
+
+std::ostream &operator << ( std::ostream &ost, const interval &ex){
+    ost << ex.start << "-" << ex.end;
+    return ost;
+}
 
 std::ostream &operator << ( std::ostream &ost, const ginterval &ex){
     ost << ex.chr << ":" << ex.start << "-" << ex.end;
@@ -419,15 +446,24 @@ class isoform{
 
 };
 
-
 //pcr copy structure that tracks pcr errors introduced
 struct pcr_copy{
-    isoform iso;
+    std::string id;
+    std::vector<ginterval> segments;
     std::vector< std::pair< int, char>> errors_so_far;
     bool reversed;
+    int depth;
 
-    pcr_copy( const isoform &iso, auto errors_so_far) :iso(iso), errors_so_far(errors_so_far) {}
-    pcr_copy( const isoform &iso) :iso(iso) {}
+
+    pcr_copy( const std::string &id, const isoform &iso) : id(id){
+        for(const exon &e :iso.segments){
+            segments.push_back(e);
+        }
+    }
+    pcr_copy( const std::string &id, const std::vector<ginterval> &segments, auto errors_so_far) : id(id), segments(segments), errors_so_far(errors_so_far), depth(1) {}
+    pcr_copy( const std::string &id, const std::vector<ginterval> &segments, auto errors_so_far, int depth) : id(id), segments(segments), errors_so_far(errors_so_far), depth(depth) {}
+    pcr_copy( const std::vector<ginterval> &segments, auto errors_so_far) : id("copy"), segments(segments), errors_so_far(errors_so_far), depth(1) {}
+    pcr_copy( const std::vector<ginterval> &segments) : id("copy"), segments(segments), depth(1) {}
 };
 
 //pcr molecule structure that can model paired molecules
@@ -437,8 +473,13 @@ struct pcr_molecule{
     pcr_molecule() {}
 
     pcr_molecule(const pcr_molecule &other) : paired(other.paired) {}
-    pcr_molecule(const isoform &other) {
-        paired.emplace_back(other);
+
+    pcr_molecule(const pcr_copy &other) {
+        paired.push_back(other);
+    }
+    pcr_molecule(const std::string &id, const isoform &other) {
+        paired.push_back(pcr_copy{id, other});
+
     }
     pcr_molecule(const pcr_molecule &first, const pcr_molecule &second) : paired(first.paired) {
         paired.reserve(first.paired.size() + second.paired.size());

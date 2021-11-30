@@ -438,19 +438,6 @@ vector<std::pair<gene,gene>> generate_random_fusions( graph<gene, double> &gene_
 }
 
 
-template< class B>
-void print_tsv(B b){
-    cout << b << "\n";
-}
-
-template <class B, class... A>
-void print_tsv(B b, A... a){
-    cout << b << "\t";
-    print_tsv(a...);
-}
-
-
-
 template <size_t L>
 class awful_fasta{
     const kekseq::kstring &ks;

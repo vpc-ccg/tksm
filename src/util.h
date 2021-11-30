@@ -3,6 +3,20 @@
 
 #include <vector>
 #include <string>
+#include <ostream>
+
+template< class B>
+inline void print_tsv(std::ostream &ost, B b){
+    ost << b << "\n";
+}
+
+template <class B, class... A>
+inline void print_tsv(std::ostream &ost, B b, A... a){
+    ost << b << "\t";
+    print_tsv(ost, a...);
+}
+
+
 
 
 inline std::vector<std::string> rsplit(std::string str, std::string delim){
