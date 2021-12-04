@@ -285,18 +285,18 @@ vector<int>  generate_fusion_expression( const vector<std::pair<gene,gene>> &fus
 }
 
 
-map<string, std::pair<int,int>> find_gene_counts_per_contig(const vector<gene*> &gptrs){
+map<string, std::pair<int,int>> find_gene_counts_per_contig(const vector<gene> &gptrs){
     size_t index = 0;
     string prev_chr = "-1";
 
     map<string, int> starts_at;
     map<string, int> ends_at;
-    for( gene *p:gptrs){
-        if ( p->chr != prev_chr){
-            starts_at[p->chr] = index;
+    for( gene p:gptrs){
+        if ( p.chr != prev_chr){
+            starts_at[p.chr] = index;
             ends_at[prev_chr] = index - 1;
         }
-        prev_chr = p->chr;
+        prev_chr = p.chr;
         ++index;
     }
     ends_at[prev_chr] = index;
@@ -309,39 +309,48 @@ map<string, std::pair<int,int>> find_gene_counts_per_contig(const vector<gene*> 
     return chr_range;
 }
 
-vector< std::pair<gene,gene>> generate_random_fusions( const vector<gene*> &gptrs, map<string, int> fusion_count_per_chrX2, int translocation_count){
-    map<string, std::pair<int,int>> gene_ranges_per_contig = find_gene_counts_per_contig(gptrs);
+vector< std::pair<gene,gene>> generate_random_fusions( const vector<gene> &gptrs, map<string, int> fusion_count_per_chrX2, int translocation_count){
+
     vector< std::pair<gene,gene>> fusions;
     vector<gene> translocation_targets;
+
+
+    map<string, std::pair<int,int>> gene_ranges_per_contig = find_gene_counts_per_contig(gptrs);
     for( auto &p : gene_ranges_per_contig){
-        auto iter = fusion_count_per_chrX2.find(p.first);
-        if( iter == fusion_count_per_chrX2.end()){
+        auto it = fusion_count_per_chrX2.find(p.first);
+        if( it == fusion_count_per_chrX2.end()){
             continue;
         }
         vector<size_t> values(p.second.second-p.second.first);
         std::iota(values.begin(), values.end(), p.second.first);
         std::shuffle(values.begin(),values.end(), rand_gen);
-        std::vector<size_t> picked_values{values.begin(), values.begin() + 2 * iter->second};
+
+        std::vector<size_t> picked_values{values.begin(), values.begin() + 3 * it->second};
         
+
         if(picked_values.begin() == picked_values.end()){
             continue;
         }
         sort(picked_values.begin(),picked_values.end());
 
         int odd = 0;
-        for( auto iter = picked_values.begin(); std::next(iter) != picked_values.end(); ++iter){
+        int cnt = 0;
+        for( auto iter = picked_values.begin(); iter != picked_values.end() && (iter+1) != picked_values.end(); ++iter){
+            std::cout << gptrs.size() << "\t" << *iter  << "\t" << *(iter+1) << "\t" << cnt << "\t" << picked_values.size()<< "\n";
+
             if( odd == 0){
                 //cout << gene_graph.nodes[*iter].first << "\t" << gene_graph.nodes[*std::next(iter)].first << "\n";
-                fusions.push_back(std::make_pair(*gptrs[*iter], *gptrs[*std::next(iter)]));
+                fusions.push_back(std::make_pair(gptrs[*iter], gptrs[*(iter+1)]));
             }
             else if( odd == 2){
-                gene g = *gptrs[*iter];
+                gene g = gptrs[*iter];
                 translocation_targets.push_back(g); 
             }
             ++odd;
             if(odd>2){
                 odd = 0;
             }
+            ++cnt;
         }  
     }
 
@@ -364,7 +373,7 @@ vector< std::pair<gene,gene>> generate_random_fusions( const vector<gene*> &gptr
     return fusions;
 }
 
-vector<std::pair<gene,gene>> generate_random_fusions( const vector<gene *> &gptrs, int count, int tloc_count){
+vector<std::pair<gene,gene>> generate_random_fusions( const vector<gene> &gptrs, int count, int tloc_count){
         
     map<string, std::pair<int,int>> gene_ranges_per_contig = find_gene_counts_per_contig(gptrs);
    
@@ -476,7 +485,6 @@ auto count_reads_on_tree(
 
         exon preve = find_exon(first->tmplt);//{};
         for( auto siter = std::next(first); siter != r.segments.end(); ++siter){
-
             exon e = find_exon(siter->tmplt);
             if( e == exon{}){
                 continue;
@@ -593,13 +601,25 @@ int main(int argc, char **argv){
     std::cerr << "Counting reads on tree\n";
     tree<exon, int> ec = count_reads_on_tree(gtf_exons, exon_interval_tree, reads, min_dist,  max_dist);
     std::cerr << "Done.\n";
+
+
+
+    set<gene> expressed_genes;
+    for(const auto &tr : ec.children){
+        expressed_genes.insert(*tr.first.gene_ref);
+    }
     
 
     std::cerr << "Generating fusions\n";
     int fusion_count = args["fusion-count"].as<int>();
     double translocation_ratio = args["translocation-ratio"].as<double>();
-    
-    vector< std::pair<gene,gene>> fusions = generate_random_fusions(gene_ptrs, fusion_count * ( 1- translocation_ratio), fusion_count * translocation_ratio);
+    vector<gene> exp_gene_vec;
+    exp_gene_vec.insert(exp_gene_vec.begin(),expressed_genes.begin(),expressed_genes.end());
+    std::sort(exp_gene_vec.begin(), exp_gene_vec.end() ,[](const gene &g1, const gene &g2) -> bool {
+        return g1.chr > g2.chr; 
+            });
+    std::cout << exp_gene_vec.size() << "\n";
+    vector< std::pair<gene,gene>> fusions = generate_random_fusions(exp_gene_vec, fusion_count * ( 1- translocation_ratio), fusion_count * translocation_ratio);
 //    vector<std::pair<int,int>> fusion_breakpoints = generate_fusion_breakpoints( fusions, bpstrategy::uniform);
     vector<int> fusion_expression = generate_fusion_expression( fusions, ec);
 

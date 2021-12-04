@@ -454,8 +454,8 @@ struct pcr_copy{
     bool reversed;
     int depth;
 
-
-    pcr_copy( const std::string &id, const isoform &iso) : id(id){
+    pcr_copy(){}
+    pcr_copy( const std::string &id, const isoform &iso) : id(id), depth(1){
         for(const exon &e :iso.segments){
             segments.push_back(e);
         }

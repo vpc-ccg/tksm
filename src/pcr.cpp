@@ -29,40 +29,6 @@ using std::cerr;
 
 //Random number generator, seed is set in the main function
 std::mt19937 rand_gen{std::random_device{}()};
-/*
-void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecule, const vector< vector<std::pair<int, char>>> &errors_per_segment){
-
-    size_t interval_count = 0;//molecule.paired.size();
-    for(const pcr_copy &pcp : molecule.paired){
-        interval_count += pcp.segments.size();
-    }
-    //For now use the depth of first pcr_copy
-    print_tsv(ost, "+"+id, molecule.paired[0].depth, interval_count, "comment");
-
-    int interval_counter = 0;
-    for( const pcr_copy &pcp : molecule.paired){
-        size_t size_so_far = 0;
-        for( const ginterval &ival : pcp.segments){
-            string error_str = "";
-            size_t error_cnt = 0;
-
-            const vector<std::pair<int, char>> &errors = errors_per_segment[interval_counter];
-            error_cnt = errors.size();
-            for(std::pair<int, char> error : errors){
-                error_str += (std::to_string(error.first-size_so_far) + error.second + ",");
-            }
-            if(error_str != ""){
-                error_str.pop_back();
-            }
-
-            print_tsv(ost, ival.chr, ival.start, ival.end, (ival.plus_strand?"+":"-"), error_str);
-            size_so_far += (ival.end-ival.start);
-            ++interval_counter;
-        }
-    }
-}
-
-*/
 
 void run_pcr( 
         const vector<pcr_copy> &molecules,
@@ -99,13 +65,20 @@ void run_pcr(
     //PCR lambda function
     std::function<void(const pcr_molecule&, mut_tree &,int, int, vector<int>&)> do_pcr = 
         [&do_pcr, &z1dist, pcr_duplication_rate, &bases, &basedist, random_pairing_rate_per_cycle, &saved_for_rp, cycles]
-        (const pcr_molecule &iso, mut_tree &mt, int current_cycle, int expected_mutation_count, vector<int> &positions) mutable -> void{
+        (const pcr_molecule &iso, mut_tree &mt, int current_cycle, double expected_mutation_count, vector<int> &positions) mutable -> void{
         for(int cyc = current_cycle + 1; cyc <= cycles; ++cyc){
             if(z1dist(rand_gen) < pcr_duplication_rate){ // Molecule is caught in this cycle of pcr
                                                          // GC bias can be introduced here
                 std::shuffle(positions.begin(),positions.end(), rand_gen);
                 vector<std::pair<int, char>> mutations;
-                for(int j = 0; j < expected_mutation_count; ++j){ //TODO: We can make this a normal distribution    
+                int actual_mutation_count = int(expected_mutation_count);
+
+                double mutation_int_diff = expected_mutation_count - int(expected_mutation_count);
+                if(mutation_int_diff < 1){
+                    actual_mutation_count += (z1dist(rand_gen) < mutation_int_diff?1:0);
+                }
+
+                for(int j = 0; j < actual_mutation_count; ++j){ //TODO: We can make this a normal distribution    
                     mutations.push_back(std::make_pair(positions[j], bases[basedist(rand_gen)]));
                 }
                 if(z1dist(rand_gen) < random_pairing_rate_per_cycle){
@@ -130,6 +103,7 @@ void run_pcr(
     };
 
     auto make_pcr_mdbed_printer = [&z1dist, drop_ratio] (ostream &ost, string *_base_id, int copy_number, const pcr_molecule *_pm){
+
         return  [&ost, &z1dist, drop_ratio, _base_id, _pm] (int depth, const mut_tree *mt) mutable -> void{
             string base_id{*_base_id};
             const pcr_molecule &pm {*_pm};
@@ -189,9 +163,9 @@ void run_pcr(
             string base_id{*_base_id};
             const pcr_molecule &pm {*_pm};
             if( z1dist(rand_gen) < drop_ratio) { //Molecule is captured by sequencing
-                ost << ">" << base_id << "_" << copy_number << " ";
+                ost << ">" << base_id << "_" << copy_number << "_";
                 mut_tree *current = mt->parent;
-                ost << "lineage:";
+//                ost << "lineage:";
                 ost << mt->identity;
                 while( current != nullptr){ //Print pcr Lineage
                     ost << "_" << current->identity;
@@ -255,7 +229,8 @@ void run_pcr(
             mut_tree mutation_tree;
             vector<int> positions(molecule_size);
             std::iota(positions.begin(), positions.end(), 0);
-            int expected_mutation_count = error_rate * molecule_size; 
+            double expected_mutation_count = error_rate * molecule_size; 
+
 
             do_pcr(pcm, mutation_tree, 0, expected_mutation_count, positions);
             if(fastq_output){
@@ -288,7 +263,7 @@ void run_pcr(
             mut_tree mutation_tree;
             vector<int> positions(molecule_size);
             std::iota(positions.begin(), positions.end(), 0);
-            int expected_mutation_count = error_rate * molecule_size; 
+            double expected_mutation_count = error_rate * molecule_size; 
 
             do_pcr(rp, mutation_tree, cycle, expected_mutation_count, positions);
             string base_id = "RP";
@@ -336,7 +311,7 @@ int main(int argc, char **argv){
         ("m,molecule-description", "Molecule description file", cxxopts::value<string>())
         ("r,references",  "List of comma separated references, (required for fastq output)", cxxopts::value<vector<string>>())
         ("o,output", "Output path", cxxopts::value<string>())
-        ("read-count", "Number of reads to simulate", cxxopts::value<int>()->default_value("100000"))
+        ("read-count", "Number of reads to simulate", cxxopts::value<size_t>()->default_value("100000"))
         ("cycles", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
         ("efficiency", "Probability of a molecule being duplicated during each pcr cycle", cxxopts::value<double>()->default_value("0.75"))
         ("error-rate", "Probability of substition errors for each base during each pcr cycle", cxxopts::value<double>()->default_value("0.000001"))
@@ -375,7 +350,7 @@ int main(int argc, char **argv){
     int cycles = args["cycles"].as<int>();
     double pcr_efficiency = args["efficiency"].as<double>();
     double error_rate = args["error-rate"].as<double>();
-    int number_of_target_reads = args["read-count"].as<int>();
+    int number_of_target_reads = args["read-count"].as<size_t>();
     double random_pairing_rate_per_cycle = args["template-switch-rate"].as<double>();
     if(args["preset"].count() > 0){
         tuple<double, double> setting = pcr_presets[args["preset"].as<string>()];
@@ -425,16 +400,18 @@ int main(int argc, char **argv){
         }
         molecules.emplace_back(id,segments, errors_so_far, depth);
     }
-
+    if( molecules.size() > 2 * args["read-count"].as<size_t>()){
+        std::shuffle(molecules.begin(), molecules.end(), rand_gen);
+        molecules.resize( 2 * args["read-count"].as<size_t>());
+    }
     map<string, string> sequences;
     if(args.count("references") > 0){
         for(const string &p : args["references"].as<vector<string>>()){
             sequences.merge(read_fasta_fast(p));
         }
     }
+
     ofstream out_stream(args["output"].as<string>());
-
-
 
     run_pcr( 
         molecules,

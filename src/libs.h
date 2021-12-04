@@ -29,7 +29,7 @@
 
 
 #include <zlib.h>
-#include "IITree.h"
+
 #include "kekseq.h"
 #include "cigar.h"
 #include "interval.h"
@@ -40,4 +40,5 @@
 #include "gtf.h"
 #include "fasta.h"
 #include "extern/cxxopts.hpp"
+#include "extern/IITree.h"
 #endif

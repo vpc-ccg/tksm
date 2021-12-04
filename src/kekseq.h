@@ -238,7 +238,7 @@ namespace kekseq{
             is_fastq = (c == '+'); 
             if (!is_fastq) return seq.l; /* FASTA */ 
             if (qual.m < seq.m) {	/* allocate memory for qual in case insufficient */ 
-                qual.expand(qual.m - seq.m);
+                qual.expand(- qual.m + seq.m);
             } 
             while ((c = ks.getc()) >= 0 && c != '\n'); /* skip the rest of '+' line */ 
             if (c == -1) return -2; /* error: no quality string */ 
