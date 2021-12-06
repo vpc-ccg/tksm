@@ -12,6 +12,10 @@
 #include "extern/cxxopts.hpp"
 #include "fasta.h"
 #include "util.h"
+#include "interval.h"
+#include "fasta.h"
+#include "mdf.h"
+#include "reverse_complement.h"
 
 using std::ifstream;
 using std::vector;
@@ -75,7 +79,6 @@ int main(int argc, char **argv){
             if(throughput_so_far + seq_len > throughput_per_batch && current_batch + 1< args["t"].as<int>()){
                 if(current_batch >= 0){
                     actual_throughputs.push_back(throughput_so_far);
-
                 }
                 ++current_batch;
 
@@ -92,7 +95,62 @@ int main(int argc, char **argv){
         actual_throughputs.push_back(throughput_so_far);
     }
     else{//Generate fasta from mdf
+        std::ifstream infile(input_filename);
+        vector<pcr_copy> molecules = parse_mdf(infile);
+        map<string, string> refs;
+        for(const string &path : args["references"].as<vector<string>>()){
+            refs.merge(read_fasta_fast(path));
+        }
+        int64_t total_throughput = std::accumulate(molecules.begin(),molecules.end(),0,
+        [] (int64_t sum, const pcr_copy &pc) {
+            for(const auto &ival : pc.segments){
+                sum+=(ival.end - ival.start);
+            }
+            return sum;
+        });
+        int64_t throughput_per_batch = total_throughput / args["threads"].as<int>() + 1;
+        int64_t throughput_so_far = throughput_per_batch;
+        int current_batch = -1;
+        std::ofstream ost;
 
+
+
+        for( const pcr_copy& pc : molecules){
+            pcr_molecule pcm{pc};
+            for(const auto& seg : pc.segments){
+                throughput_so_far += (seg.end - seg.start);
+            }
+            if(throughput_so_far > throughput_per_batch && current_batch + 1< args["t"].as<int>()){
+                if(current_batch >= 0){
+                    actual_throughputs.push_back(throughput_so_far);
+                }
+                ++current_batch;
+
+                throughput_so_far = 0;
+                string batch_file = args["temp"].as<string>() + "/" + software_name + "." +
+                    args["name"].as<string>() + ".batch-" + std::to_string(current_batch) + ".fasta";
+                batch_files.push_back(batch_file);
+                ost.close();
+                ost.open(batch_file);
+            }
+            ost << ">" << pc.id << "\n";
+            
+            size_t seq_index = 0;
+            for(const auto& seg : pc.segments){
+                string seq = refs.at(seg.chr).substr(seg.start, seg.end - seg.start);
+                for(const auto &pr : pc.errors_so_far){
+                    if((unsigned) pr.first > seq_index && (unsigned) pr.first < seq_index + seq.size()){
+                        seq[ pr.first - seq_index] = pr.second;
+                    }
+                }
+                if(!seg.plus_strand){
+                    reverse_complement::complement_inplace(seq);
+                }
+                ost << seq << "\n";
+                seq_index += seq.size();
+            }
+        }
+        actual_throughputs.push_back(throughput_so_far);
     }
     
     auto throughput_iter = actual_throughputs.begin();
