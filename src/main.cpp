@@ -33,7 +33,7 @@
 #include <climits>
 
 #include <zlib.h>
-#include "IITree.h"
+#include "extern/IITree.h"
 #include "kekseq.h"
 #include "cigar.h"
 #include "interval.h"
