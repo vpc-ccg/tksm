@@ -34,6 +34,7 @@ int main(int argc, char **argv){
         ("t,threads", "Number of threads/batches", cxxopts::value<int>())
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("fasta", "Input is fasta", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
+        ("keep-temp", "Keep generated temp files", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("h,help", "Help screen")
     ;
 
@@ -133,7 +134,7 @@ int main(int argc, char **argv){
                 ost.close();
                 ost.open(batch_file);
             }
-            ost << ">" << pc.id << "\n";
+            ost << ">" << pc.id << " depth=1\n";
             
             size_t seq_index = 0;
             for(const auto& seg : pc.segments){
@@ -179,11 +180,13 @@ int main(int argc, char **argv){
     cat_command += " > " + args["output"].as<string>();
     std::system(cat_command.c_str());
 
-    for(const string &bf : batch_files){
+    if(!args["keep-temp"].as<bool>()){
+        for(const string &bf : batch_files){
 
-        string batch_out_name = bf.substr(0,bf.find_last_of(".")) + ".fastq";
-        string rm_command = "rm " + batch_out_name;
-        system(rm_command.c_str());
+            string batch_out_name = bf.substr(0,bf.find_last_of(".")) + ".fastq";
+            string rm_command = "rm " + batch_out_name;
+            system(rm_command.c_str());
+        }
     }
     return 0;
 }
