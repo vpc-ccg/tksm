@@ -156,20 +156,36 @@ int main(int argc, char **argv){
     
     auto throughput_iter = actual_throughputs.begin();
 
+
     vector<std::thread> threads;
-    for(const string &bf : batch_files){
+    vector<int> return_values(args["t"].as<int>(),0);
+    for(int i = 0; i< args["t"].as<int>(); ++i){
+//    for(const string &bf : batch_files){
+        const string &bf = batch_files[i];
+
         string batch_out_name = bf.substr(0,bf.find_last_of(".")) + ".fastq";
         string command = "PYTHONHASHSEED=0 " + args["badread"].as<string>() + " simulate --reference=" + bf + " --length 1000000,0 --seed 42" +
             " --quantity=" + std::to_string(*throughput_iter) + " --glitches=0,0,0 --junk_reads=0 --random_reads=0 --chimeras=0" + " > " + batch_out_name + " 2> " + batch_out_name +".log";
         std::cout << command << "\n";
         ++throughput_iter;
-        threads.push_back(std::thread{[](const std::string &command){
-                std::system(command.c_str());
-        },command});
+
+        threads.push_back(std::thread{[](const std::string &command, int *return_value){
+            int ret = std::system(command.c_str());
+            if(!WIFEXITED(ret)){ //Didn't exit normally
+                *return_value = -1;
+            }
+            *return_value = 0;
+        },command,&return_values[i]});
     }
 
-    for( std::thread &t : threads){
-        t.join();
+    for(int i = 0; i< args["t"].as<int>(); ++i){
+    //for( std::thread &t : threads){
+        threads[i].join();
+        if(return_values[i]){
+            std::cerr << "Error: Please check following log file\n";
+            std::cerr <<  batch_files[i].substr(0,batch_files[i].find_last_of(".")) + ".fastq.log";
+            return -1;
+        }
     }
     
     string cat_command = "cat ";
