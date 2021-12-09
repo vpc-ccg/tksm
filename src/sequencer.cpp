@@ -1,4 +1,5 @@
 
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <numeric>
@@ -16,6 +17,8 @@
 #include "fasta.h"
 #include "mdf.h"
 #include "reverse_complement.h"
+
+#include <future>
 
 using std::ifstream;
 using std::vector;
@@ -157,7 +160,7 @@ int main(int argc, char **argv){
     auto throughput_iter = actual_throughputs.begin();
 
 
-    vector<std::thread> threads;
+    vector<std::future<int>> promises;
     vector<int> return_values(args["t"].as<int>(),0);
     for(int i = 0; i< args["t"].as<int>(); ++i){
 //    for(const string &bf : batch_files){
@@ -169,21 +172,22 @@ int main(int argc, char **argv){
         std::cout << command << "\n";
         ++throughput_iter;
 
-        threads.push_back(std::thread{[](const std::string &command, int *return_value){
+        promises.push_back(std::async([i](const std::string &command) -> int{
             int ret = std::system(command.c_str());
-            if(!WIFEXITED(ret)){ //Didn't exit normally
-                *return_value = -1;
+
+            if(!WEXITSTATUS(ret)){ //Didn't exit normally
+                return i;
             }
-            *return_value = 0;
-        },command,&return_values[i]});
+            return 0;
+        },command));
     }
 
     for(int i = 0; i< args["t"].as<int>(); ++i){
     //for( std::thread &t : threads){
-        threads[i].join();
-        if(return_values[i]){
+        int ret = promises[i].get();
+        if(ret){
             std::cerr << "Error: Please check following log file\n";
-            std::cerr <<  batch_files[i].substr(0,batch_files[i].find_last_of(".")) + ".fastq.log";
+            std::cerr <<  batch_files[i].substr(0,batch_files[i].find_last_of(".")) + ".fastq.log\n";
             return -1;
         }
     }
