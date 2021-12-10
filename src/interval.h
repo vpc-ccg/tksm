@@ -470,9 +470,9 @@ struct pcr_copy{
             segments.push_back(e);
         }
     }
-    pcr_copy( const std::string &id, const std::vector<ginterval> &segments, auto errors_so_far) : id(id), segments(segments), errors_so_far(errors_so_far), depth(1) {}
-    pcr_copy( const std::string &id, const std::vector<ginterval> &segments, auto errors_so_far, int depth) : id(id), segments(segments), errors_so_far(errors_so_far), depth(depth) {}
-    pcr_copy( const std::vector<ginterval> &segments, auto errors_so_far) : id("copy"), segments(segments), errors_so_far(errors_so_far), depth(1) {}
+    pcr_copy( const std::string &id, const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far) : id(id), segments(segments), errors_so_far(errors_so_far), depth(1) {}
+    pcr_copy( const std::string &id, const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far, int depth) : id(id), segments(segments), errors_so_far(errors_so_far), depth(depth) {}
+    pcr_copy( const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far) : id("copy"), segments(segments), errors_so_far(errors_so_far), depth(1) {}
     pcr_copy( const std::vector<ginterval> &segments) : id("copy"), segments(segments), depth(1) {}
 };
 
