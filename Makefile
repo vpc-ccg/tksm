@@ -1,6 +1,6 @@
 
 CXX ?= g++
-CXXFLAGS += -O2  -Wall -std=c++20 
+CXXFLAGS += -O2  -Wall -std=c++2a 
 LDFLAGS += -lz -lpthread
 
 SRCD=src
