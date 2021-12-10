@@ -9,6 +9,8 @@
 #include <fstream>
 #include <set>
 
+#include <climits>
+
 #include "extern/IITree.h"
 #include "extern/cxxopts.hpp"
 #include "interval.h"
@@ -146,7 +148,7 @@ map<string, vector<isoform>> generate_fusion_isoforms(
             {
                 std::uniform_int_distribution<> dist(0, current->data);
                 int rand_val = dist(rand_gen);
-                bool flag = false;
+
 
                 int sum = 0;
                 for(const auto &pc : current->children){
@@ -155,7 +157,7 @@ map<string, vector<isoform>> generate_fusion_isoforms(
                     if(sum >= rand_val){
                         isoform.push_back(current->identity);
                         current = &pc.second;
-                        flag = true;
+
                         break;
                     }   //Decide
                 }
@@ -243,7 +245,7 @@ map<string, vector<isoform>> generate_normal_isoforms(const tree<exon, int> &exo
         while((current->children.size() > 0 )){
             std::uniform_int_distribution<> dist(0, current->data);
             int rand_val = dist(rand_gen);
-            bool flag = false;
+
 
             int sum = 0;
             for(const auto &pc : current->children){
@@ -252,7 +254,7 @@ map<string, vector<isoform>> generate_normal_isoforms(const tree<exon, int> &exo
                 if(sum >= rand_val){
                     isoform.push_back(current->identity);
                     current = &pc.second;
-                    flag = true;
+
                     break;
                 }   //Decide
             }

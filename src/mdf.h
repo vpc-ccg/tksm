@@ -12,7 +12,7 @@ using std::string;
 using std::ostream;
 using std::ifstream;
 
-vector<pcr_copy> parse_mdf(ifstream &ist){
+inline vector<pcr_copy> parse_mdf(ifstream &ist){
 
     vector<pcr_copy> molecules;
     string buffer;
@@ -52,7 +52,7 @@ vector<pcr_copy> parse_mdf(ifstream &ist){
     return molecules;
 }
 
-void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecule, const vector< vector<std::pair<int, char>>> &errors_per_segment){
+inline void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecule, const vector< vector<std::pair<int, char>>> &errors_per_segment){
 
     size_t interval_count = 0;//molecule.paired.size();
     for(const pcr_copy &pcp : molecule.paired){
@@ -66,10 +66,9 @@ void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecule, con
         size_t size_so_far = 0;
         for( const ginterval &ival : pcp.segments){
             string error_str = "";
-            size_t error_cnt = 0;
 
             const vector<std::pair<int, char>> &errors = errors_per_segment[interval_counter];
-            error_cnt = errors.size();
+
             for(std::pair<int, char> error : errors){
                 error_str += (std::to_string(error.first-size_so_far) + error.second + ",");
             }

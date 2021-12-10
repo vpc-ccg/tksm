@@ -180,8 +180,18 @@ struct gene: public ginterval{
     friend auto operator !=(const gene &a, const gene &b){
         return ! (a==b);
     }
-    friend auto operator <=> (const gene &a, const gene &b){
-        return a.gene_id <=> b.gene_id;
+
+    friend auto operator > (const gene &a, const gene &b){
+        return a.gene_id > b.gene_id;
+    }
+    friend auto operator >= (const gene &a, const gene &b){
+        return a.gene_id >= b.gene_id;
+    }
+    friend auto operator < (const gene &a, const gene &b){
+        return a.gene_id < b.gene_id;
+    }
+    friend auto operator <= (const gene &a, const gene &b){
+        return a.gene_id <= b.gene_id;
     }
 };
 
@@ -245,25 +255,25 @@ struct exon: public ginterval{
 
 
 
-std::ostream &operator << ( std::ostream &ost, const interval &ex){
+inline std::ostream &operator << ( std::ostream &ost, const interval &ex){
     ost << ex.start << "-" << ex.end;
     return ost;
 }
 
-std::ostream &operator << ( std::ostream &ost, const ginterval &ex){
+inline std::ostream &operator << ( std::ostream &ost, const ginterval &ex){
     ost << ex.chr << ":" << ex.start << "-" << ex.end;
     return ost;
 }
 
 
-std::ostream &operator << ( std::ostream &ost, const exon &ex){
+inline std::ostream &operator << ( std::ostream &ost, const exon &ex){
     ost << dynamic_cast<const ginterval&>(ex) << " " << ex.strand << " " << ex.exon_id;
     if(ex.gene_ref != nullptr){
         ost << " " << ex.gene_ref->gene_name << " " << (ex.gene_ref->plus_strand?"+":"-");
     }
     return ost;
 }
-std::ostream &operator << ( std::ostream &ost, const gene &ex){
+inline std::ostream &operator << ( std::ostream &ost, const gene &ex){
     ost << (ginterval) ex <<  " " << ex.gene_name ;
     return ost;
 }
