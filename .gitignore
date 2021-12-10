@@ -3,3 +3,5 @@
 *.pch
 main
 build/*
+simulator
+
