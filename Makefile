@@ -22,12 +22,14 @@ HEADER_PATH = $(PCH_HEADERS:%.h=${SRCD}/%.h)
 all: $(EXEC_FILES)
 
 $(BUILDD)/%:$(SRCD)/%.cpp
+	mkdir -p ${BUILDD}
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(PCH_OUT): $(PCH_LIB) $(PCH_HEADERS)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 ${OBJD}/%.o:$(SRCD)/%.cpp 
+	mkdir -p ${OBJD}
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 ${TSTB}/%:${TSTD}/%.cpp
