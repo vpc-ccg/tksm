@@ -464,7 +464,9 @@ struct pcr_copy{
     bool reversed;
     int depth;
 
+
     pcr_copy(){}
+    pcr_copy( const std::string &id) : id(id), depth(1){}
     pcr_copy( const std::string &id, const isoform &iso) : id(id), depth(1){
         for(const exon &e :iso.segments){
             segments.push_back(e);
@@ -474,6 +476,13 @@ struct pcr_copy{
     pcr_copy( const std::string &id, const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far, int depth) : id(id), segments(segments), errors_so_far(errors_so_far), depth(depth) {}
     pcr_copy( const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far) : id("copy"), segments(segments), errors_so_far(errors_so_far), depth(1) {}
     pcr_copy( const std::vector<ginterval> &segments) : id("copy"), segments(segments), depth(1) {}
+
+    void prepend(const ginterval &g){
+        segments.insert(segments.begin(),g);
+        for(std::pair<int, char> &errs : errors_so_far){
+            errs = std::make_pair(errs.first+g.end-g.start,errs.second);
+        }
+    }
 };
 
 //pcr molecule structure that can model paired molecules

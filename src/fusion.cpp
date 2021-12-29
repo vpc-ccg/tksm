@@ -617,9 +617,11 @@ int main(int argc, char **argv){
     double translocation_ratio = args["translocation-ratio"].as<double>();
     vector<gene> exp_gene_vec;
     exp_gene_vec.insert(exp_gene_vec.begin(),expressed_genes.begin(),expressed_genes.end());
+    
     std::sort(exp_gene_vec.begin(), exp_gene_vec.end() ,[](const gene &g1, const gene &g2) -> bool {
         return g1.chr > g2.chr; 
-            });
+    });
+
     std::cout << exp_gene_vec.size() << "\n";
     vector< std::pair<gene,gene>> fusions = generate_random_fusions(exp_gene_vec, fusion_count * ( 1- translocation_ratio), fusion_count * translocation_ratio);
 //    vector<std::pair<int,int>> fusion_breakpoints = generate_fusion_breakpoints( fusions, bpstrategy::uniform);

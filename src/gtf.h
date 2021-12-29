@@ -190,55 +190,7 @@ inline auto read_gtf_exons( std::string path_to_gtf, bool coding_only = true){
             annots.emplace_back(chr,s,e,st,exon_id, current_gene);
         }
     }
-    /*
-       while( std::getline(file, str)){
-       if(str[0] == '#'){
-       continue;
-       }
-       lazy_split fields{str, "\t"};
 
-       if(fields[2] != "exon"){
-       continue;
-       }
-       std::string chr{ fields[0]};
-       int s = stoi(std::string{fields[3]});
-       int e =  stoi(std::string{fields[4]});
-
-       std::string st{ fields[6]};
-
-       std::string info_str{fields[8]};
-       lazy_split info{info_str, ";", " \n\t"};
-
-
-       std::string gene_id = ""; 
-       std::string transcript_id = ""; 
-       std::string exon_id = ""; 
-       int count = 0;
-       for( auto iter = info.begin(); iter != info.end(); ++iter){
-       if((*iter).size() <= 1){ continue;}
-       std::string f{*iter};
-       lazy_split fs{f , " ", "\""};
-
-       if(fs[0] == "gene_id"){
-       gene_id = fs[1];
-       ++ count;
-       }
-       else if(fs[0] == "transcript_id"){
-       transcript_id = fs[1];
-       ++ count;
-       }
-       else if(fs[0] == "exon_id"){
-       exon_id = fs[1];
-       ++ count;
-       }
-       if(count == 3){
-       break;
-       }
-       }
-
-       annots.emplace_back(chr, s, e, st, exon_id);
-       }
-       */
     return make_pair(annots,gptrs);
 }
 

@@ -1,6 +1,7 @@
 
 CXX ?= g++
-CXXFLAGS += -O2  -Wall -std=c++2a 
+OPT ?= -O2
+CXXFLAGS += ${OPT} -Wall -std=c++2a 
 LDFLAGS += -lz -lpthread
 
 SRCD=src
@@ -10,7 +11,7 @@ TSTB=test/binaries
 BUILDD=build
 PCH_LIB = libs.h
 PCH_HEADERS = tree.h graph.h interval.h reverse_complement.h cigar.h extern/IITree.h extern/cxxopts.h
-SOURCE_FILES = fusion.cpp pcr.cpp truncation_analysis.cpp sequencer.cpp
+SOURCE_FILES = fusion.cpp pcr.cpp truncation_analysis.cpp sequencer.cpp splicer.cpp polyA.cpp
 
 
 SOURCE_PATH = $(SOURCE_FILES:%.cpp=${SRCD}/%.cpp)
@@ -48,3 +49,9 @@ all:
 	@echo ${PCH_OUT}
 	@echo ${HEADER_PATH}
 	@echo ${EXEC_FILES}
+
+.PHONY: clean
+
+clean:
+	rm -f ${BUILDD}/*
+	rm -f ${OBJD}/*.o
