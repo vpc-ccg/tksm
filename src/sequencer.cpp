@@ -117,7 +117,7 @@ int main(int argc, char **argv){
         int current_batch = -1;
         std::ofstream ost;
 
-
+        std::cerr << "Throughput per thread :" << throughput_per_batch << "\n";
 
         for( const pcr_copy& pc : molecules){
             pcr_molecule pcm{pc};
@@ -175,7 +175,7 @@ int main(int argc, char **argv){
         promises.push_back(std::async([i](const std::string &command) -> int{
             int ret = std::system(command.c_str());
 
-            if(!WEXITSTATUS(ret)){ //Didn't exit normally
+            if(WEXITSTATUS(ret)){ //Didn't exit normally
                 return i;
             }
             return 0;
@@ -185,6 +185,7 @@ int main(int argc, char **argv){
     for(int i = 0; i< args["t"].as<int>(); ++i){
     //for( std::thread &t : threads){
         int ret = promises[i].get();
+
         if(ret){
             std::cerr << "Error: Please check following log file\n";
             std::cerr <<  batch_files[i].substr(0,batch_files[i].find_last_of(".")) + ".fastq.log\n";
