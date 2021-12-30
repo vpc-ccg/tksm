@@ -11,7 +11,7 @@ TSTB=test/binaries
 BUILDD=build
 PCH_LIB = libs.h
 PCH_HEADERS = tree.h graph.h interval.h reverse_complement.h cigar.h extern/IITree.h extern/cxxopts.h
-SOURCE_FILES = fusion.cpp pcr.cpp truncation_analysis.cpp sequencer.cpp splicer.cpp polyA.cpp
+SOURCE_FILES = fusion.cpp pcr.cpp truncation_analysis.cpp sequencer.cpp splicer.cpp polyA.cpp truncate.cpp
 
 
 SOURCE_PATH = $(SOURCE_FILES:%.cpp=${SRCD}/%.cpp)
