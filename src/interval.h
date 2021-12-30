@@ -463,7 +463,7 @@ struct pcr_copy{
     std::vector< std::pair< int, char>> errors_so_far;
     bool reversed;
     int depth;
-
+    std::string comment;
 
     pcr_copy(){}
     pcr_copy( const std::string &id) : id(id), depth(1){}

@@ -18,7 +18,7 @@ using std::string;
 std::mt19937 rand_gen{std::random_device{}()};
 
 template<class Distribution>
-int add_polyA(vector<pcr_copy> &copies, Distribution &dist){
+int add_polyA(vector<pcr_copy> &copies, Distribution &dist, int min_polya_len = 0){
 
     int max_size = 0;
     for(pcr_copy &pcp : copies){
@@ -46,6 +46,7 @@ int main(int argc, char **argv){
         ("poisson", "Use Poisson distribution [λ]", cxxopts::value<vector<double>>())
         ("weibull", "Use Weibull distribution [α,β]", cxxopts::value<vector<double>>())
         ("normal", "Use Normal distribution [μ,σ]", cxxopts::value<vector<double>>())
+        ("min-length", "Minimum length of polyA", cxxopts::value<int>()->default_value("0"))
         ("h,help", "Help screen")
     ;
     auto args = options.parse(argc, argv);
@@ -101,6 +102,8 @@ int main(int argc, char **argv){
             return 1;
         }
     }
+
+    int min_polya_len = args["min-length"].as<int>();
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
     
@@ -108,20 +111,19 @@ int main(int argc, char **argv){
     int largest_poly_a = 0; 
     if( chosen_dist == "poisson"){
         std::poisson_distribution<> dist(dist_params[0]);
-        largest_poly_a = add_polyA(molecules, dist);
+        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
     }
-
     else if(chosen_dist == "gamma"){
         std::gamma_distribution<> dist(dist_params[0], dist_params[1]);
-        largest_poly_a = add_polyA(molecules, dist);
+        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
     }
     else if(chosen_dist == "normal"){
         std::normal_distribution<> dist(dist_params[0], dist_params[1]);
-        largest_poly_a = add_polyA(molecules, dist);
+        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
     }
     else if(chosen_dist == "weibull"){
         std::weibull_distribution<> dist(dist_params[0], dist_params[1]);
-        largest_poly_a = add_polyA(molecules, dist);
+        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
     }
     else{
         std::cerr << "Distribution " << chosen_dist << " is not implemented!\n";

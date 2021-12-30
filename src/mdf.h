@@ -58,7 +58,7 @@ inline void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecu
         interval_count += pcp.segments.size();
     }
     //For now use the depth of first pcr_copy
-    print_tsv(ost, "+"+id, molecule.paired[0].depth/*depth*/, interval_count, "comment");
+    print_tsv(ost, "+"+id, molecule.paired[0].depth/*depth*/, interval_count, molecule.paired[0].comment);
 
     int interval_counter = 0;
     for( const pcr_copy &pcp : molecule.paired){
@@ -87,7 +87,7 @@ inline void print_all_mdf(ostream &ost, const vector<pcr_copy> &molecules){
     for( const pcr_copy &molecule : molecules){
         size_t interval_count = molecule.segments.size();//molecule.paired.size();
         //For now use the depth of first pcr_copy
-        print_tsv(ost, "+"+molecule.id, molecule.depth/*depth*/, interval_count, "comment");
+        print_tsv(ost, "+"+molecule.id, molecule.depth/*depth*/, interval_count, molecule.comment);
 
         int interval_counter = 0;
 
