@@ -73,7 +73,7 @@ int main(int argc, char **argv){
     string input_filename {args["m"].as<string>()};
     if(args.count("fasta") > 0 ){ //Input is fasta
         map<string, string> seqs = read_fasta_fast(input_filename);
-        int64_t total_throughput = std::accumulate(seqs.begin(),seqs.end(),0, [] (int64_t sum, const std::pair<string, string> &sp) { return sum + sp.second.size();});
+        int64_t total_throughput = std::accumulate(seqs.begin(),seqs.end(),0L, [] (int64_t sum, const std::pair<string, string> &sp) { return sum + sp.second.size();});
         int64_t throughput_per_batch = total_throughput / args["threads"].as<int>() + 1;
         int64_t throughput_so_far = throughput_per_batch;
         int current_batch = -1;
@@ -105,7 +105,7 @@ int main(int argc, char **argv){
         for(const string &path : args["references"].as<vector<string>>()){
             refs.merge(read_fasta_fast(path));
         }
-        int64_t total_throughput = std::accumulate(molecules.begin(),molecules.end(),0,
+        int64_t total_throughput = std::accumulate(molecules.begin(),molecules.end(),0L,
         [] (int64_t sum, const pcr_copy &pc) {
             for(const auto &ival : pc.segments){
                 sum+=(ival.end - ival.start);
