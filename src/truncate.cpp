@@ -1,5 +1,3 @@
-
-
 #include <cstddef>
 #include <exception>
 #include <string>
@@ -19,13 +17,10 @@
 #include "mdf.h"
 
 using std::ofstream;
-
 using std::vector;
 using std::string;
 
-
 std::mt19937 rand_gen{std::random_device{}()};
-
 
 template <class Distribution>
 void truncate(pcr_copy &pcp, Distribution &dist){
@@ -41,8 +36,6 @@ void truncate(pcr_copy &pcp, Distribution &dist){
         ++i;
     }
     if( i != pcp.segments.size()){
-
-
         std::stringstream ss;
         ss << pcp.segments[i].chr << ':' << pcp.segments[i].end - (len_so_far - rand_val) << '-' << pcp.segments[i].end << ',';
         pcp.segments[i].end -= (len_so_far - rand_val); //Update last segment;
@@ -53,10 +46,7 @@ void truncate(pcr_copy &pcp, Distribution &dist){
         trunc_str.back() = ';';
         pcp.comment += "truncated:" + trunc_str;
         pcp.segments.resize(i+1);
-
-
     }
-
 
     i = 0;
     for( const auto &p : pcp.errors_so_far){
@@ -69,7 +59,6 @@ void truncate(pcr_copy &pcp, Distribution &dist){
 }
 
 int main(int argc, char **argv){
-
     cxxopts::Options options("RNAInfuser Splicer", "Splicer module of RNAInfuser");
 
     options.add_options()
@@ -126,12 +115,9 @@ int main(int argc, char **argv){
         return 1;
     }
 
-
     string mdf_file_path {args["input"].as<string>()};
 
     std::ifstream mdf_file {mdf_file_path};
-
-
 
     std::normal_distribution<> normal_dist(dist_params[0], dist_params[1]);
     std::lognormal_distribution<> lognormal_dist(dist_params[0], dist_params[1]);
@@ -150,6 +136,5 @@ int main(int argc, char **argv){
     std::ofstream outfile{outfile_name};
     print_all_mdf(outfile, molecules);
     
-
     return 0;
 }

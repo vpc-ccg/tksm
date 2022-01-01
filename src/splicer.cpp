@@ -1,6 +1,3 @@
-#ifndef FUSION_H
-#define FUSION_H
-
 #include <exception>
 #include <string>
 #include <random>
@@ -19,14 +16,11 @@
 #include "mdf.h"
 
 using std::ofstream;
-using std::set;
 using std::vector;
 using std::string;
 using std::map;
 
 std::mt19937 rand_gen{std::random_device{}()};
-
-
 
 int main(int argc, char **argv){
 
@@ -153,6 +147,3 @@ int main(int argc, char **argv){
 
     return 0;
 }
-
-
-#endif

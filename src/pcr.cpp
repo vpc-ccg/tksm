@@ -328,7 +328,7 @@ int main(int argc, char **argv){
         std::cout << options.help() << std::endl;
         return 0;
     }
-//    std::cout << args["fastq"].as<bool>() << "\n";
+
     std::vector<string> mandatory =  {"molecule-description", "output"};
     if(args.count("fastq") > 0 && args["fastq"].as<bool>()){
         mandatory.push_back("references");
@@ -358,7 +358,6 @@ int main(int argc, char **argv){
         error_rate = std::get<0>(setting);
         pcr_efficiency = std::get<1>(setting);
     }
-
 
     int seed = args["seed"].as<int>();;
     rand_gen.seed(seed);
@@ -423,8 +422,6 @@ int main(int argc, char **argv){
         number_of_target_reads,
         random_pairing_rate_per_cycle,
         args["fastq"].as<bool>());
-
-
 
     return 0;
 }

@@ -1,6 +1,3 @@
-#ifndef FUSION_H
-#define FUSION_H
-
 #include <exception>
 #include <string>
 #include <random>
@@ -651,6 +648,3 @@ int main(int argc, char **argv){
 
     return 0;
 }
-
-
-#endif
