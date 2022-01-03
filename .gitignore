@@ -3,5 +3,6 @@
 *.pch
 main
 build/*
+test/binaries/*
 simulator
 
