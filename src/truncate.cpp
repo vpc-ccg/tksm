@@ -1,13 +1,19 @@
 #include <cstddef>
 #include <exception>
+#include <numeric>
+#include <stdexcept>
 #include <string>
 #include <random>
+#include <tuple>
 #include <vector>
 #include <map>
 #include <fstream>
 #include <set>
 #include <sstream>
 #include <climits>
+#include <algorithm>
+#include <numbers>
+#include <functional>
 
 #include "extern/IITree.h"
 #include "extern/cxxopts.hpp"
@@ -58,12 +64,93 @@ void truncate(pcr_copy &pcp, Distribution &dist){
     pcp.errors_so_far.resize(i);
 }
 
+
+struct identity{
+
+    auto operator () (auto val){
+        return val;
+    }
+};
+
+template<class Accessor>
+auto mean_std(const vector<int> &lengths, Accessor accessor){
+    double mean = 0;
+    int i = 0;
+
+    for(int val : lengths){
+        mean = mean + (accessor(val) - mean) / (i+1);
+        ++i;
+    }
+    double varsum = 0;
+    for(int val : lengths){
+        varsum = varsum + std::pow( accessor(val)- mean,2) ;
+    }
+    
+    double stdev = std::sqrt(varsum / (i-1));
+    
+    return std::make_tuple(mean, stdev);
+}
+auto mean_std(const vector<int> &lengths){
+    return mean_std(lengths, identity{});
+}
+auto fit(vector<int> &lengths){
+
+    using namespace std::numbers;
+
+    std::map<string, std::function<std::tuple<double, double, double> (const vector<int> &)>> ll_computers = {
+        { 
+            "normal" , [] (const vector<int> &ll){
+                auto [_mean, std] = mean_std(ll);
+                double mean = _mean; //This is needed because clangd complains 
+                size_t n = ll.size();
+                double var_cal = std::accumulate(ll.begin(), ll.end(), 0.0L, [mean] (double sum, int val) -> double {
+                    return sum + (val - mean) * (val - mean); 
+                        });
+                double LL = -(n/2.0)*std::log(2 * pi) -(n/2.0) *std::log(std*std) - (1.0/(2*std*std)) * var_cal;
+                return std::make_tuple(LL, mean, std);
+            }
+        },
+        { 
+            "lognormal" , [] (const vector<int> &ll){
+                auto [_mean, std] = mean_std(ll, [](int val){ return std::log(val);});
+                double mean = _mean; //This is needed because clangd complains 
+                size_t n = ll.size();
+                double var_cal = std::accumulate(ll.begin(), ll.end(), 0.0L, [mean] (double sum, int val) -> double {
+                    return sum + (std::log(val) - mean) * (std::log(val) - mean); 
+                        });
+                double LL = -(n/2.0)*std::log(2 * pi) -(n/2.0) *std::log(std*std) - (1.0/(2*std*std)) * var_cal;
+                return std::make_tuple(LL, mean, std);
+            }
+        }
+    };
+
+    string max_dist = "None";
+    double max_ll = - std::numeric_limits<int>::max();
+    double chosen_mean = -1;
+    double chosen_std  = -1;
+    for( auto &p : ll_computers){
+        auto [LL, mean, std] = p.second(lengths);
+        std::cerr << p.first << ": ";
+        std::cerr << "ll: " << LL << " "; 
+        std::cerr << "mean: " << mean << " "; 
+        std::cerr << "std: " << std << "\n";
+        if(LL > max_ll){
+            max_dist = p.first;
+            max_ll   = LL;
+            chosen_mean = mean;
+            chosen_std = std;
+        }
+    }
+    return make_tuple(max_dist, max_ll, chosen_mean, chosen_std);
+}
+
 int main(int argc, char **argv){
     cxxopts::Options options("RNAInfuser Splicer", "Splicer module of RNAInfuser");
 
     options.add_options()
         ("i,input", "Molecule description file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
+        ("fit", "Use estimated distribution from the given fast{a,q}", cxxopts::value<string>())
         ("normal", "Use Normal distribution [μ,σ]", cxxopts::value<vector<double>>())
         ("lognormal", "Use Log-Normal distribution [μ,σ]", cxxopts::value<vector<double>>())
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
@@ -92,7 +179,7 @@ int main(int argc, char **argv){
     int seed = args["seed"].as<int>();;
 
     rand_gen.seed(seed);
-    vector<string> distributions = {"lognormal", "normal"};
+    vector<string> distributions = {"lognormal", "normal", "fit"};
 
 
     string chosen_dist;
@@ -108,13 +195,31 @@ int main(int argc, char **argv){
         std::cerr << "Please provide one distribution type!\n";
         return 1;
     }
-    vector<double> dist_params = args[chosen_dist].as<vector<double>>();
-
-    if( dist_params.size() != 2){
-        std::cerr << chosen_dist << " requires 2 parameters! Make sure there is no space between them.\n";
-        return 1;
+    vector<double> dist_params;
+    if( chosen_dist != "fit"){
+        dist_params = args[chosen_dist].as<vector<double>>();
+        if( dist_params.size() != 2){
+            std::cerr << chosen_dist << " requires 2 parameters! Make sure there is no space between them.\n";
+            return 1;
+        }
     }
+    else{
+        string dist_fit_file_path {args["fit"].as<string>()};
+        std::ifstream dist_fit_file(dist_fit_file_path);
 
+        string buffer;
+        vector<int> lens;
+        while(std::getline(dist_fit_file, buffer)){ //Subsamples fasta files 1/2 ratio. TODO: use a proper fast{a,q} reader
+            std::getline(dist_fit_file, buffer);
+            lens.push_back(buffer.size() - 1);
+            std::getline(dist_fit_file, buffer);
+            std::getline(dist_fit_file, buffer);
+        }
+        auto [name, ll, mean, std] = fit(lens);
+        std::cerr << name << " is chosen with " << ll << " log-likelihood\n";
+        chosen_dist = name;
+        dist_params = {mean, std};
+    }
     string mdf_file_path {args["input"].as<string>()};
 
     std::ifstream mdf_file {mdf_file_path};
