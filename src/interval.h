@@ -2,6 +2,7 @@
 #define INTERVAL_H
 
 #include <algorithm>
+#include <numeric>
 #include <string>
 #include <sstream>
 #include <iostream>
@@ -482,6 +483,9 @@ struct pcr_copy{
         for(std::pair<int, char> &errs : errors_so_far){
             errs = std::make_pair(errs.first+g.end-g.start,errs.second);
         }
+    }
+    size_t size() const{
+        return std::accumulate(segments.begin(), segments.end(), 0L, [] (size_t sum_so_far, const ginterval &g) -> size_t { return sum_so_far + g.end - g.start;});
     }
 };
 
