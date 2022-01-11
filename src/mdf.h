@@ -62,14 +62,16 @@ inline void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecu
 
     int interval_counter = 0;
     for( const pcr_copy &pcp : molecule.paired){
-        size_t size_so_far = 0;
+        int size_so_far = 0;
         for( const ginterval &ival : pcp.segments){
             string error_str = "";
 
             const vector<std::pair<int, char>> &errors = errors_per_segment[interval_counter];
 
             for(std::pair<int, char> error : errors){
-                error_str += (std::to_string(error.first-size_so_far) + error.second + ",");
+                if( error.first > size_so_far && error.first < size_so_far + ival.end - ival.start){
+                    error_str += (std::to_string(error.first-size_so_far) + error.second + ",");
+                }
             }
             if(error_str != ""){
                 error_str.pop_back();
@@ -91,14 +93,16 @@ inline void print_all_mdf(ostream &ost, const vector<pcr_copy> &molecules){
 
         int interval_counter = 0;
 
-        size_t size_so_far = 0;
+        int size_so_far = 0;
         for( const ginterval &ival : molecule.segments){
             string error_str = "";
 
             const vector<std::pair<int, char>> &errors = molecule.errors_so_far;
 
             for(std::pair<int, char> error : errors){
-                error_str += (std::to_string(error.first-size_so_far) + error.second + ",");
+                if( error.first > size_so_far && error.first < size_so_far + ival.end - ival.start){
+                    error_str += (std::to_string(error.first-size_so_far) + error.second + ",");
+                }
             }
             if(error_str != ""){
                 error_str.pop_back();
