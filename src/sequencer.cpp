@@ -24,10 +24,13 @@ using std::ifstream;
 using std::vector;
 using std::string;
 
+
+
+//PYTHONHASHSEED0 ../Badread/badread-runner.py simulate --reference=long-reads_temp/rnainfuser.simulation.batch-31.fasta --length 1000000,0 --seed 42 --quantity=4412980 --glitches=0,0,0 --junk_reads=0 --random_reads=0 --chimeras=0 > long-reads_temp/rnainfuser.simulation.batch-31.fastq 2> long-reads_temp/rnainfuser.simulation.batch-31.fastq.log=
 int main(int argc, char **argv){
     cxxopts::Options options("RNAInfuser sequencer module", "Sequencer");
     const string software_name = "rnainfuser";
-    options.add_options()
+    options.add_options("RNAInfuser")
         ("m,molecule-description", "Molecule description file", cxxopts::value<string>())
         ("r,references",  "List of comma separated references, (required for fastq output)", cxxopts::value<vector<string>>())
         ("o,output", "Output path", cxxopts::value<string>())
@@ -40,11 +43,19 @@ int main(int argc, char **argv){
         ("keep-temp", "Keep generated temp files", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("h,help", "Help screen")
     ;
-
+    options.add_options("Badread")
+        ("length", "Badread length distribution (Don't use it, truncate module should be used to modify read lengths)", cxxopts::value<string>()->default_value("1000000,0"))
+        ("glitches", "Badread glitches parameter", cxxopts::value<string>()->default_value("0,0,0"))
+        ("junk-reads", "Badread junk reads parameter", cxxopts::value<string>()->default_value("0"))
+        ("random-reads", "Badread random reads parameter", cxxopts::value<string>()->default_value("0"))
+        ("chimeras", "Badread chimeras parameter", cxxopts::value<string>()->default_value("0"))
+    ;
     auto args = options.parse(argc, argv);
 
+    vector<string> help_groups = {"RNAInfuser", "Badread"};
+
     if(args.count("help") > 0){
-        std::cout << options.help() << std::endl;
+        std::cout << options.help(help_groups) << std::endl;
         return 0;
     }
 
@@ -63,7 +74,7 @@ int main(int argc, char **argv){
     }
 
     if(missing_parameters  > 0){
-        std::cerr << options.help() << std::endl;
+        std::cerr << options.help(help_groups) << std::endl;
         return 1;
     }
   
@@ -167,8 +178,11 @@ int main(int argc, char **argv){
         const string &bf = batch_files[i];
 
         string batch_out_name = bf.substr(0,bf.find_last_of(".")) + ".fastq";
-        string command = "PYTHONHASHSEED=0 " + args["badread"].as<string>() + " simulate --reference=" + bf + " --length 1000000,0 --seed 42" +
-            " --quantity=" + std::to_string(*throughput_iter) + " --glitches=0,0,0 --junk_reads=0 --random_reads=0 --chimeras=0" + " > " + batch_out_name + " 2> " + batch_out_name +".log";
+        string command = "PYTHONHASHSEED=0 " + args["badread"].as<string>() + " simulate --reference=" + bf + 
+            " --length " + args["lengths"].as<string>() + " --seed=" + args["seed"].as<string>() +
+            " --quantity=" + std::to_string(*throughput_iter) + " --glitches=" + args["glitches"].as<string>() + " --junk_reads="  + 
+            args["junk-reads"].as<string>() +  " --random_reads=" + args["random-reads"].as<string>() +
+            " --chimeras=" + args["chimeras"].as<string>() + " > " + batch_out_name + " 2> " + batch_out_name +".log";
         std::cout << command << "\n";
         ++throughput_iter;
 
