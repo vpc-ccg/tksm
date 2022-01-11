@@ -66,7 +66,6 @@ int main(int argc, char **argv){
 
     int missing_parameters = 0;
     for( string &param : mandatory){
-        std::cout << param << "\n";
         if(args.count(param) == 0){
             std::cerr << param << " is required!\n";
             ++missing_parameters;
