@@ -30,7 +30,7 @@ int main(int argc, char **argv){
         ("g,gtf",  "Path to gtf annotation file", cxxopts::value<string>())
         ("e,expression-table",  "Path to tab separated expression table (Formatted as transcript_id\\tcount)", cxxopts::value<string>())
         ("a,abundance-table",  "Path to tab separated abundance table (Formatted as transcript_id\\tcount\\tpm)", cxxopts::value<string>())
-        ("use-whole-id", "Use whole transcript id instead of first 15 characters (ENSEMBL ids)", cxxopts::value<bool>()->default_value("false")->implicit_value("false"))
+        ("use-whole-id", "Use whole transcript id instead of first 15 characters (ENSEMBL ids)", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("molecule-count", "Number of molecules to simulate, (requires abundance table", cxxopts::value<int>())
         ("o,output", "Output path", cxxopts::value<string>())
         ("non-coding", "Process non-coding genes/transcripts as well", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
