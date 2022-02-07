@@ -5,4 +5,4 @@ main
 build/*
 test/binaries/*
 simulator
-
+.snakemake

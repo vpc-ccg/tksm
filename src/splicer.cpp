@@ -29,9 +29,12 @@ int main(int argc, char **argv){
     options.add_options()
         ("g,gtf",  "Path to gtf annotation file", cxxopts::value<string>())
         ("e,expression-table",  "Path to tab separated expression table (Formatted as transcript_id\\tcount)", cxxopts::value<string>())
+        ("a,abundance-table",  "Path to tab separated abundance table (Formatted as transcript_id\\tcount\\tpm)", cxxopts::value<string>())
+        ("use-whole-id", "Use whole transcript id instead of first 15 characters (ENSEMBL ids)", cxxopts::value<bool>()->default_value("false")->implicit_value("false"))
+        ("molecule-count", "Number of molecules to simulate, (requires abundance table", cxxopts::value<int>())
         ("o,output", "Output path", cxxopts::value<string>())
         ("non-coding", "Process non-coding genes/transcripts as well", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
-        ("default-depth", "Default depth for transcripts that are not in expression table", cxxopts::value<int>()->default_value("42"))
+        ("default-depth", "Default depth for transcripts that are not in expression table", cxxopts::value<int>()->default_value("0"))
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("h,help", "Help screen")
     ;
@@ -77,19 +80,47 @@ int main(int argc, char **argv){
 
     vector<pcr_copy> isoforms;
 
+
     map<string, int> transcript2count;
+    map<string, double> transcript2tpm;
+
+
+    std::cerr << "Reading expression\n";
     if(args.count("expression-table") > 0){
         ifstream table_file(args["expression-table"].as<string>());
         string tid = "BEG";
         int count;
         while(!table_file.eof()){
             table_file >> tid >> count;
+            if(!args["use-whole-id"].as<bool>()){
+                tid = tid.substr(0,15);
+            }
             transcript2count[tid] = count;
         }
+    }
+    if(args.count("abundance-table") > 0){
+        ifstream table_file(args["abundance-table"].as<string>());
+        string tid = "BEG";
+        double count;
+        double tpm;
+        table_file >> tid >> tid >> tid;
+        while(!table_file.eof()){
+            table_file >> tid >> count >> tpm;
+            if(!args["use-whole-id"].as<bool>()){
+                tid = tid.substr(0,15);
+            }
+            transcript2count[tid] = count;
+            transcript2tpm[tid] = tpm;
+        }
+    
     }
 
     ifstream gtfile( path_to_gtf);
 
+
+    std::uniform_real_distribution<> carry_over_random(0, 1.0);
+
+    std::cerr << "Simulating\n";
     while(std::getline(gtfile, buffer)){
         if(buffer[0] == '#'){
             continue;
@@ -113,7 +144,7 @@ int main(int argc, char **argv){
                 delete current_transcript;
                 current_transcript = entry;
                 isoforms.emplace_back(current_transcript->info["transcript_id"]);
-                {//Empty block so I can define iter;
+                if(args["molecule-count"].count() == 0){//Empty block so I can define iter;
                     auto iter = transcript2count.find(isoforms.back().id);
                     if( iter!= transcript2count.end()){
                         isoforms.back().depth = iter->second;
@@ -123,7 +154,25 @@ int main(int argc, char **argv){
                         isoforms.back().reversed = !current_transcript->plus_strand;
                     }
                 }
+                else{
+                    auto iter = transcript2tpm.find(isoforms.back().id);
+                    double mc = args["molecule-count"].as<int>();
+                    double tpm_multiplier = mc / 1000000;
+                    if( iter!= transcript2tpm.end()){
+                        isoforms.back().depth = iter->second * tpm_multiplier;
+                        double real_carry = isoforms.back().depth - iter->second * tpm_multiplier;
+                        if( real_carry > 0){
+                            if(carry_over_random(rand_gen) < real_carry){
+                                isoforms.back().depth ++ ;
+                            }
+                        }
+                        isoforms.back().reversed = !current_transcript->plus_strand;
+                    }else{
+                        isoforms.back().depth = default_depth;
+                        isoforms.back().reversed = !current_transcript->plus_strand;
+                    }
 
+                }
                 break;
             case gtf::entry_type::exon:
                 if(coding_only && !(coding_transcript && coding_gene)){
