@@ -1,8 +1,8 @@
 
 CXX ?= g++
 OPT ?= -O2
-CXXFLAGS += ${OPT} -Wall -std=c++2a 
-LDFLAGS += -lz -lpthread
+CXXFLAGS += ${OPT} -Wall -std=c++2a -Isrc/extern/fmt/include/
+LDFLAGS += -lz -lpthread 
 
 SRCD=src
 OBJD=obj
