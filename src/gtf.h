@@ -10,7 +10,7 @@
 #include "interval.h"
 #include "graph.h"
 
-graph<gene, double> build_gene_graph( std::string path_to_gtf, const std::map<gene, int> &gene2count,bool coding_only = true){
+inline graph<gene, double> build_gene_graph( std::string path_to_gtf, const std::map<gene, int> &gene2count,bool coding_only = true){
 
     graph<gene, double> gene_graph;
 
@@ -83,6 +83,7 @@ inline auto read_gtf_exons( std::string path_to_gtf, bool coding_only = true){
     std::vector<gene *> gptrs;
     gene* current_gene;
 
+    std::map<std::string, gene> t2g;
 
     while( std::getline(file, str)){
         if(str[0] == '#'){
@@ -154,7 +155,7 @@ inline auto read_gtf_exons( std::string path_to_gtf, bool coding_only = true){
                 continue;
             }
             //current_transcript = std::make_shared<transcript>(chr,s,e,st,transcript_id,current_gene);
-
+            t2g[transcript_id.substr(0,15)] = *current_gene;
         }
         else if( type == "exon"){
             std::string info_str{fields[8]};
@@ -164,7 +165,9 @@ inline auto read_gtf_exons( std::string path_to_gtf, bool coding_only = true){
 
             std::string biotype = "";
             std::string tbiotype = "";
+
             std::string exon_id = ""; 
+            std::string transcript_id = ""; 
             int count = 0;
             for( auto iter = info.begin(); iter != info.end(); ++iter){
                 if((*iter).size() <= 1){ continue;}
@@ -172,8 +175,14 @@ inline auto read_gtf_exons( std::string path_to_gtf, bool coding_only = true){
                 std::vector<std::string> fs = rsplit(f , " ");
                 strip_for_each( fs, "\"");
 
+
                 if(fs[0] == "exon_id"){
                     exon_id = fs[1];
+                    ++ count;
+                }
+
+                if(fs[0] == "transcript_id"){
+                    transcript_id = fs[1];
                     ++ count;
                 }
                 if(fs[0] == "gene_biotype"){
@@ -187,14 +196,14 @@ inline auto read_gtf_exons( std::string path_to_gtf, bool coding_only = true){
             if (coding_only && ( (biotype!="protein_coding") || (tbiotype!="protein_coding"))) {
                 continue;
             }
-            annots.emplace_back(chr,s,e,st,exon_id, current_gene);
+            annots.emplace_back(chr,s,e,st,exon_id, transcript_id, current_gene);
         }
     }
 
-    return make_pair(annots,gptrs);
+    return make_tuple(annots,gptrs,t2g);
 }
 
-
+/*
 inline auto flatten_gtf( std::vector<exon> &exons, double min_overlap = 0.90){
 //Ensure sorted
 //
@@ -230,6 +239,6 @@ inline auto flatten_gtf( std::vector<exon> &exons, double min_overlap = 0.90){
 
     return make_pair(processed, mergeindex);
 }
-
+*/
 
 #endif

@@ -58,10 +58,83 @@ class interval{
         }
 };
 
+class contig_str : public std::string{
+    
+    bool number;
+    public:
+    static bool is_number(const std::string &str){
+        std::string _str = str;
+        if( _str.empty()){
+            return false;
+        }
+        if(_str.find("chr") == 0){
+            _str = str.substr(3);
+        }
+        return std::find_if(_str.begin(),_str.end(), [](unsigned char c) { return !std::isdigit(c); }) == _str.end();
+    }
+
+
+    contig_str (const std::string &str) : std::string{str}, number{is_number(str)}{}
+    contig_str () : std::string{} {}
+    bool operator <(const contig_str &other) const{
+        if( number && other.number){
+            return stoi(*this) < stoi(other);
+        }
+        else if(number){
+            return true;
+        }
+        else if(other.number){
+            return false;
+        }
+        else{
+            return static_cast<std::string>(*this) < static_cast<std::string>(other);
+        }
+    }
+
+    bool operator ==(const contig_str &other) const  = default;
+    bool operator ==(const std::string &other) const  {
+        return *this == static_cast<contig_str>(other);
+    }
+};
+
+class intra_event: public interval{
+    public:
+        contig_str chr;
+        std::string layout;
+        intra_event(): interval(0,0), chr(""), layout("+"){}
+        intra_event(std::string chr, int start, int end, const std::string &strand): 
+            interval(start, end), chr(chr), layout(strand){}
+        intra_event( const intra_event &g1, const intra_event &g2) : interval(g1,g2), chr(g1.chr), layout(g1.layout + g2.layout) {} // Merge constructor
+        intra_event( const intra_event &g1) = default;
+        virtual ~intra_event() {}
+        int overlap( const intra_event &other) const{
+            if( chr != other.chr){
+                return 0;
+            }
+            return interval::overlap(other);
+        } 
+        double reciprocal(const intra_event &other) const {
+            return static_cast<double>(overlap(other)) / larger_interval(*this, other);
+        }
+        bool operator<( const intra_event &other) const{
+            if( other.chr != chr){
+                return chr < other.chr;
+            }
+            if( start == other.start){
+                return end < other.end;
+            }
+            return start < other.start;
+            //}
+
+        }
+        bool operator==(const intra_event &other) const {
+            return chr == other.chr && start == other.start && end == other.end && layout == other.layout;
+        }
+};
 
 class ginterval: public interval{
     public:
-        std::string chr;
+        contig_str chr;
         bool plus_strand;
         ginterval(): interval(0,0), chr(""), plus_strand(true){}
         ginterval(std::string chr, int start, int end, const std::string &strand): 
@@ -219,29 +292,33 @@ struct transcript: public ginterval{
 struct exon: public ginterval{
     std::string exon_id;
     std::string strand;
+    std::string transcript_id;
 
     virtual ~exon() {}
-    gene * gene_ref;
+    gene gene_ref;
 
-    exon(std::string chr, int start, int end, const std::string &strand, const std::string &exon_id, gene* gref): 
-        ginterval(chr, start, end, strand), exon_id(exon_id), gene_ref(gref){}
-    exon(const gtf &entry, gene *gref) : ginterval(entry), exon_id(entry.info.at("exon_id")), gene_ref{gref}{}
+
+    exon(std::string chr, int start, int end, const std::string &strand, const std::string &exon_id, const std::string &transcript_id, const gene &g): 
+        ginterval(chr, start, end, strand), exon_id(exon_id), transcript_id(transcript_id),gene_ref(g){}
+    exon(std::string chr, int start, int end, const std::string &strand, const std::string &exon_id, const std::string &transcript_id,gene* gref): 
+        ginterval(chr, start, end, strand), exon_id(exon_id), transcript_id(transcript_id),gene_ref(*gref){}
+    exon(const gtf &entry, gene *gref) : ginterval(entry), exon_id(entry.info.at("exon_id")), transcript_id(entry.info.at("transcript_id")), gene_ref{*gref}{}
     exon() : exon_id("NULL") {}
 
-    exon(const exon &g1, const exon &g2, const std::string &id) : ginterval(g1,g2), exon_id(id), strand(g1.strand), gene_ref(g1.gene_ref)  {
+    exon(const exon &g1, const exon &g2, const std::string &id) : ginterval(g1,g2), exon_id(id), strand(g1.strand), transcript_id(g1.transcript_id),gene_ref(g1.gene_ref)  {
     }
-    exon(const exon &g1, const exon &g2) : ginterval(g1,g2), exon_id(g1.exon_id), strand(g1.strand), gene_ref(g1.gene_ref){
+    exon(const exon &g1, const exon &g2) : ginterval(g1,g2), exon_id(g1.exon_id), strand(g1.strand), transcript_id(g1.transcript_id), gene_ref(g1.gene_ref){
     } // Merge constructor
 
     bool operator<( const exon &other) const{
-        if(gene_ref != nullptr){
-            if( gene_ref-> chr != other.gene_ref->chr){
-                return gene_ref->chr < other.gene_ref->chr;
-            }
-            if( gene_ref != other.gene_ref){
-                return *gene_ref < *other.gene_ref;
-            }
+
+        if( gene_ref.chr != other.gene_ref.chr){
+            return gene_ref.chr < other.gene_ref.chr;
         }
+        if( gene_ref != other.gene_ref){
+            return gene_ref < other.gene_ref;
+        }
+
         if( start == other.start){
             return end < other.end;
         }
@@ -256,22 +333,27 @@ struct exon: public ginterval{
 
 
 
-inline std::ostream &operator << ( std::ostream &ost, const interval &ex){
+inline std::ostream &operator<< ( std::ostream &ost, const interval &ex){
     ost << ex.start << "-" << ex.end;
     return ost;
 }
 
-inline std::ostream &operator << ( std::ostream &ost, const ginterval &ex){
+
+inline std::ostream &operator<< ( std::ostream &ost, const intra_event &ex){
+    ost << ex.chr << ":" << ex.start << "-" << ex.end << "|" << ex.layout;
+    return ost;
+}
+inline std::ostream &operator<< ( std::ostream &ost, const ginterval &ex){
     ost << ex.chr << ":" << ex.start << "-" << ex.end;
     return ost;
 }
 
 
-inline std::ostream &operator << ( std::ostream &ost, const exon &ex){
+inline std::ostream &operator<< ( std::ostream &ost, const exon &ex){
     ost << dynamic_cast<const ginterval&>(ex) << " " << ex.strand << " " << ex.exon_id;
-    if(ex.gene_ref != nullptr){
-        ost << " " << ex.gene_ref->gene_name << " " << (ex.gene_ref->plus_strand?"+":"-");
-    }
+
+    ost << " " << ex.gene_ref.gene_name << " " << (ex.gene_ref.plus_strand?"+":"-");
+
     return ost;
 }
 inline std::ostream &operator << ( std::ostream &ost, const gene &ex){
@@ -450,11 +532,32 @@ class isoform{
         std::vector<exon> segments;
         int depth;
         std::string gene;
+        std::string transcript_id;
+    
 
-    isoform(std::vector<exon> &segs) : segments(segs), depth(1), gene("NULL"){}
-    isoform(std::vector<exon> &segs, int depth) : segments(segs), depth(depth), gene("NULL"){}
-    isoform(std::vector<exon> &segs, int depth, const std::string &gene) : segments(segs), depth(depth), gene(gene){}
+        isoform() : segments({}), depth(1), gene("NULL"), transcript_id("NULL"){}
+        isoform(const isoform &other) : segments(other.segments), depth(other.depth), gene(other.gene), transcript_id(other.transcript_id){}
+        isoform(const std::vector<exon> &segs) : segments(segs), depth(1), gene("NULL"), transcript_id("NULL"){}
+        isoform(const std::vector<exon> &segs, int depth) : segments(segs), depth(depth), gene("NULL"), transcript_id("NULL"){}
+        isoform(const std::vector<exon> &segs, int depth, const std::string &gene) : segments(segs), depth(depth), gene(gene), transcript_id("NULL"){}
+        isoform(const std::vector<exon> &segs, int depth, const std::string &gene, const std::string &tid) : segments(segs), depth(depth), gene(gene), transcript_id(tid){}
 
+        bool operator<( const isoform &other) const{
+            if( other.gene != gene){
+                return gene < other.gene;
+            }
+
+            return segments < other.segments;
+            //}
+
+        }
+        bool operator==(const isoform &other) const {
+            return gene==other.gene && segments == other.segments;
+        }
+        isoform &operator =(const std::vector<exon> &segs){
+            this->segments = segs;
+            return *this;
+        }
 };
 
 //pcr copy structure that tracks pcr errors introduced
@@ -468,7 +571,7 @@ struct pcr_copy{
 
     pcr_copy(){}
     pcr_copy( const std::string &id) : id(id), depth(1){}
-    pcr_copy( const std::string &id, const isoform &iso) : id(id), depth(1){
+    pcr_copy( const std::string &id, const isoform &iso) : id(id), depth(iso.depth){
         for(const exon &e :iso.segments){
             segments.push_back(e);
         }
