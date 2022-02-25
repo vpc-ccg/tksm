@@ -3,6 +3,7 @@
 #include <string>
 #include <fstream>
 #include <random>
+#include <variant>
 
 #include "extern/cxxopts.hpp"
 
@@ -41,6 +42,7 @@ int main(int argc, char **argv){
         ("i,input",  "input mdf file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
         ("a,polya-reference", "Output poly A reference file", cxxopts::value<string>())
+        ("expand-isoforms", "Expand isoforms to molecules", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("gamma", "Use Gamma distribution [α,β]", cxxopts::value<vector<double>>())
         ("poisson", "Use Poisson distribution [λ]", cxxopts::value<vector<double>>())
@@ -109,27 +111,43 @@ int main(int argc, char **argv){
     
     vector<pcr_copy> molecules = parse_mdf(mdf_file);
     int largest_poly_a = 0; 
+    std::variant<
+        std::weibull_distribution<>,
+        std::poisson_distribution<>,
+        std::normal_distribution<>,
+        std::gamma_distribution<>
+    > dist;
     if( chosen_dist == "poisson"){
-        std::poisson_distribution<> dist(dist_params[0]);
-        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
+        dist = std::poisson_distribution<>{dist_params[0]};
     }
     else if(chosen_dist == "gamma"){
-        std::gamma_distribution<> dist(dist_params[0], dist_params[1]);
-        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
+        dist = std::gamma_distribution<> (dist_params[0], dist_params[1]);
     }
     else if(chosen_dist == "normal"){
-        std::normal_distribution<> dist(dist_params[0], dist_params[1]);
-        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
+        dist = std::normal_distribution<> (dist_params[0], dist_params[1]);
     }
     else if(chosen_dist == "weibull"){
-        std::weibull_distribution<> dist(dist_params[0], dist_params[1]);
-        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
+        dist = std::weibull_distribution<> (dist_params[0], dist_params[1]);
     }
     else{
         std::cerr << "Distribution " << chosen_dist << " is not implemented!\n";
         return 1;
     }
 
+    if(args["expand-isoforms"].as<bool>()){
+        vector<pcr_copy> nm;
+        for(const pcr_copy &pcp : molecules){
+            for(int i = 0; i < pcp.depth; ++i){
+                nm.push_back(pcp);
+                nm.back().depth = 1;
+                nm.back().id += ("_" + std::to_string(i));
+            }
+        }
+        molecules = nm;
+    }
+    std::visit([&molecules, min_polya_len, &largest_poly_a](auto dist){
+        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
+    }, dist);
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};
     print_all_mdf(outfile, molecules);
