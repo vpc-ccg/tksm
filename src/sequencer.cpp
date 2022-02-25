@@ -178,11 +178,11 @@ int main(int argc, char **argv){
 
         string batch_out_name = bf.substr(0,bf.find_last_of(".")) + ".fastq";
         string command = "PYTHONHASHSEED=0 " + args["badread"].as<string>() + " simulate --reference=" + bf + 
-            " --length " + args["lengths"].as<string>() + " --seed=" + args["seed"].as<string>() +
+            " --length " + args["length"].as<string>() + " --seed=" + std::to_string(args["seed"].as<int>()) +
             " --quantity=" + std::to_string(*throughput_iter) + " --glitches=" + args["glitches"].as<string>() + " --junk_reads="  + 
             args["junk-reads"].as<string>() +  " --random_reads=" + args["random-reads"].as<string>() +
             " --chimeras=" + args["chimeras"].as<string>() + " > " + batch_out_name + " 2> " + batch_out_name +".log";
-        std::cout << command << "\n";
+        std::cout << command << "\n\n";
         ++throughput_iter;
 
         promises.push_back(std::async([i](const std::string &command) -> int{
