@@ -571,7 +571,13 @@ struct pcr_copy{
 
     pcr_copy(){}
     pcr_copy( const std::string &id) : id(id), depth(1){}
+
     pcr_copy( const std::string &id, const isoform &iso) : id(id), depth(iso.depth){
+        for(const exon &e :iso.segments){
+            segments.push_back(e);
+        }
+    }
+    pcr_copy(const isoform &iso) : id(iso.transcript_id), depth(iso.depth){
         for(const exon &e :iso.segments){
             segments.push_back(e);
         }
