@@ -59,31 +59,31 @@ std::mt19937 rand_gen{std::random_device{}()};
 vector<exon> fuse_isoforms(const vector<exon> &g1, const vector<exon> &g2, std::pair<int,int> bps){
     vector<exon> fusiso;
     fusiso.reserve(g1.size() + g2.size());
-    auto cut_isoform = [ &fusiso] (const vector<exon> &g, int b1, bool first) mutable -> void{
-        auto iter1 = g.begin();
+    auto cut_isoform = [ &fusiso] (const vector<exon> &iso, int b1, bool first) mutable -> void{
+        auto iter1 = iso.begin();
         
-        bool strand = g.front().plus_strand;
+        bool strand = iso.front().plus_strand;
         bool before_or_after = !strand ^ first;
         if(!before_or_after){
-            while(iter1->end < b1 && iter1 != g.end()){
+            while(iter1->end < b1 && iter1 != iso.end()){
                 fusiso.push_back(*iter1);
                 ++iter1;
             }
             //Create a break exon ending at breakpoint if breakpoint is on an exon
-            if(iter1 != g.end() && iter1->start < b1){
+            if(iter1 != iso.end() && iter1->start < b1){
                 fusiso.push_back( exon{iter1->chr, iter1->start, b1, iter1->strand, iter1->exon_id + std::to_string(b1), iter1->transcript_id + std::to_string(b1), iter1->gene_ref});
             }
         }
         else{
-            while(iter1 != g.end() && iter1->end < b1){
+            while(iter1 != iso.end() && iter1->end < b1){
                 ++iter1;
             }
             //Create a break exon ending at breakpoint if breakpoint is on an exon
-            if(iter1 != g.end() && iter1->start < b1){
+            if(iter1 != iso.end() && iter1->start < b1){
                 fusiso.push_back( exon{iter1->chr, iter1->start, b1, iter1->strand, iter1->exon_id + std::to_string(b1), iter1->transcript_id + std::to_string(b1), iter1->gene_ref});
                 ++iter1;
             }
-            while(iter1 != g.end()){
+            while(iter1 != iso.end()){
                 fusiso.push_back(*iter1);
                 ++iter1;
             }
@@ -856,7 +856,7 @@ int main(int argc, char **argv){
         ("fusion-count", "Number of gene fusions to simulate", cxxopts::value<int>()->default_value("0"))
         ("translocation-ratio", "Percentage of fusions to be simulated as translocations", cxxopts::value<double>()->default_value("0.1"))
         ("f,fusion-file", "Tab separated file to describe fusions", cxxopts::value<string>())
-        
+        ("disable-deletions", "Disables deletions (from fusions) to remove expression on overlapping genes", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))       
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("h,help", "Help screen")
     ;
@@ -893,6 +893,8 @@ int main(int argc, char **argv){
     int fusion_count = args["fusion-count"].as<int>();
     double translocation_ratio = args["translocation-ratio"].as<double>();
 
+    bool delete_genes = !args["disable-deletions"].as<bool>();
+
     std::cerr << "Reading GTF!\n";
 
     auto [gtf_exons, gene_ptrs, t2g] = read_gtf_exons(path_to_gtf,false);
@@ -900,10 +902,10 @@ int main(int argc, char **argv){
 
     ifstream mf(input_mdf_path);
     vector<pcr_copy> molecules = parse_mdf(mf);
-    tree<exon, int> ec = count_isoforms_from_mdf(molecules,t2g);
+    tree<exon, int> exon_trie = count_isoforms_from_mdf(molecules,t2g);
 
     set<gene> expressed_genes;
-    for(const auto &tr : ec.children){
+    for(const auto &tr : exon_trie.children){
         expressed_genes.insert(tr.first.gene_ref);
     }
 
@@ -920,7 +922,7 @@ int main(int argc, char **argv){
     set<string> deleted_genes;
     int event_count_so_far = 0;
     if(args["f"].count() > 0){
-        auto [given_fus, event_positions, _event_count] = simulate_given_fusions(args["f"].as<string>(), ec, gene_ptrs);
+        auto [given_fus, event_positions, _event_count] = simulate_given_fusions(args["f"].as<string>(), exon_trie, gene_ptrs);
         event_count_so_far = _event_count;
         for( const auto &ff : given_fus){
             fusion_isoforms.push_back(ff.second);
@@ -955,7 +957,7 @@ int main(int argc, char **argv){
 
     auto [gen_fusion, event_positions] = generate_fusion_isoforms(
             fusions, 
-            ec,
+            exon_trie,
             event_count_so_far);
 
 
@@ -979,7 +981,7 @@ int main(int argc, char **argv){
     ofstream outfile {out_mdf_path};
 
     for(const auto &pcp : molecules){
-        if(deleted_genes.find(t2g.at(pcp.id).gene_id) != deleted_genes.end()){ // Gene is deleted skip
+        if(delete_genes && deleted_genes.find(t2g.at(pcp.id).gene_id) != deleted_genes.end()){ // Gene is deleted skip
             continue;
         }
         print_mdf(outfile, pcp); 
