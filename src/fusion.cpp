@@ -104,8 +104,10 @@ auto generate_fusion_isoforms(
         const tree<exon, int> &exon_tree,
         int gene_index){
 
+    //Returns tuple<
     map<string, isoform> isoforms;
     vector<intra_event> event_intervals;
+    //        >
 
     map<gene, vector<exon>> gene2firstexons; //reverse_index
     map<gene, int>          gene2count;
@@ -344,15 +346,6 @@ map<string, vector<isoform>> generate_normal_isoforms(const tree<exon, int> &exo
     return isoforms;
 }
 
-vector<int>  generate_fusion_expression( const vector<std::pair<gene,gene>> &fusions, const tree<exon,int> &exon_tree){
-    vector<int> expressions;
-    for( auto p: fusions){
-        expressions.push_back(10);
-    }
-    return expressions;
-}
-
-
 map<string, std::pair<int,int>> find_gene_counts_per_contig(const vector<gene> &gptrs){
     size_t index = 0;
     string prev_chr = "-1";
@@ -484,8 +477,9 @@ auto count_isoforms_from_mdf(
         const map<string, gene> &t2g
         ){
 
+    //Returns
     tree<exon, int> exon_transitions{};
-
+    //
 
     for( const pcr_copy &pcp : molecules){
         int cc =1;
@@ -525,7 +519,10 @@ auto count_reads_on_tree(
         int min_dist,
         int max_dist){
 
+    //Returns
     tree<exon, int> exon_transitions{};
+    //
+
     for( const mapping &r : reads){
         std::map<string, gene> segmap;
         if( r.segments.begin() == r.segments.end() ){
@@ -651,9 +648,11 @@ auto simulate_given_fusions( const string &path,
                                         const tree<exon, int> &exon_tree,
                                         const vector<gene *> &gptrs){
     
+    //Returns tuple<
     map<string,isoform> fusion_isoforms;
-
     vector<intra_event> event_intervals;
+    int gene_index = 0;
+    // >
 
     string str;
     map<gene, int> gene2count;
@@ -735,7 +734,7 @@ auto simulate_given_fusions( const string &path,
 //chr1 start chr2 end gene1:gene2 genotype|genotype [info]
 // info: ab:[abundance] is:[isoform1:isoform2] id:[id]
     std::ifstream file(path);
-    int gene_index = 0;
+
     while(std::getline(file, str)){
         //chr   start   chr2 end    gene1   gene2   count   comment
         //Transcription starts from the first locus
