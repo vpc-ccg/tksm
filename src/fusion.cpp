@@ -988,10 +988,14 @@ int main(int argc, char **argv){
     }
 
     for(const auto &iso : user_defined_fusion_isoforms){
-        print_mdf(outfile, iso.transcript_id, pcr_molecule{iso.transcript_id, iso}, vector<vector<std::pair<int, char>>>{iso.segments.size()});
+        print_mdf(outfile, iso);
+//        print_mdf(outfile, iso.transcript_id, pcr_molecule{iso.transcript_id, iso}, vector<vector<std::pair<int, char>>>{iso.segments.size()});
     }
     for(const auto &iso : random_fusion_isoforms){
-        print_mdf(outfile, iso.second.transcript_id, pcr_molecule{iso.second.transcript_id, iso.second}, vector<vector<std::pair<int, char>>>{iso.second.segments.size()});
+
+
+        print_mdf(outfile, iso.second);
+       // print_mdf(outfile, iso.second.transcript_id, pcr_molecule{iso.second.transcript_id, iso.second}, vector<vector<std::pair<int, char>>>{iso.second.segments.size()});
     }
 
     return 0;
