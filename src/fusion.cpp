@@ -901,8 +901,8 @@ int main(int argc, char **argv){
     map<string, IITree<int, size_t>> exon_interval_tree = make_exon_interval_tree(gtf_exons);
 
     ifstream mf(input_mdf_path);
-    vector<pcr_copy> molecules = parse_mdf(mf);
-    tree<exon, int> exon_trie = count_isoforms_from_mdf(molecules,t2g);
+    vector<pcr_copy> normal_molecules = parse_mdf(mf);
+    tree<exon, int> exon_trie = count_isoforms_from_mdf(normal_molecules,t2g);
 
     set<gene> expressed_genes;
     for(const auto &tr : exon_trie.children){
@@ -918,14 +918,14 @@ int main(int argc, char **argv){
         return static_cast<ginterval>(g1) < g2; 
     });
 
-    vector<isoform> fusion_isoforms;
+    vector<isoform> user_defined_fusion_isoforms;
     set<string> deleted_genes;
     int event_count_so_far = 0;
     if(args["f"].count() > 0){
         auto [given_fus, event_positions, _event_count] = simulate_given_fusions(args["f"].as<string>(), exon_trie, gene_ptrs);
         event_count_so_far = _event_count;
         for( const auto &ff : given_fus){
-            fusion_isoforms.push_back(ff.second);
+            user_defined_fusion_isoforms.push_back(ff.second);
         }
         std::sort(event_positions.begin(), event_positions.end());
         
@@ -955,7 +955,7 @@ int main(int argc, char **argv){
             exp_gene_vec, fusion_count * ( 1- translocation_ratio), fusion_count * translocation_ratio);
 
 
-    auto [gen_fusion, event_positions] = generate_fusion_isoforms(
+    auto [random_fusion_isoforms, event_positions] = generate_fusion_isoforms(
             fusions, 
             exon_trie,
             event_count_so_far);
@@ -980,17 +980,17 @@ int main(int argc, char **argv){
 
     ofstream outfile {out_mdf_path};
 
-    for(const auto &pcp : molecules){
+    for(const auto &pcp : normal_molecules){
         if(delete_genes && deleted_genes.find(t2g.at(pcp.id).gene_id) != deleted_genes.end()){ // Gene is deleted skip
             continue;
         }
         print_mdf(outfile, pcp); 
     }
 
-    for(const auto &iso : fusion_isoforms){
+    for(const auto &iso : user_defined_fusion_isoforms){
         print_mdf(outfile, iso.transcript_id, pcr_molecule{iso.transcript_id, iso}, vector<vector<std::pair<int, char>>>{iso.segments.size()});
     }
-    for(const auto &iso : gen_fusion){
+    for(const auto &iso : random_fusion_isoforms){
         print_mdf(outfile, iso.second.transcript_id, pcr_molecule{iso.second.transcript_id, iso.second}, vector<vector<std::pair<int, char>>>{iso.second.segments.size()});
     }
 
