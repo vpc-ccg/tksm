@@ -8,8 +8,8 @@
 
 #include <climits>
 
-#include "extern/IITree.h"
-#include "extern/cxxopts.hpp"
+#include <cgranges/IITree.h>
+#include <cxxopts/cxxopts.hpp>
 #include "interval.h"
 #include "tree.h"
 #include "gtf.h"
@@ -100,11 +100,15 @@ int main(int argc, char **argv){
     }
     if(args.count("abundance-table") > 0){
         ifstream table_file(args["abundance-table"].as<string>());
+        if(!table_file){
+            std::cerr << "Cannot open " << args["abundance-table"].as<string>() << ". Terminating.\n";
+            return 1;
+        }
         string tid = "BEG";
         double count;
         double tpm;
         table_file >> tid >> tid >> tid;
-        while(!table_file.eof()){
+        while(!table_file.eof() && table_file.good()){
             table_file >> tid >> count >> tpm;
             if(!args["use-whole-id"].as<bool>()){
                 tid = tid.substr(0,15);

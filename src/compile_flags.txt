@@ -2,4 +2,4 @@
 -std=c++20
 -xc++
 -Wall
--Iextern/fmt/include
+-I../extern/include/

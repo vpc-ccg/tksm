@@ -8,8 +8,8 @@
 
 #include <climits>
 
-#include "extern/IITree.h"
-#include "extern/cxxopts.hpp"
+#include <cgranges/IITree.h>
+#include <cxxopts/cxxopts.hpp>
 #include "interval.h"
 #include "tree.h"
 #include "gtf.h"

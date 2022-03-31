@@ -10,13 +10,16 @@
 #include <vector>
 
 
-#include "extern/cxxopts.hpp"
+#include <cxxopts/cxxopts.hpp>
 #include "fasta.h"
 #include "util.h"
 #include "interval.h"
 #include "fasta.h"
 #include "mdf.h"
 #include "reverse_complement.h"
+
+#define FMT_HEADER_ONLY 1
+#include<fmt/format.h>
 
 #include <future>
 
@@ -46,9 +49,10 @@ int main(int argc, char **argv){
     options.add_options("Badread")
         ("length", "Badread length distribution (Don't use it, truncate module should be used to modify read lengths)", cxxopts::value<string>()->default_value("1000000,0"))
         ("glitches", "Badread glitches parameter", cxxopts::value<string>()->default_value("0,0,0"))
-        ("junk-reads", "Badread junk reads parameter", cxxopts::value<string>()->default_value("0"))
-        ("random-reads", "Badread random reads parameter", cxxopts::value<string>()->default_value("0"))
+        ("junk_reads", "Badread junk reads parameter", cxxopts::value<string>()->default_value("0"))
+        ("random_reads", "Badread random reads parameter", cxxopts::value<string>()->default_value("0"))
         ("chimeras", "Badread chimeras parameter", cxxopts::value<string>()->default_value("0"))
+        ("other-br", "Custom parameters to be passed to Badread", cxxopts::value<string>()->default_value(""))
     ;
     auto args = options.parse(argc, argv);
 
@@ -168,20 +172,35 @@ int main(int argc, char **argv){
     }
     
     auto throughput_iter = actual_throughputs.begin();
-
+    string other = args["other-br"].as<string>();
+    std::cerr << other << "!\n";
+    vector<string> br_cmd {{"junk_reads", "length", "glitches", "random_reads", "chimeras"}};
 
     vector<std::future<int>> promises;
     vector<int> return_values(args["t"].as<int>(),0);
     for(int i = 0; i< args["t"].as<int>(); ++i){
 //    for(const string &bf : batch_files){
         const string &bf = batch_files[i];
-
         string batch_out_name = bf.substr(0,bf.find_last_of(".")) + ".fastq";
-        string command = "PYTHONHASHSEED=0 " + args["badread"].as<string>() + " simulate --reference=" + bf + 
-            " --length " + args["length"].as<string>() + " --seed=" + std::to_string(args["seed"].as<int>()) +
-            " --quantity=" + std::to_string(*throughput_iter) + " --glitches=" + args["glitches"].as<string>() + " --junk_reads="  + 
-            args["junk-reads"].as<string>() +  " --random_reads=" + args["random-reads"].as<string>() +
-            " --chimeras=" + args["chimeras"].as<string>() + " > " + batch_out_name + " 2> " + batch_out_name +".log";
+      
+        for(string cmd : br_cmd){
+            if (other.find(cmd) == string::npos){
+                other = fmt::format("{} --{}={}", other, cmd, args[cmd].as<string>());
+            }
+        }
+        string command = fmt::format( "PYTHONHASHSEED=0 {} simulate --reference {} --quantity {} --seed {} {} > {} 2> {}", 
+                args["badread"].as<string>(),
+                bf,
+                std::to_string(*throughput_iter),
+                args["seed"].as<int>(),
+                other,
+                batch_out_name,
+                batch_out_name + ".log");
+//        string command = "PYTHONHASHSEED=0 " + args["badread"].as<string>() + " simulate --reference=" + bf + 
+//            " --length " + args["length"].as<string>() + " --seed=" + std::to_string(args["seed"].as<int>()) +
+//            " --quantity=" + std::to_string(*throughput_iter) + " --glitches=" + args["glitches"].as<string>() + " --junk_reads="  + 
+//            args["junk-reads"].as<string>() +  " --random_reads=" + args["random-reads"].as<string>() +
+//            " --chimeras=" + args["chimeras"].as<string>() + " > " + batch_out_name + " 2> " + batch_out_name +".log";
         std::cout << command << "\n\n";
         ++throughput_iter;
 

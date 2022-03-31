@@ -22,13 +22,17 @@
 #define LOG_DBL_MIN   (-7.0839641853226408e+02)
 #define LOG_DBL_MAX    7.0978271289338397e+02
 
-#include "extern/IITree.h"
-#include "extern/cxxopts.hpp"
+#include <cgranges/IITree.h>
+#include <cxxopts/cxxopts.hpp>
 #include "interval.h"
 #include "tree.h"
 #include "gtf.h"
 #include "mdf.h"
 #include "paf.h"
+
+#define FMT_HEADER_ONLY 1
+#include <fmt/format.h>
+#include <tqdm/tqdm.h>
 
 using std::ofstream;
 using std::vector;
@@ -221,9 +225,9 @@ void multi_truncate(pcr_copy &pcp, MeanFoo mu_func, double sigma, Distribution &
     pcp.errors_so_far.resize(i);
 }
 
-template <class Distribution>
-void truncate(pcr_copy &pcp, Distribution &dist, int min_val = 100){
-    int rand_val = dist(rand_gen);
+
+
+void truncate(pcr_copy &pcp, int rand_val, int min_val = 100){
     if(min_val > rand_val){
         rand_val = min_val;
     }
@@ -259,9 +263,13 @@ void truncate(pcr_copy &pcp, Distribution &dist, int min_val = 100){
     pcp.errors_so_far.resize(i);
 }
 
+template <class Distribution>
+void truncate(pcr_copy &pcp, Distribution &dist, int min_val = 100){
+    return truncate(pcp, dist(rand_gen), min_val);
+}
 
 struct identity{
-    constexpr auto operator () (auto val) const {
+    auto operator () (auto val) const {
         return val;
     }
 };
@@ -435,37 +443,36 @@ int main2(){
         std::cerr << i << "\t" << polygamma(0,i) << "\t" << polygamma(1,i) << "\n";
     }
 
-    std::cerr << "Rieman\n";
-    for(int i =2; i<=20;++i){
-        std::cerr << i << "\t" <<hzeta(i,1) << "\n";
-    }
-    std::gamma_distribution<> dist(10, 500);
+    std::lognormal_distribution<> dist(4, 0.3);
     std::vector<int> lens;
     vector<int> tlens;
     for(int i =0; i < 10000; ++i){
-        double val = dist(rand_gen);
+        int val = dist(rand_gen);
         if (val < 0)
             val = 0;
         lens.push_back( val);
         tlens.push_back(val);
-        //std::cout << val << "\n";
+        std::cout << val << "\n";
     }
 
-    auto [distname, mu_func, sigma] = multi_variate(lens, tlens);
+    auto [distname, ll, mu, sigma] = fit(lens);
         
-    std::cerr << distname << " is chosen!\n";
+    std::cerr << distname << " with " << mu << ", " << sigma << " is chosen!\n";
     return 0;
 }
+
 int main(int argc, char **argv){
-    cxxopts::Options options("RNAInfuser Splicer", "Splicer module of RNAInfuser");
+    cxxopts::Options options("RNAInfuser Truncate", "Truncate module of RNAInfuser");
     std::cout << approx_trigamma(2) << "\n";
     options.add_options()
         ("i,input", "Molecule description file", cxxopts::value<string>())
         ("gtf", "Path to GTF annotation", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
+        ("log", "log lengths of the input mappings", cxxopts::value<string>())
         ("fit", "Use estimated distribution from the given fast{a,q}", cxxopts::value<string>())
         ("only-single-isoform", "Use only single isoform genes", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("multivariate", "Use estimated distribution from the given paf", cxxopts::value<string>())
+        ("kde", "Use Kernel Density Estimation given output of the kde.py")
         ("normal", "Use Normal distribution [μ,σ]", cxxopts::value<vector<double>>())
         ("lognormal", "Use Log-Normal distribution [μ,σ]", cxxopts::value<vector<double>>())
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
@@ -494,7 +501,7 @@ int main(int argc, char **argv){
     int seed = args["seed"].as<int>();;
 
     rand_gen.seed(seed);
-    vector<string> distributions = {"lognormal", "normal", "fit", "multivariate"};
+    vector<string> distributions = {"lognormal", "normal", "fit", "multivariate", "kde"};
 
 
     string chosen_dist;
@@ -539,7 +546,78 @@ int main(int argc, char **argv){
 
     }
     vector<double> dist_params;
-    if( chosen_dist == "multivariate"){
+
+    ofstream logfile;
+    if(args["log"].count()>0){
+        logfile.open(args["log"].as<string>());
+    }
+
+    if( chosen_dist == "kde"){
+        auto get_numbers = [](){
+            int x,y;
+            std::cin >> x >> y;
+            return std::make_pair(x,y);
+        };
+
+
+        int binsize = 100;
+        vector< vector< std::pair<int, int>>> bins;
+        size_t initial_fill_size = 10000000;
+        //Initial filling
+        for(int i = 0; i < initial_fill_size; ++i){
+            auto [a,b] = get_numbers();
+            size_t _tb = b / binsize;
+            if( _tb > bins.size()){
+                bins.resize(_tb+1);
+            }
+            bins[_tb].emplace_back(a,b);
+        }
+        auto request_truncation = [&get_numbers, binsize, &bins] (int size){
+            int target_bin = size / binsize;
+            if( target_bin > bins.size()){
+                bins.resize(target_bin+1);
+            }
+            int iter_c = 0;
+            int max_trials = 10000;
+            size_t max_reservation = 10000;
+            while(bins[target_bin].size() == 0){
+                auto [a, b] = get_numbers();
+                size_t _tb = b / binsize;
+                if( _tb > bins.size()){
+                    bins.resize(_tb+1);
+                }
+                if(bins[_tb].size() < max_reservation){
+                    bins[_tb].emplace_back(a,b);
+                }
+                ++iter_c;
+                if( iter_c > max_trials){
+                    std::cerr << "Exceeded max trials for truncation size " << size << " may be outside of the KDE dist! Returning 0\n";
+                    return 0;
+                }
+            }
+            int ret_value = bins[target_bin].back().first;
+            bins[target_bin].pop_back();
+            return ret_value;
+        };
+       
+        string mdf_file_path {args["input"].as<string>()};
+
+        std::ifstream mdf_file {mdf_file_path};
+
+        vector<pcr_copy> molecules = parse_mdf(mdf_file);
+        for( pcr_copy &pcp : tqdm::tqdm(molecules)){
+            int molecule_size = std::accumulate(pcp.segments.begin(), pcp.segments.end(), 0, [](int so_far, const interval &i){
+                return so_far + i.end - i.start;
+                    });
+            
+            truncate(pcp, request_truncation(molecule_size));
+
+        }
+
+
+
+    }
+    else if( chosen_dist == "multivariate"){
         string dist_fit_file_path {args["multivariate"].as<string>()};
         std::ifstream dist_fit_file(dist_fit_file_path);
 
@@ -558,8 +636,13 @@ int main(int argc, char **argv){
             }
             lens.push_back( pf.qend - pf.qstart);
             tlens.push_back( pf.tlen);
+            if( args["log"].count() > 0){
+                logfile << pf.qend - pf.qstart << "\t" << pf.tlen << "\n";
+            }
         }
-
+        if(args["log"].count()>0){
+            logfile.close();
+        }
         auto [distname, mu_func, sigma] = multi_variate(lens, tlens);
         
         std::cerr << distname << " is chosen!\n";
@@ -605,14 +688,26 @@ int main(int argc, char **argv){
 
         string buffer;
         vector<int> lens;
-        while(std::getline(dist_fit_file, buffer)){ //Subsamples fasta files 1/2 ratio. TODO: use a proper fast{a,q} reader
-            std::getline(dist_fit_file, buffer);
-            lens.push_back(buffer.size() - 1);
-            std::getline(dist_fit_file, buffer);
-            std::getline(dist_fit_file, buffer);
+        
+
+        
+        while(std::getline(dist_fit_file, buffer)){ 
+            paf pf{buffer};
+            if(!pf.primary()){
+                continue;
+            }
+            if(args["only-single-isoform"].as<bool>() && single_isoform_transcripts.find(pf.tname.substr(0,15)) == single_isoform_transcripts.end()){
+                continue;
+            }
+            lens.push_back( pf.qend - pf.qstart);
+
+            if( args["log"].count() > 0){
+                logfile << pf.qend - pf.qstart << "\t" << pf.tlen << "\n";
+            }
         }
+
         auto [name, ll, mean, std] = fit(lens);
-        std::cerr << name << " is chosen with " << ll << " log-likelihood\n";
+        std::cerr << fmt::format("{} is chosen with {} log-likelihood\n", name, ll);
         chosen_dist = name;
         dist_params = {mean, std};
 
@@ -620,7 +715,7 @@ int main(int argc, char **argv){
     else{
         dist_params = args[chosen_dist].as<vector<double>>();
         if( dist_params.size() != 2){
-            std::cerr << chosen_dist << " requires 2 parameters! Make sure there is no space between them.\n";
+            std::cerr << fmt::format("{} requires 2 parameters! Make sure there is no space between them.\n", chosen_dist);
             return 1;
         }
 
@@ -630,7 +725,9 @@ int main(int argc, char **argv){
     std::ifstream mdf_file {mdf_file_path};
 
     std::normal_distribution<> normal_dist(dist_params[0], dist_params[1]);
+
     std::lognormal_distribution<> lognormal_dist(dist_params[0], dist_params[1]);
+    std::gamma_distribution<> gamma_dist(dist_params[0], dist_params[1]);
 
     vector<pcr_copy> molecules = parse_mdf(mdf_file);
     for( pcr_copy &pcp : molecules){
@@ -639,6 +736,9 @@ int main(int argc, char **argv){
         }
         else if(chosen_dist == "lognormal"){
             truncate(pcp, lognormal_dist);
+        }
+        else if(chosen_dist == "gamma"){
+            truncate(pcp, gamma_dist);
         }
     }
 
