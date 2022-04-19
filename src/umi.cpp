@@ -5,7 +5,7 @@
 #include <random>
 #include <variant>
 
-#include "extern/cxxopts.hpp"
+#include <cxxopts/cxxopts.hpp>
 
 #include "interval.h"
 #include "mdf.h"
