@@ -1,3 +1,5 @@
+
+#pragma once
 #ifndef MDF_H
 #define MDF_H
 #include <fstream>

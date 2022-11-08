@@ -1,3 +1,5 @@
+
+#pragma once
 #ifndef INTERVAL_H
 #define INTERVAL_H
 
@@ -587,6 +589,10 @@ struct pcr_copy{
     pcr_copy( const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far) : id("copy"), segments(segments), errors_so_far(errors_so_far), depth(1) {}
     pcr_copy( const std::vector<ginterval> &segments) : id("copy"), segments(segments), depth(1) {}
 
+
+    void append(const ginterval &g){
+        segments.push_back(g);
+    }
     void prepend(const ginterval &g){
         segments.insert(segments.begin(),g);
         for(std::pair<int, char> &errs : errors_so_far){

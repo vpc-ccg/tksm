@@ -226,6 +226,7 @@ void run_pcr(
 
         for( int i = 0; i < pcp.depth; ++i){
             pcr_molecule pcm{pcp};
+            pcm.paired.front().depth =1 ;
             mut_tree mutation_tree;
             vector<int> positions(molecule_size);
             std::iota(positions.begin(), positions.end(), 0);
@@ -353,6 +354,10 @@ int main(int argc, char **argv){
     int number_of_target_reads = args["read-count"].as<size_t>();
     double random_pairing_rate_per_cycle = args["template-switch-rate"].as<double>();
     if(args["preset"].count() > 0){
+        if (pcr_presets.find(args["preset"].as<string>()) == pcr_presets.end()){
+            std::cerr << "Preset doesn't exist!\n";
+            return -1;
+        }
         tuple<double, double> setting = pcr_presets[args["preset"].as<string>()];
 
         error_rate = std::get<0>(setting);
@@ -363,42 +368,8 @@ int main(int argc, char **argv){
     rand_gen.seed(seed);
 
     ifstream md_file(args["molecule-description"].as<string>());
-    string buffer;
-    buffer.reserve(1000);
+    vector<pcr_copy> molecules = parse_mdf(md_file);
 
-    vector<pcr_copy> molecules;
-    while(std::getline(md_file, buffer)){
-        auto fields = rsplit(buffer, "\t");
-        string id {fields[0].substr(1)};
-        int depth{stoi(fields[1])};
-        int exon_count{stoi(fields[2])};
-        string comment{fields[3]};
-        vector<ginterval> segments;
-        vector<std::pair<int, char>> errors_so_far;
-        size_t size_so_far = 0;
-        for(int i = 0; i< exon_count; ++i){
-            std::getline(md_file, buffer);
-            auto fields = rsplit(buffer, "\t");
-            string chr{fields[0]};
-            int start {stoi(fields[1])};
-            int end   {stoi(fields[2])};
-            string strand{fields[3]};
-            if(fields.size() > 4){
-                auto mutations = rsplit(fields[4], ",");
-                for(string mutation : mutations){
-                    if(mutation == ""){
-                        continue;
-                    }
-                    char target = mutation[mutation.size()-1];
-                    int mutation_pos = stoi(mutation.substr(0,mutation.size()-1));
-                    errors_so_far.push_back(std::make_pair( size_so_far + mutation_pos, target));
-                }
-            }
-            size_so_far += (end-start);
-            segments.emplace_back(chr, start, end, strand);
-        }
-        molecules.emplace_back(id,segments, errors_so_far, depth);
-    }
     if( molecules.size() > 2 * args["read-count"].as<size_t>()){
         std::shuffle(molecules.begin(), molecules.end(), rand_gen);
         molecules.resize( 2 * args["read-count"].as<size_t>());

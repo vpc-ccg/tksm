@@ -1,3 +1,4 @@
+#pragma once
 #ifndef GTF_H
 #define GTF_H
 

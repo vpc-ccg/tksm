@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <fstream>
 #include <random>
@@ -35,6 +36,73 @@ class num2seq{
         }
 };
 
+class fmt2seq{
+    public:
+        std::array<char,4> table  {{'A','T','C','G'}};
+        std::array<string, 128> lookup;
+        string fmt;
+        fmt2seq(const string &fmt):fmt(fmt){
+#define set_l(A,B) lookup[A[0]]=B
+#define set_sl(A,B) set_l(#A,#B)
+            set_sl(A,A);
+            set_sl(G,G);
+            set_sl(T,T);
+            set_sl(C,C);
+            set_sl(U,U);
+            set_sl(R,GA);
+            set_sl(Y,TC);
+            set_sl(K,GT);
+            set_sl(M,AC);
+            set_sl(S,GC);
+            set_sl(W,AT);
+            set_sl(B,GTC);
+            set_sl(D,GAT);
+            set_sl(H,ACT);
+            set_sl(V,GCA);
+            set_sl(N,AGCT);
+#undef set_l
+#undef set_sl
+
+        }
+        template< class RANDGEN>
+        string operator [] (RANDGEN &gen) const{
+            std::stringstream st;
+
+            for( char c : fmt){
+                string buffer;
+                std::sample(lookup[c].begin(),lookup[c].end(),std::back_inserter(buffer),1,gen);
+                st << buffer;
+            }
+            return st.str();
+        }
+};
+
+void add_UMIs(vector<pcr_copy> &copies, ostream &umifile, const string &format, const string &format_back =""){
+
+    fmt2seq make_seq(format);
+    fmt2seq make_back_seq(format_back);
+
+    int index = 0;
+    for(pcr_copy &pcp : copies){
+        string umi_seq = make_seq[rand_gen];
+        string umi_ctg_name = fmt::format("RI_umi_ctg_{}",index);
+
+        string umi_back_seq = make_back_seq[rand_gen];
+
+        umifile << fmt::format(">{}\n", umi_ctg_name);
+        umifile << umi_seq << umi_back_seq << "\n";
+
+        int len = static_cast<int>(umi_seq.size());
+        int len_back = static_cast<int>(umi_back_seq.size());
+        if(len > 0){
+            pcp.prepend(ginterval{umi_ctg_name, 0, len, "+"});
+        }
+        if(len_back > 0){
+            pcp.append(ginterval{umi_ctg_name, len, len + len_back,  "+"});
+        }
+        ++index;
+    }
+}
 
 void add_UMIs(vector<pcr_copy> &copies, ostream &umifile, int len){
 
@@ -65,7 +133,8 @@ int main(int argc, char **argv){
         ("o,output", "Output path", cxxopts::value<string>())
         ("a,umi-reference", "Output umi reference file", cxxopts::value<string>())
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
-        ("length", "Length of the UMI sequences", cxxopts::value<int>()->default_value("0"))
+        ("format5", "UMI sequence format or length", cxxopts::value<string>()->default_value("16"))
+        ("format3", "UMI sequence format or length to be attached to 3'", cxxopts::value<string>()->default_value(""))
         ("back-ratio", "Ratio of umi's inserted to the 3' of the molecule", cxxopts::value<double>()->default_value("0.0"))
         ("h,help", "Help screen")
     ;
@@ -75,7 +144,7 @@ int main(int argc, char **argv){
         std::cout << options.help() << std::endl;
         return 0;
     }
-    std::vector<string> mandatory = {"input","output", "umi-reference", "length"};
+    std::vector<string> mandatory = {"input","output", "umi-reference", "format"};
 
     int missing_parameters = 0;
     for( string &param : mandatory){
@@ -92,14 +161,15 @@ int main(int argc, char **argv){
     int seed = args["seed"].as<int>();;
     rand_gen.seed(seed);
 
-    int length = args["length"].as<int>();
+    string umi_format = args["format"].as<string>();
+
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
     
     vector<pcr_copy> molecules = parse_mdf(mdf_file);
 
 
-
+//Unroll the depth
     vector<pcr_copy> nm;
     for(const pcr_copy &pcp : molecules){
         for(int i = 0; i < pcp.depth; ++i){
@@ -113,7 +183,13 @@ int main(int argc, char **argv){
     std::string umi_ref_file = args["umi-reference"].as<string>();
     std::ofstream umi_file{umi_ref_file};
 
-    add_UMIs(molecules, umi_file, length);
+    if(std::isdigit(umi_format[0])){
+        int length = stoi(umi_format);
+        add_UMIs(molecules, umi_file, length);
+    }
+    else{
+        add_UMIs(molecules,umi_file, umi_format, args["format3"].as<string>());
+    }
 
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};

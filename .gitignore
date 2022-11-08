@@ -6,3 +6,9 @@ build/*
 test/binaries/*
 simulator
 .snakemake
+*.log
+*.fasta
+*.fastq
+*.bam
+*.bai
+*.mdf

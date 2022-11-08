@@ -12,7 +12,7 @@
 #include <set>
 #include <sstream>
 #include <climits>
-#include <algorithm>
+
 #include <numbers>
 #include <functional>
 #include <cmath>
@@ -22,6 +22,7 @@
 #define LOG_DBL_MIN   (-7.0839641853226408e+02)
 #define LOG_DBL_MAX    7.0978271289338397e+02
 
+#include <npy/npy.hpp>
 #include <cgranges/IITree.h>
 #include <cxxopts/cxxopts.hpp>
 #include "interval.h"
@@ -81,6 +82,7 @@ static double hzeta_c[15] = {
   3.5347070396294674716932299778e-21,
  -8.9535174270375468504026113181e-23
 };
+
 
 
 double hzeta( double s, double q){
@@ -436,7 +438,199 @@ auto multi_variate(const vector<int> &rlens, const vector<int> &tlens){
 }
 
 
-int main2(){
+
+template<class RealType = double, class IndexType = long>
+class custom_distribution{
+    using result_type = RealType;
+
+    std::uniform_real_distribution<> uniform_dist;
+
+    vector<RealType> pdfv;
+    vector<RealType> cdfv;
+    vector<IndexType> values;
+    public:
+
+
+    template< class IterType, class IterTypeV>
+    custom_distribution (IterType pd_beg, IterType pd_end,
+                         IterTypeV val_beg, IterTypeV val_end) :
+        uniform_dist{0.0,1},
+        pdfv{pd_beg, pd_end},
+        cdfv{0},
+        values{val_beg, val_end}{
+        double sum_pdf = std::accumulate(pd_beg, pd_end, 0.0L); 
+        for(double d: pdfv){
+            cdfv.push_back(d/sum_pdf+cdfv.back());
+        }
+    }
+    template< class IterType>
+    custom_distribution (IterType pd_beg, IterType pd_end,
+                         const vector<IndexType> &values) :
+        uniform_dist{0.0,1},
+        pdfv{pd_beg, pd_end},
+        cdfv{0},
+        values{values}{
+        double sum_pdf = std::accumulate(pd_beg, pd_end, 0.0L); 
+        for(double d: pdfv){
+            cdfv.push_back(d/sum_pdf+cdfv.back());
+        }
+    }
+    custom_distribution () {}
+    custom_distribution (const vector<RealType> &pdf,
+                             const vector<RealType> &values) :
+            uniform_dist{0.0,1},
+            pdfv{pdf},
+            cdfv{0},
+            values{values}{
+            double sum_pdf = std::accumulate(pdf.begin(), pdf.end(), 0.0L); 
+            for(double d: pdf){
+                cdfv.push_back(d/sum_pdf+cdfv.back());
+            }
+        }
+
+        template<class Generator>
+        result_type operator() ( Generator &g){
+            double val = uniform_dist(g);
+            auto iter = std::lower_bound(cdfv.cbegin(), cdfv.cend(), val);
+            auto val_index = std::distance(cdfv.cbegin(), iter);
+            --val_index; // Because we add 0 to cdf
+
+            int range_before = 0;
+            int range_after  = 0;
+            //Uniformize
+            bool not_first = val_index != 0;
+            bool not_last =  val_index != (values.size() - 1);
+            
+            if(not_first){
+                bool odd_before = (values[val_index] - values[val_index-1]) % 2 == 1;
+
+                if( odd_before){
+                    range_before = (values[val_index] - values[val_index-1]) / 2; //Rounds down
+                }
+                else{ // Same if added for clarity
+                    range_before = (values[val_index] - values[val_index-1]) / 2;
+                }
+            }
+            if(not_last){
+                bool odd_after = (values[val_index+1] - values[val_index]) % 2 == 1;
+                if( odd_after){
+                    range_after = (values[val_index+1] - values[val_index]) / 2; //Rounds down
+                }
+                else{
+                    range_after = (values[val_index+1] - values[val_index]) / 2 - 1;
+                }
+
+            }
+            std::uniform_int_distribution <int> smoother_dist(-range_before, range_after);
+            double ret = values[val_index] + smoother_dist(g);
+//            std::cout << ret << "\t" << values[val_index] << "\t" << range_before << "\t" << range_after << "\n";
+
+            return ret;
+        }
+        
+        vector<result_type> cdf(){
+            return cdfv;
+        }
+        vector<result_type> pdf(){
+            return pdfv;
+        }
+};
+
+template<class RealType = double, class IndexType = long>
+class custom_distribution2D{
+    using result_type = RealType;
+    vector<IndexType> values;
+    vector<custom_distribution<>> distillery;
+    public:
+        custom_distribution2D (const string &pfile, const string &stepfile){
+            vector<unsigned long> shape;
+
+            bool fortran_order;
+
+            npy::LoadArrayFromNumpy(stepfile, shape, fortran_order, values);
+
+            vector<double> pdata;
+            npy::LoadArrayFromNumpy(pfile, shape, fortran_order, pdata);
+
+            IndexType width = shape[0];
+
+            if(fortran_order){
+
+                for(size_t i = 0; i < shape[0]; ++i){
+                    vector<double> ps;
+                    for(size_t j = 0; j < std::min(shape[1], i+1); ++j){
+                        ps.push_back(pdata[j * shape[0] + i]);
+                    }
+                    distillery.emplace_back(ps.cbegin(), ps.cend() , values.begin(), values.begin()+i+1); 
+                }
+            }
+            else{
+                for(size_t i = 0; i < values.size();++i){
+                    distillery.emplace_back(pdata.cbegin() + (i * width), pdata.cbegin() + ((i) * width + i + 1) , values.begin(), values.begin()+i+1); 
+                }
+            }
+
+        }
+
+        template<class Generator>
+        result_type operator()( Generator &g, IndexType slice){
+            auto iter = std::lower_bound(values.begin(), values.end(), slice);
+            if( iter != values.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
+                --iter;
+            }
+
+            return distillery.at(std::distance(values.begin(),iter))(g);
+        }
+
+        vector<result_type> cdf( IndexType slice){
+            auto iter = std::lower_bound(values.begin(), values.end(), slice);
+            if( iter != values.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
+                --iter;
+            }
+            return distillery.at(std::distance(values.begin(), iter)).cdf();
+        }
+        vector<result_type> pdf( IndexType slice){
+            auto iter = std::lower_bound(values.begin(), values.end(), slice);
+            if( iter != values.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
+                --iter;
+            }
+            return distillery.at(std::distance(values.begin(), iter)).pdf();
+        }
+};
+
+
+
+
+inline auto cdf(const vector<double> &pdf) -> vector<double> {
+    vector<double> cdf_vec{0};
+    double sum_pdf = std::accumulate(pdf.begin(), pdf.end(), 0.0L);
+    for(double d: pdf){
+        cdf_vec.push_back(d/sum_pdf+cdf_vec.back());
+    }
+
+    return cdf_vec;
+}
+
+
+inline auto sample_from_cdf(const vector<double> &cdf, auto &rand_gen)  {
+    std::uniform_real_distribution<> dist(cdf.front(), cdf.back());
+    double val = dist(rand_gen);
+    auto iter = std::lower_bound(cdf.begin(), cdf.end(), val);
+    return std::distance(cdf.cbegin(), iter);
+}
+
+int main2(int argc, char **argv){
+
+    custom_distribution2D<> disko {argv[1], argv[2]};
+    std::default_random_engine rg{};
+
+    for(int i = 0; i< 100000; ++i){
+        std::cout << disko(rg, std::stoi(argv[3])) << "\n";
+    }
+
+    return 0;
+}
+int main3(){
 
 
     for(int i =1;i<=20;++i){
@@ -472,7 +666,7 @@ int main(int argc, char **argv){
         ("fit", "Use estimated distribution from the given fast{a,q}", cxxopts::value<string>())
         ("only-single-isoform", "Use only single isoform genes", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("multivariate", "Use estimated distribution from the given paf", cxxopts::value<string>())
-        ("kde", "Use Kernel Density Estimation given output of the kde.py")
+        ("kde", "Use Kernel Density Estimation given outputs of the kde.py comma separated", cxxopts::value<vector<string>>())
         ("normal", "Use Normal distribution [μ,σ]", cxxopts::value<vector<double>>())
         ("lognormal", "Use Log-Normal distribution [μ,σ]", cxxopts::value<vector<double>>())
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
@@ -553,6 +747,7 @@ int main(int argc, char **argv){
     }
 
     if( chosen_dist == "kde"){
+        /*
         auto get_numbers = [](){
             int x,y;
             std::cin >> x >> y;
@@ -599,21 +794,22 @@ int main(int argc, char **argv){
             bins[target_bin].pop_back();
             return ret_value;
         };
+*/
        
+        const vector<string> &kdefiles = args["kde"].as<vector<string>>();
+        custom_distribution2D<> disko {kdefiles[0], kdefiles[1]};
         string mdf_file_path {args["input"].as<string>()};
-
         std::ifstream mdf_file {mdf_file_path};
-
         vector<pcr_copy> molecules = parse_mdf(mdf_file);
+
         for( pcr_copy &pcp : tqdm::tqdm(molecules)){
-            int molecule_size = std::accumulate(pcp.segments.begin(), pcp.segments.end(), 0, [](int so_far, const interval &i){
-                return so_far + i.end - i.start;
-                    });
-            
-            truncate(pcp, request_truncation(molecule_size));
 
+            truncate(pcp, disko(rand_gen, pcp.size()));
         }
-
+        string outfile_name = args["output"].as<string>();
+        std::ofstream outfile{outfile_name};
+        print_all_mdf(outfile, molecules);
+        return 0;
 
 
     }

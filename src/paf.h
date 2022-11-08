@@ -1,3 +1,4 @@
+#pragma once
 #ifndef _PAF_H_
 #define _PAF_H_
 
