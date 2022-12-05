@@ -1,0 +1,593 @@
+
+import sys
+from itertools import groupby
+
+
+################# UTIL FUNCTIONS ################
+
+cfg_text = ""
+def tee( st, file=sys.stderr,end="\n"):
+    global cfg_text
+    cfg_text = cfg_text + st + end
+    print(st, file=file, end=end)
+def get_tool_path(name):
+    from shutil import which
+    return which(name)
+
+def assert_tool(tool):
+    tp = get_tool_path(tool)
+    assert tp is not None, tool + " not found in the PATH"
+    return tp
+
+
+def cfg_default( key, val):
+    if key not in config:
+        config[key] = val
+    tee( "{}: {}".format(key,config[key]), file=sys.stderr)
+
+
+def cfg_mandatory( key):   
+    assert key in config, "{} is a mandatory field in config".format(key)
+    tee( "{}: {}".format(key,config[key]), file=sys.stderr)
+    
+def cfg_optional( key):
+    val = "[unset]"
+    if key in config:
+        val = config[key]
+    tee( "{}: {}".format(key,value), file=sys.stderr)
+
+
+
+
+cfg_default("project-name", "RNAInfuser-simulation")
+
+pn = config["project-name"]
+cfg_default("nanosimpath", config["project-name"] + "/nanosim" )
+
+nanosim = config["nanosim"]
+
+def get_reads(wildcards):
+    return config["input"][wildcards.sample]["fastq"][0]
+def get_reads_from_id(name):
+    if isinstance(name,str):
+        return config["input"][name]["fastq"][0]
+    elif isinstance(name, list):
+        return {x:config["input"][x]["fastq"][0] for x in name}
+    else:
+        raise 
+def get_abundance_from_id(name):
+    if isinstance(name,str):
+        return f'{pn}/{name}.abundance.tsv'
+    else:
+        return {x:f'{pn}/{x}.abundance.tsv' for x in name}
+
+
+
+def get_nanosim_count(wildcards):
+    if "count" in config["nanosim"]["experiments"][wildcards.sample]:
+        return config["nanosim"]["experiments"][wildcards.sample]["count"]
+    return nanosim["count"] #Fallback
+
+def get_nanosim_real(wildcards):
+    if "real" in config["nanosim"]["experiments"][wildcards.sample]:
+        return config["nanosim"]["experiments"][wildcards.sample]["real"]
+    return nanosim["real"] #Fallback
+
+def get_nanosim_threads(wildcards):
+    if "threads" in config["nanosim"]["experiments"][wildcards.sample]:
+        return config["nanosim"]["experiments"][wildcards.sample]["threads"]
+    return nanosim["threads"] #Fallback
+
+
+"""
+onsuccess:
+    cfg_log_path = f"{pn}/config.log"
+    with open(cfg_log_path, 'w') as hand:
+        print(cfg_text, file=hand)
+onerror:
+    cfg_log_path = f"{pn}/config.log"
+    with open(cfg_log_path, 'w') as hand:
+        print(cfg_text, file=hand)
+"""
+rule all:
+    input:
+        f'{pn}/raw_read_length_dist.png',
+        f'{pn}/raw_read_length_dist2.png',
+        f'{pn}/mapped_read_length_dist.png',
+        f'{pn}/polyA_dist.png',
+        f'{pn}/error_dist.png',
+        f'{pn}/tpm_plot.png',
+#        f'{pn}/nanosim/analysis/sim.gff3',
+#        f'{pn}/nanosim/abundance/',
+        [f'{pn}/nanosim/{sample}/simulation_aligned_reads.paf' for sample in config["nanosim"]["experiments"].keys()],
+        f"{pn}/ri/sequenced.fastq",
+
+
+if "RNAInfuser" in config:
+    config["input"]["RI_sim"] = {
+        "fastq": 
+            [f"{pn}/ri/sequenced.fastq"]
+
+    }
+    config ["simulated"] = config.get("simulated",[]) + ["RI_sim"]
+
+if "nanosim" in config:
+    for exp in config["nanosim"]["experiments"].keys():
+        config["input"]["nanosim"] = {
+                "fastq": 
+                    [ f'{pn}/nanosim/{exp}/simulation_aligned_reads.fasta']
+                
+        }
+
+    config ["simulated"] = config.get("simulated",[]) + ["nanosim"]
+
+rule plot_tpm:
+    input:
+        real=get_abundance_from_id(config["real"]),
+        simulation=list(get_abundance_from_id(config["simulated"]).values())
+    output:
+        f"{pn}/tpm_plot.png",
+    params:
+        simu_kv=get_abundance_from_id(config["simulated"])
+    run:
+        import pandas as pd
+        from matplotlib import pyplot as plt
+
+        frames = {}
+        real = pd.read_csv(input['real'], sep="\t", header=0)
+        real_keys = set(real['target_id'])
+        real.set_index('target_id', inplace=True)
+        fl = len(list(params.simu_kv.keys()))
+        fig,axs = plt.subplots(fl,1,sharex=True,sharey=True,figsize=(12,12*fl))
+        for i, (k,v) in enumerate(params.simu_kv.items()):
+            ax = axs[i]
+            frame = pd.read_csv(v, sep="\t", header=0)
+            keys = real_keys.intersection(set(frame['target_id']))
+            frame.set_index('target_id',inplace=True)
+
+            X = frame.loc[list(keys)]['tpm']
+            Y = real.loc[list(keys)]['tpm']
+
+            ax.plot(X,Y, 'o', alpha=.5, label = k)
+
+            ax.set_xlabel('Simulated read TPM')
+            ax.set_ylabel('Real reads TPM')
+            ax.legend()
+            ax.set_xscale('log')
+            ax.set_yscale('log')
+        plt.savefig(output[0])
+
+rule compute_abundance:
+    input:
+        paf=f"{pn}/{{sample}}.paf",
+        script="nanopore_transcript_abundance.py"
+    output:
+        f"{pn}/{{sample}}.abundance.tsv"
+    shell:
+       "python {input.script} -i {input.paf} > {output}" 
+
+def find_longest_poly(seq, s, e, step, match_score=1, mismatch_score=-2, char='A'):
+    if e-s == 0:
+        return
+    if seq[s] == char:
+        scores = [match_score]
+    else:
+        scores = [0]
+    for m in (match_score if c == char else mismatch_score for c in seq[s+step:e:step]):
+        scores.append(max(0, scores[-1]+m))
+    for k, g in groupby(enumerate(scores), lambda x: x[1] > 0):
+        if not k:
+            continue
+        i, S = list(zip(*g))
+        max_s, max_i = max(zip(S, i))
+        l = max_i+1-i[0]
+        yield i[0], l, seq[s:e:step][i[0]:i[0]+l].count(char)/l
+
+rule plot_polyA_distribution:
+    input:
+        [x["fastq"][0] for x in config["input"].values()]
+    output:
+        f'{pn}/polyA_dist.png'
+    params:
+        sample_names=",".join([x for x in config["input"].keys()]),
+        bins=30,
+        firstN=10000
+    run:
+        import gzip
+        from matplotlib import pyplot as plt
+        samples = list(config["input"].keys())
+
+        fig = plt.figure()
+        bb = None
+        for i,s in enumerate(samples):
+            f = input[i]
+            polys = []
+            cnt = 0
+            opener = gzip.open if ".gz" in f else open
+            with opener(f, 'r') as hand:
+
+                line = hand.readline()
+                while line:
+                    seq = hand.readline().rstrip()
+                    for cc in ['A', 'T']:
+                        for i, l, p in find_longest_poly(seq, 0, len(seq), step = 1, char=cc):
+                            if l < 20 or p < 0.85:
+                                continue
+                            polys.append(l)
+                            break
+                    line = hand.readline()
+                    line = hand.readline()
+                    line = hand.readline()
+                    cnt+=1
+                    if cnt > params.firstN:
+                        break
+            _, bb, _ = plt.hist(polys, bins = params.bins if bb is None else bb, density=True,label=s, alpha=.5)
+        plt.legend()
+        plt.title("Poly(A,T) length distribution")
+        plt.savefig(output[0],dpi=300)        
+
+rule plot_substition_analysis:
+    input:
+        [f"{pn}/{x}.subs.tsv" for x in config["input"].keys()] 
+    output:
+        f'{pn}/error_dist.png'
+    params:
+        sample_names=",".join([x for x in config["input"].keys()]),
+        bins=50
+    run:
+        import numpy as np
+        from matplotlib import pyplot as plt
+
+        samples = list(config["input"].keys())
+        fig, axs = plt.subplots(4)
+        fig.tight_layout()
+
+        bb = [None,None,None,None]
+        maxi = [0,0,0,0]
+        for i,s in enumerate(samples):
+            f = input[i]
+            counts = []
+            with open(f, 'r') as hand:
+                for line in hand:
+                    match_c, subs_c, insert_c, del_c, length = [int(float(x)) for x in line.rstrip().split("\t")]
+
+                    l100 = 100/length
+                    counts.append( (l100*match_c, l100*subs_c, l100*insert_c, l100*del_c)) 
+                    #counts.append( (match_c, subs_c, insert_c, del_c, length)) 
+        
+
+
+            for j,title in enumerate(["match counts", "substition counts", "insertion counts", "deletion counts"]):
+                cc = np.array([x[j] for x in counts])
+                try:
+                    perc = np.percentile(cc, 99)
+                except:
+                    print(counts)
+                    raise
+                cc = cc[cc < perc]
+                _, bb[j], _ = axs[j].hist(cc, bins=params.bins if bb[j] is None else bb[j], alpha=0.3, label = s, density=True)
+        for i,title in enumerate(["match counts", "substition counts", "insertion counts", "deletion counts"]):
+            axs[i].legend()
+            axs[i].set_title(title + " per 100 bases")
+        plt.savefig(output[0], dpi=300)
+
+
+rule substition_analysis:
+    input:
+        f"{pn}/{{sample}}.paf"
+    output:
+        f'{pn}/{{sample}}.subs.tsv'
+    params:
+        sample_names=",".join([x for x in config["input"].keys()]),
+    run:
+        import re
+        import numpy as np
+        cigar_re = re.compile(r'(\d+)([M|I|D|N|S|H|P|=|X]{1})')
+
+
+        with open(input[0], 'r') as hand, open(output[0], 'w') as whand:
+            for line in hand:
+                if "tp:A:P" not in line:
+                    continue
+
+                fields = line.rstrip().split("\t")
+                for f in fields[11:]:
+                    if "cg" in f:
+                        cigars = [(int(x),y) for x,y in cigar_re.findall(f[5:])]
+                        break
+                else:
+                    continue
+                match_c = np.sum([x for x,y in cigars if y == '='])
+                subs_c = np.sum([x for x,y in cigars if y == 'X'])
+                insert_c = np.sum([x for x,y in cigars if y == 'I'])
+                del_c = np.sum([x for x,y in cigars if y == 'D'])
+
+                print(match_c, subs_c, insert_c, del_c, int(fields[3])-int(fields[2]), sep="\t", file=whand)
+
+
+rule plot_mapped_read_length_distribution:
+    input:
+        [f"{pn}/{x}.paf" for x in config["input"].keys()]
+    output:
+        f'{pn}/mapped_read_length_dist.png'
+    params:
+        sample_names=",".join([x for x in config["input"].keys()]),
+        bins=50
+    run:
+        import numpy as np
+        from matplotlib import pyplot as plt
+
+        samples = list(config["input"].keys())
+        fig = plt.figure()
+        bb = None
+        max_up = 0
+        nll = []
+        for i,s in enumerate(samples):
+            f = input[i]
+            lens = []
+            with open(f, 'r') as hand:
+                for line in hand:
+                    if "tp:A:P" not in line:
+                        continue
+                    fields = line.rstrip().split("\t")
+                    start = int(fields[2])
+                    end = int(fields[3])
+                    lens.append(end-start)
+            nl = np.array(lens)
+            up = np.percentile(nl, 99)
+            nll.append(nl)
+            if up > max_up:
+                max_up = up
+        for i,s in enumerate(samples):
+            nl = nll[i]
+            nl = nl[ nl < max_up]
+            _, bb, _ = plt.hist(nl, bins = params.bins if bb is None else bb, density=True,label=s, alpha=.3)
+        plt.xlim(left=0, right=max_up)
+        plt.legend()
+        plt.title("Length distribution (mapped parts)")
+        plt.savefig(output[0],dpi=300)        
+
+rule plot_raw_read_length_distribution2:
+    input:
+        [f"{pn}/{x}.paf" for x in config["input"].keys()]
+    output:
+        f'{pn}/raw_read_length_dist2.png'
+    params:
+        sample_names=",".join([x for x in config["input"].keys()]),
+        bins=50
+    run:
+        import numpy as np
+        from matplotlib import pyplot as plt
+
+        samples = list(config["input"].keys())
+        fig = plt.figure()
+        bb = None
+        max_up = 0
+        nll = []
+        reads_so_far = set()
+        for i,s in enumerate(samples):
+            f = input[i]
+            lens = []
+            with open(f, 'r') as hand:
+                for line in hand:
+                    if "tp:A:P" not in line:
+                        continue
+
+                    fields = line.rstrip().split("\t")
+                    rid = fields[0]
+                    tlen = int(fields[1])
+                    
+                    if rid in reads_so_far:
+                        continue
+                    reads_so_far.add(rid)
+                    lens.append(tlen)
+            nl = np.array(lens)
+            up = np.percentile(nl, 99)
+            print(f"{f} : {up}, {len(lens)}")
+            nll.append(nl)
+            if up > max_up:
+                max_up = up
+        for i,s in enumerate(samples):
+            nl = nll[i]
+            nl = nl[ nl < max_up]
+            _, bb, _ = plt.hist(nl, bins = params.bins if bb is None else bb, density=True,label=s, alpha=.3)
+        plt.xlim(left=0, right=max_up)
+        plt.legend()
+        plt.title("Length distribution (whole reads from paf)")
+        plt.savefig(output[0],dpi=300)        
+
+rule plot_raw_read_length_distribution:
+    input:
+        [x["fastq"][0] for x in config["input"].values()]
+
+    output:
+        f'{pn}/raw_read_length_dist.png'
+    params:
+        sample_names=",".join([x for x in config["input"].keys()]),
+        bins=50
+    run:
+        from matplotlib import pyplot as plt
+        import numpy as np
+        import gzip
+
+        fig = plt.figure()
+        bb = None
+        nll = []
+        max_up = 0
+        samples = list(config["input"].keys())
+
+        for i,s in enumerate(samples):
+            f = input[i]
+            lens = []
+            opener = gzip.open if ".gz" in f else open
+            with opener(f, 'r') as hand:
+                line = hand.readline()
+                while line:
+                    line = hand.readline()
+                    lens.append(len(line.rstrip()))
+                    line = hand.readline()
+                    if ".fastq" in f:
+                        line = hand.readline()
+                        line = hand.readline()
+            
+            nl = np.array(lens)
+            up = np.percentile(nl, 99)
+            nll.append(nl)
+            if up > max_up:
+                max_up = up
+        for i,s in enumerate(samples):
+            nl = nll[i]
+            nl = nl[ nl < max_up]
+            _, bb, _ = plt.hist(nl, bins = params.bins if bb is None else bb, density=True,label=s, alpha=.3)
+
+        #x = np.linspace(min(bb), max(bb), 10000)
+        #mu = 6.20764
+        #sigma = 0.617359
+        #pdf = (np.exp(-(np.log(x) - mu)**2 / (2 * sigma**2)) / (x * sigma * np.sqrt(2 * np.pi)))
+                #mean: 6.20764 std: 0.617359
+        #plt.plot(x, pdf,linewidth=2, color='red')
+        plt.legend()
+        plt.title("Length distribution (whole reads)")
+        plt.savefig(output[0],dpi=300)        
+
+
+if "RNAInfuser" in config:
+    rule RI_splicer:
+        input:
+            binary=config["RI_bin"]["splicer"],
+            abundance=get_abundance_from_id(config["real"]),
+        output:
+            mdf=f"{pn}/ri/splicer.mdf",
+        params:
+            gtf=config["gtf"],
+            N=config["N"],
+        shell:
+            "{input.binary}  -g {params.gtf} -a {input.abundance} --molecule-count {params.N} -o {output.mdf}"
+
+    rule RI_polyA:
+        input:
+            binary=config["RI_bin"]["polya"],
+            mdf=f"{pn}/ri/truncated.mdf",
+        output:
+            mdf=f"{pn}/ri/polyA.mdf",
+            polyaref=f"{pn}/ri/polyA.fasta",
+        params:
+            dist="normal=40,10",
+            min_len=5,
+        shell:
+            "{input.binary} -i {input.mdf} -o {output.mdf} --{params.dist} --min-length={params.min_len} --expand-isoforms -a {output.polyaref}"
+
+
+    rule RI_trunc:
+        input:
+            binary=config["RI_bin"]["truncate"],
+            mdf=f"{pn}/ri/splicer.mdf",
+            real_paf=f"{pn}/{{sample}}.paf".format(sample=config["real"]),
+            grid=config["kde"]["grid"],
+            labels=config["kde"]["labels"],
+        output:
+            mdf=f"{pn}/ri/truncated.mdf",
+        params:
+            gtf=config["gtf"],
+        shell:
+            "{input.binary} -i {input.mdf} -o {output.mdf} --kde={input.grid},{input.labels} --gtf={params.gtf} --only-single-isoform"
+
+
+    rule RI_sequence:
+        input:
+            binary=config["RI_bin"]["sequencer"],
+            badread=config["RI_bin"]["badread"],
+            mdf=f"{pn}/ri/polyA.mdf",
+            polyaref=f"{pn}/ri/polyA.fasta",
+        output:
+            fastq=f"{pn}/ri/sequenced.fastq",
+        params:
+            dna=config["DNA"],
+            name="RIexperiment",
+        threads:
+            32
+        shell:           
+            """
+            {input.binary} -m {input.mdf} -o {output.fastq} --badread={input.badread} --references={params.dna},{input.polyaref} -n{params.name} --threads={threads} --other-br="--tail_noise_model=nanopore"
+            """
+
+if "nanosim" in config:
+    rule nanosim_analysis:
+        input:
+            reads = lambda wildcards: config["input"][wildcards.sample]["fastq"][0],
+        output:
+            #            config["nanosim"]+ "/analysis/sim.gff3",
+            directory(config["nanosimpath"] + "/{sample}/analysis/")
+        params:
+            dna = config["DNA"],
+            cdna = config["cDNA"],
+            gtf  = config["gtf"],
+            output_prefix = config["nanosimpath"] + "/{sample}/analysis/sim",
+        threads:
+            32
+        shell:
+            "read_analysis.py  transcriptome -i {input.reads} -rg {params.dna} -rt {params.cdna} --annotation {params.gtf} -o {params.output_prefix} -t {threads} --no_intron_retention"
+
+    rule nanosim_quantify:
+        input:
+            reads = lambda wildcards: config["input"][wildcards.sample]["fastq"][0],
+        output:
+            config["nanosimpath"]+ "/{sample}/abundance/sim_transcriptome_quantification.tsv",
+        params:
+            dna = config["DNA"],
+            cdna = config["cDNA"],
+            gtf  = config["gtf"],
+            output_prefix = config["nanosimpath"] + "/{sample}/abundance/sim",
+        threads:
+            32
+        shell:
+            "read_analysis.py quantify -i {input.reads}  -rt {params.cdna} -o {params.output_prefix} -t {threads} -e trans"
+
+    rule nanosim_simulate:
+        input:
+            model = lambda wildcards: directory("{}/{}/analysis/".format(config["nanosimpath"], get_nanosim_real(wildcards))),
+            abundance = lambda wildcards: "{}/{}/abundance/sim_transcriptome_quantification.tsv".format(config["nanosimpath"], get_nanosim_real(wildcards)),
+        output:
+            config["nanosimpath"] + "/{sample}/simulation_aligned_reads.fasta"
+        params:
+            model = lambda wildcards: "{}/{}/analysis/sim".format(config["nanosimpath"],get_nanosim_real(wildcards)),
+            dna = config["DNA"],
+            cdna = config["cDNA"],
+            gtf  = config["gtf"],
+            output_prefix = config["nanosimpath"] + "/{sample}/simulation",
+            N = get_nanosim_count,
+        threads:
+            get_nanosim_threads
+        shell:
+            "simulator.py transcriptome -rt {params.cdna} -rg {params.dna} -c {params.model} -n {params.N} -o {params.output_prefix} --exp {input.abundance} -t {threads} --no_model_ir --seed 42"
+
+
+
+    rule minimap_cdna_2:
+        input:
+            reads=f"{pn}/nanosim/{{sample}}.fasta",
+            tool= assert_tool("minimap2"),
+        output:
+            f"{pn}/nanosim/{{sample}}.paf"
+        params:
+            ref = config["cDNA"],
+        threads:
+            12
+        shell:
+            "{input.tool} -t {threads} -x map-ont -p0 -o {output} {params.ref} {input.reads} -c --eqx"
+
+rule minimap_cdna:
+    input:
+        reads=get_reads,
+        tool= assert_tool("minimap2"),
+    output:
+        f"{pn}/{{sample}}.paf"
+    params:
+        ref = config["cDNA"],
+    threads:
+        12
+    shell:
+        "{input.tool} -t {threads} -x map-ont -p0 -o {output} {params.ref} {input.reads} -c --eqx"
+
+
+
