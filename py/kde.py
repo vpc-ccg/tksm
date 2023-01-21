@@ -2,13 +2,13 @@ import pickle
 import argparse
 import sys
 import time
+from multiprocessing import Pool
 
 from tqdm import tqdm
 import numpy as np
 from sklearn.neighbors import KernelDensity
 from matplotlib import pyplot as plt
 
-from multiprocessing import Pool
 
 def run_batch_sk(prc_arg):
     X = prc_arg

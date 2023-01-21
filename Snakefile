@@ -1,5 +1,4 @@
 import sys
-from itertools import groupby
 
 if len(config)==0:
     configfile: "config.yaml"
@@ -9,44 +8,55 @@ preproc_d = f'{outpath}/preprocess'
 RI_d = f'{outpath}/RI'
 nanosim_d = f'{outpath}/nanosim'
 
+def get_experiment_sample(experiment):
+    return config["experiments"][experiment]["sample"]
+
 rule all:
     input:
         expand(
-            f'{RI_d}/{{sample}}/{{experiment}}/sequenced.fastq',
-            sample=config['samples'],
+            f'{RI_d}/{{experiment}}/sequenced.fastq',
             experiment=config['experiments'],
         ),
+        expand(
+            f'{preproc_d}/lr_sc_expression/{{sample}}.npy.gz',
+            sample={config['experiments'][e]['sample'] for e in config['experiments'] if config['experiments'][e]['sc']},
+        ),
+        
 
 rule RI_sequence:
     input:
         binary = config['exec']['RI_sequencer'],
         badread = config['exec']['badread'],
-        splicer_mdf = f'{RI_d}/{{sample}}/{{experiment}}/splicer.mdf',
-        polyA_fasta = f'{RI_d}/{{sample}}/{{experiment}}/polyA.fasta',
+        splicer_mdf = f'{RI_d}/{{experiment}}/splicer.mdf',
+        polyA_fasta = f'{RI_d}/{{experiment}}/polyA.fasta',
     output:
-        fastq = f'{RI_d}/{{sample}}/{{experiment}}/sequenced.fastq',
+        fastq = f'{RI_d}/{{experiment}}/sequenced.fastq',
     params:
         dna = config['refs']['DNA'],
-        name = lambda wildcards: f'{wildcards.sample}-{wildcards.experiment}-RI',
+        name = lambda wc: f'{get_experiment_sample(wc.experiment)}_{wc.experiment}_RI',
+        temp_dir = f'{RI_d}/{{experiment}}/sequenced.temps',
     threads:
         32
-    shell:           
+    shell:
+        'mkdir -p {params.temp_dir} && '
+        'rm -rf {params.temp_dir}/* && '
         '{input.binary}'
         ' -m {input.splicer_mdf}'
         ' -o {output.fastq}'
+        ' -n "{params.name}"'
+        ' --temp "{params.temp_dir}"'
         ' --badread={input.badread}'
         ' --references={params.dna},{input.polyA_fasta}'
-        ' -n{params.name}'
         ' --threads={threads}'
         ' --other-br="--tail_noise_model=nanopore"'
 
 rule RI_polyA:
     input:
         binary = config['exec']['RI_polyA'],
-        mdf = f'{RI_d}/{{sample}}/{{experiment}}/truncated.mdf',
+        mdf = f'{RI_d}/{{experiment}}/truncated.mdf',
     output:
-        mdf = f'{RI_d}/{{sample}}/{{experiment}}/polyA.mdf',
-        fasta = f'{RI_d}/{{sample}}/{{experiment}}/polyA.fasta',
+        mdf = f'{RI_d}/{{experiment}}/polyA.mdf',
+        fasta = f'{RI_d}/{{experiment}}/polyA.fasta',
     params:
         distr = lambda wildcards: config['experiments'][wildcards.experiment]['polyA_distr'],
         min_len = lambda wildcards: config['experiments'][wildcards.experiment]['polyA_min_len'],
@@ -62,11 +72,11 @@ rule RI_polyA:
 rule RI_trunc:
     input:
         binary = config['exec']['RI_truncate'],
-        mdf = f'{RI_d}/{{sample}}/{{experiment}}/splicer.mdf',
+        mdf = f'{RI_d}/{{experiment}}/splicer.mdf',
         grid = config['exec']['RI_truncate_kde']['grid'],
         labels = config['exec']['RI_truncate_kde']['labels'],
     output:
-        mdf = f'{RI_d}/{{sample}}/{{experiment}}/truncated.mdf',
+        mdf = f'{RI_d}/{{experiment}}/truncated.mdf',
     params:
         gtf = config['refs']['GTF'],
     shell:
@@ -80,12 +90,12 @@ rule RI_trunc:
 rule RI_splicer:
     input:
         binary = config['exec']['RI_splicer'],
-        abdund_tsv = f'{preproc_d}/minimap2/{{sample}}.cDNA.abundance.tsv'
+        abdund_tsv = lambda wc: f'{preproc_d}/minimap2/{get_experiment_sample(wc.experiment)}.cDNA.abundance.tsv'
     output:
-        mdf = f'{RI_d}/{{sample}}/{{experiment}}/splicer.mdf',
+        mdf = f'{RI_d}/{{experiment}}/splicer.mdf',
     params:
         gtf = config['refs']['GTF'],
-        mol_count = lambda wildcards: config['experiments'][wildcards.experiment]['mol_count'],
+        mol_count = lambda wc: config['experiments'][wc.experiment]['mol_count'],
     shell:
         '{input.binary}'
         ' -g {params.gtf}'
@@ -105,14 +115,28 @@ rule compute_abundance:
 rule minimap_cdna:
     input:
         reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
+        ref = config['refs']['cDNA'],
     output:
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
-    params:
-        ref = config['refs']['cDNA'],
     threads:
         12
     shell:
-        'minimap2 -t {threads} -x map-ont -c --eqx -p0 -o {output.paf} {params.ref} {input.reads}'
+        'minimap2 -t {threads} -x map-ont -c --eqx -p0 -o {output.paf} {input.ref} {input.reads}'
+
+rule lr_sc_expression:
+    input:
+        script = config['exec']['lr_sc_expression'],
+        ref = config['refs']['cDNA'],
+        lr_tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz',
+        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
+    output:
+        npy=f'{preproc_d}/lr_sc_expression/{{sample}}.npy.gz',
+        bc=f'{preproc_d}/lr_sc_expression/{{sample}}.bc.gz',
+        tids=f'{preproc_d}/lr_sc_expression/{{sample}}.tids.gz',
+    params:
+        prefix=f'{preproc_d}/lr_sc_expression/{{sample}}',
+    shell:
+       "python {input.script} -r {input.ref} -m {input.lr_tsv} -p {input.paf} -o {params.prefix}" 
 
 rule scTagger_match:
     input:

@@ -6,9 +6,20 @@ experiments:
         mol_count: 1000000
         polyA_distr : "normal=40,10"
         polyA_min_len : 5
+        sample : "N1"
+        sc : True
+    # e2:
+    #     mol_count: 1000000
+    #     polyA_distr : "normal=40,10"
+    #     polyA_min_len : 5
+    #     sample : "MCF7-sgnex"
+    #     sc : False
+
 exec:
     ONT_trans_abund:
         /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/py/ONT_transcript_abundance.py
+    lr_sc_expression:
+        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/py/lr_sc_expression.py
     RI_splicer:
         /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/splicer
     RI_polyA:
@@ -49,8 +60,3 @@ samples:
             - /groups/hachgrp/projects/col-flannigan-scrna-2021/raw-data/scrna-long-reads/PAG34747_N1_pass_fastq_concat.fastq
         protocol:
             p1
-real:
-    - "MCF7-sgnex"
-    - "N1"
-real_sc:
-    "N1"
