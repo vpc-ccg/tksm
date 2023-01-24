@@ -1,7 +1,7 @@
 
 CXX ?= g++
 OPT ?= -O2
-CXXFLAGS += ${OPT} -Wall -std=c++2a -Iextern/include
+CXXFLAGS += ${OPT} -Wall -std=c++20 -Iextern/include
 LDFLAGS += -lz -lpthread 
 
 SRCD=src
