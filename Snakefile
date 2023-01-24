@@ -18,11 +18,10 @@ rule all:
             experiment=config['experiments'],
         ),
         expand(
-            f'{preproc_d}/lr_sc_expression/{{sample}}.npy.gz',
+            f'{preproc_d}/lr_sc_expression/{{sample}}.bc_to_tid_counts.tsv.gz',
             sample={config['experiments'][e]['sample'] for e in config['experiments'] if config['experiments'][e]['sc']},
         ),
         
-
 rule RI_sequence:
     input:
         binary = config['exec']['RI_sequencer'],
@@ -90,7 +89,10 @@ rule RI_trunc:
 rule RI_splicer:
     input:
         binary = config['exec']['RI_splicer'],
-        abdund_tsv = lambda wc: f'{preproc_d}/minimap2/{get_experiment_sample(wc.experiment)}.cDNA.abundance.tsv'
+        abdund_tsv = lambda wc: 
+            f'{preproc_d}/minimap2/{get_experiment_sample(wc.experiment)}.cDNA.abundance.tsv.gz' 
+            if not config['experiments'][wc.experiment]['sc'] else
+            f'{preproc_d}/minimap2/{get_experiment_sample(wc.experiment)}.cDNA.abundance_with_cells.tsv.gz'
     output:
         mdf = f'{RI_d}/{{experiment}}/splicer.mdf',
     params:
@@ -103,14 +105,25 @@ rule RI_splicer:
         ' --molecule-count {params.mol_count}'
         ' -o {output.mdf}'
 
-rule compute_abundance:
+rule transcript_abundance:
     input:
+        script = config['exec']['transcript_abundance'],
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
-        script = config['exec']['ONT_trans_abund'],
     output:
-        f'{preproc_d}/minimap2/{{sample}}.cDNA.abundance.tsv'
+        tsv = f'{preproc_d}/minimap2/{{sample}}.cDNA.abundance.tsv.gz'
     shell:
-       "python {input.script} -i {input.paf} > {output}" 
+       'python {input.script} -p {input.paf} -o {output.tsv}' 
+
+rule transcript_abundance_with_cells:
+    input:
+        script = config['exec']['transcript_abundance'],
+        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
+        lr_matches=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz',
+    output:
+        tsv = f'{preproc_d}/minimap2/{{sample}}.cDNA.abundance_with_cells.tsv.gz'
+    shell:
+       'python {input.script} -p {input.paf} -m {input.lr_matches} -o {output.tsv}' 
+
 
 rule minimap_cdna:
     input:
@@ -123,20 +136,15 @@ rule minimap_cdna:
     shell:
         'minimap2 -t {threads} -x map-ont -c --eqx -p0 -o {output.paf} {input.ref} {input.reads}'
 
-rule lr_sc_expression:
-    input:
-        script = config['exec']['lr_sc_expression'],
-        ref = config['refs']['cDNA'],
-        lr_tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz',
-        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
-    output:
-        npy=f'{preproc_d}/lr_sc_expression/{{sample}}.npy.gz',
-        bc=f'{preproc_d}/lr_sc_expression/{{sample}}.bc.gz',
-        tids=f'{preproc_d}/lr_sc_expression/{{sample}}.tids.gz',
-    params:
-        prefix=f'{preproc_d}/lr_sc_expression/{{sample}}',
-    shell:
-       "python {input.script} -r {input.ref} -m {input.lr_tsv} -p {input.paf} -o {params.prefix}" 
+# rule lr_sc_expression:
+#     input:
+#         script = config['exec']['lr_expression'],
+#         ref = config['refs']['cDNA'],
+#         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
+#     output:
+#         tsv=f'{preproc_d}/lr_sc_expression/{{sample}}.bc_to_tid_counts.tsv.gz',
+#     shell:
+#        "python {input.script} -r {input.ref} -m {input.lr_tsv} -p {input.paf} -o {output.tsv}" 
 
 rule scTagger_match:
     input:
@@ -144,14 +152,12 @@ rule scTagger_match:
         wl_tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz',
     output:
         lr_tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz',
-    params:
-        script=config['exec']['scTagger'],
     threads: 32
     resources:
         mem='64G',
         time=60 * 5 - 1,
     shell:
-        '{params.script} match_trie -lr {input.lr_tsv} -sr {input.wl_tsv} -o {output.lr_tsv} -t {threads}'
+        'scTagger.py match_trie -lr {input.lr_tsv} -sr {input.wl_tsv} -o {output.lr_tsv} -t {threads}'
 
 rule scTagger_extract_bc:
     input:
@@ -159,25 +165,21 @@ rule scTagger_extract_bc:
         wl=config['refs']['10x_bc'],
     output:
         tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz',
-    params:
-        script=config['exec']['scTagger'],
     resources:
         mem='16G',
         time=59,
     shell:
-        '{params.script} extract_sr_bc_from_lr -i {input.tsv} -wl {input.wl} -o {output.tsv}'
+        'scTagger.py extract_sr_bc_from_lr -i {input.tsv} -wl {input.wl} -o {output.tsv}'
 
 rule scTagger_lr_seg:
     input:
         reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
     output:
         tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
-    params:
-        script=config['exec']['scTagger'],
     threads:
         32
     resources:
         mem='256G',
         time=59,
     shell:
-        '{params.script} extract_lr_bc -r {input.reads} -o {output.tsv} -t {threads}'
+        'scTagger.py extract_lr_bc -r {input.reads} -o {output.tsv} -t {threads}'

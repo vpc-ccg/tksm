@@ -16,10 +16,8 @@ experiments:
     #     sc : False
 
 exec:
-    ONT_trans_abund:
-        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/py/ONT_transcript_abundance.py
-    lr_sc_expression:
-        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/py/lr_sc_expression.py
+    transcript_abundance:
+        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/py/transcript_abundance.py
     RI_splicer:
         /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/splicer
     RI_polyA:
