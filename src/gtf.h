@@ -204,6 +204,48 @@ inline auto read_gtf_exons( std::string path_to_gtf, bool coding_only = true){
     return make_tuple(annots,gptrs,t2g);
 }
 
+
+inline auto read_gtf_transcripts(const std::string &path2gtf, int default_depth=1){
+
+    std::map< std::string, molecule_descriptor> isoforms;
+    std::ifstream gtfile( path2gtf);
+    std::string buffer;
+
+    gtf *current_gene = nullptr;
+    gtf *current_transcript = nullptr;
+
+    while(std::getline(gtfile, buffer)){
+        if(buffer[0] == '#'){
+            continue;
+        }
+        gtf *entry = new gtf(buffer);
+
+        switch(entry->type){
+            case gtf::entry_type::gene:
+                delete current_gene;
+                current_gene = entry;
+                break;
+            case gtf::entry_type::transcript:
+            {
+                delete current_transcript;
+                current_transcript = entry;
+                auto iter = isoforms.emplace(current_transcript->info["transcript_id"],
+                        molecule_descriptor{ current_transcript->info["transcript_id"], !entry->plus_strand});
+                iter.first->second.depth(default_depth);
+                break;
+            }
+            case gtf::entry_type::exon:
+                isoforms[current_transcript->info["transcript_id"]].append_segment(*entry);
+                delete entry;
+                break;
+            default:
+                break;
+        }
+    }
+    
+    return isoforms;
+}
+
 /*
 inline auto flatten_gtf( std::vector<exon> &exons, double min_overlap = 0.90){
 //Ensure sorted
