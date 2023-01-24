@@ -3,3 +3,4 @@
 -xc++
 -Wall
 -I../extern/include/
+-fexperimental-library
