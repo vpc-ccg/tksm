@@ -1,3 +1,4 @@
+#include "umi.h"
 
 #include <iostream>
 #include <iterator>
@@ -77,13 +78,13 @@ class fmt2seq{
         }
 };
 
-void add_UMIs(vector<pcr_copy> &copies, ostream &umifile, const string &format, const string &format_back =""){
+void add_UMIs(vector<molecule_descriptor> &copies, ostream &umifile, const string &format, const string &format_back){
 
     fmt2seq make_seq(format);
     fmt2seq make_back_seq(format_back);
 
     int index = 0;
-    for(pcr_copy &pcp : copies){
+    for(molecule_descriptor &pcp : copies){
         string umi_seq = make_seq[rand_gen];
         string umi_ctg_name = fmt::format("RI_umi_ctg_{}",index);
 
@@ -95,16 +96,16 @@ void add_UMIs(vector<pcr_copy> &copies, ostream &umifile, const string &format, 
         int len = static_cast<int>(umi_seq.size());
         int len_back = static_cast<int>(umi_back_seq.size());
         if(len > 0){
-            pcp.prepend(ginterval{umi_ctg_name, 0, len, "+"});
+            pcp.prepend_segment(ginterval{umi_ctg_name, 0, len, "+"});
         }
         if(len_back > 0){
-            pcp.append(ginterval{umi_ctg_name, len, len + len_back,  "+"});
+            pcp.append_segment(ginterval{umi_ctg_name, len, len + len_back,  "+"});
         }
         ++index;
     }
 }
 
-void add_UMIs(vector<pcr_copy> &copies, ostream &umifile, int len){
+void add_UMIs(vector<molecule_descriptor> &copies, ostream &umifile, int len){
 
     uint64_t lim_from_bitc = std::pow(4, len);
     num2seq make_seq(lim_from_bitc);
@@ -112,14 +113,14 @@ void add_UMIs(vector<pcr_copy> &copies, ostream &umifile, int len){
 
 
     int index = 0;
-    for(pcr_copy &pcp : copies){
+    for(molecule_descriptor &pcp : copies){
         uint64_t umi_int = dist(rand_gen);
         string umi_seq = make_seq[umi_int];
         string umi_ctg_name = fmt::format("RI_umi_ctg_{}",index);
 
         umifile << fmt::format(">{}\n", umi_ctg_name);
         umifile << umi_seq << "\n";
-        pcp.prepend(ginterval{umi_ctg_name, 0, len, "+"});
+        pcp.prepend_segment(ginterval{umi_ctg_name, 0, len, "+"});
         ++index;
     }
 }
@@ -166,16 +167,16 @@ int main(int argc, char **argv){
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
     
-    vector<pcr_copy> molecules = parse_mdf(mdf_file);
+    vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
 
 
 //Unroll the depth
-    vector<pcr_copy> nm;
-    for(const pcr_copy &pcp : molecules){
-        for(int i = 0; i < pcp.depth; ++i){
+    vector<molecule_descriptor> nm;
+    for(const molecule_descriptor &pcp : molecules){
+        for(int i = 0; i < pcp.get_depth(); ++i){
             nm.push_back(pcp);
-            nm.back().depth = 1;
-            nm.back().id += ("_" + std::to_string(i));
+            nm.back().depth(1);
+            nm.back().id(nm.back().get_id() +"_" + std::to_string(i));
         }
     }
     molecules = nm;
@@ -193,7 +194,9 @@ int main(int argc, char **argv){
 
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};
-    print_all_mdf(outfile, molecules);
+    for(const molecule_descriptor &md : molecules){
+        outfile << md << "\n";
+    }
     
     return 0;
 }

@@ -1,5 +1,6 @@
 
 #pragma once
+#include <memory>
 #ifndef INTERVAL_H
 #define INTERVAL_H
 
@@ -9,11 +10,14 @@
 #include <sstream>
 #include <iostream>
 #include <map>
+#include <ranges>
 
 #include "util.h"
 
 #include "cigar.h"
 
+using std::string;
+using std::vector;
 class interval{
     public:
         int start;
@@ -60,12 +64,12 @@ class interval{
         }
 };
 
-class contig_str : public std::string{
+class contig_str : public string{
     
     bool number;
     public:
-    static bool is_number(const std::string &str){
-        std::string _str = str;
+    static bool is_number(const string &str){
+        string _str = str;
         if( _str.empty()){
             return false;
         }
@@ -76,8 +80,8 @@ class contig_str : public std::string{
     }
 
 
-    contig_str (const std::string &str) : std::string{str}, number{is_number(str)}{}
-    contig_str () : std::string{} {}
+    contig_str (const string &str) : string{str}, number{is_number(str)}{}
+    contig_str () : string{} {}
     bool operator <(const contig_str &other) const{
         if( number && other.number){
             return stoi(*this) < stoi(other);
@@ -89,12 +93,12 @@ class contig_str : public std::string{
             return false;
         }
         else{
-            return static_cast<std::string>(*this) < static_cast<std::string>(other);
+            return static_cast<string>(*this) < static_cast<string>(other);
         }
     }
 
     bool operator ==(const contig_str &other) const  = default;
-    bool operator ==(const std::string &other) const  {
+    bool operator ==(const string &other) const  {
         return *this == static_cast<contig_str>(other);
     }
 };
@@ -102,9 +106,9 @@ class contig_str : public std::string{
 class intra_event: public interval{
     public:
         contig_str chr;
-        std::string layout;
+        string layout;
         intra_event(): interval(0,0), chr(""), layout("+"){}
-        intra_event(std::string chr, int start, int end, const std::string &strand): 
+        intra_event(string chr, int start, int end, const string &strand): 
             interval(start, end), chr(chr), layout(strand){}
         intra_event( const intra_event &g1, const intra_event &g2) : interval(g1,g2), chr(g1.chr), layout(g1.layout + g2.layout) {} // Merge constructor
         intra_event( const intra_event &g1) = default;
@@ -139,7 +143,7 @@ class ginterval: public interval{
         contig_str chr;
         bool plus_strand;
         ginterval(): interval(0,0), chr(""), plus_strand(true){}
-        ginterval(std::string chr, int start, int end, const std::string &strand): 
+        ginterval(string chr, int start, int end, const string &strand): 
             interval(start, end), chr(chr), plus_strand(strand=="+"){}
         ginterval( const ginterval &g1, const ginterval &g2) : interval(g1,g2), chr(g1.chr), plus_strand(g1.plus_strand) {} // Merge constructor
         ginterval( const ginterval &g1) = default;
@@ -177,7 +181,7 @@ struct gtf: public ginterval{
         CDS, Selenocysteine,
         other
     };
-    static entry_type type_from_string( const std::string& type_str){
+    static entry_type type_from_string( const string& type_str){
 
         if(type_str == "gene"){
             return entry_type::gene;
@@ -213,24 +217,24 @@ struct gtf: public ginterval{
     }
 
     entry_type type;
-    std::map<std::string, std::string> info;
-    gtf( const std::string &gtf_line){
-        std::vector<std::string> fields = rsplit(gtf_line, "\t");
+    std::map<string, string> info;
+    gtf( const string &gtf_line){
+        vector<string> fields = rsplit(gtf_line, "\t");
         type = type_from_string(fields[2]);
         chr = fields[0];
         start = stoi(fields[3]);
         end   = stoi(fields[4]);
         plus_strand = (fields[6] == "+");
         
-        std::string info_str{fields[8]};
-        std::vector<std::string> info_vec = rsplit(info_str, ";");
+        string info_str{fields[8]};
+        vector<string> info_vec = rsplit(info_str, ";");
         strip_for_each(info_vec , " ");
 
         for( auto iter = info_vec.begin(); iter != info_vec.end(); ++iter){
             if((*iter).size() <= 1){ continue;}
-            std::string f{*iter};
+            string f{*iter};
 
-            std::vector<std::string> fs = rsplit(f , " ");
+            vector<string> fs = rsplit(f , " ");
             strip_for_each(fs, "\"");
             info[fs[0]] = fs[1];
         }
@@ -239,13 +243,13 @@ struct gtf: public ginterval{
 
 
 struct gene: public ginterval{
-    std::string gene_id;
-    std::string gene_name;
+    string gene_id;
+    string gene_name;
     gene() : ginterval(),gene_id("NAN"), gene_name("NAN") {}
     gene(const gtf &entry) : ginterval(entry), gene_id(entry.info.at("gene_id")), gene_name(entry.info.at("gene_name")){}
-    gene(const std::string &id) : gene_id(id) {} //Mock constructor for map access
-    gene(std::string chr, int start, int end, const std::string &strand, const std::string &gene_id,
-            const std::string &gene_name) : ginterval(chr, start, end, strand),
+    gene(const string &id) : gene_id(id) {} //Mock constructor for map access
+    gene(string chr, int start, int end, const string &strand, const string &gene_id,
+            const string &gene_name) : ginterval(chr, start, end, strand),
     gene_id(gene_id), gene_name(gene_name){}
 
 
@@ -277,37 +281,37 @@ namespace std
     {
         std::size_t operator()(gene const& s) const noexcept
         {
-            return std::hash<std::string>{}(s.gene_id);
+            return std::hash<string>{}(s.gene_id);
         }
     };
 }
 
 struct transcript: public ginterval{
-    std::string transcript_id;
+    string transcript_id;
     gene* gene_ref;
     transcript() :transcript_id{"NULL"}, gene_ref{nullptr}{}
     transcript(const gtf &entry, gene *gref) : ginterval(entry), transcript_id(entry.info.at("transcript_id")), gene_ref{gref}{}
-    transcript(std::string chr, int start, int end, const std::string &strand, const std::string &transcript_id, gene *gref):
+    transcript(string chr, int start, int end, const string &strand, const string &transcript_id, gene *gref):
         ginterval(chr, start, end, strand), transcript_id(transcript_id), gene_ref(gref) {}
 };
 
 struct exon: public ginterval{
-    std::string exon_id;
-    std::string strand;
-    std::string transcript_id;
+    string exon_id;
+    string strand;
+    string transcript_id;
 
     virtual ~exon() {}
     gene gene_ref;
 
 
-    exon(std::string chr, int start, int end, const std::string &strand, const std::string &exon_id, const std::string &transcript_id, const gene &g): 
+    exon(string chr, int start, int end, const string &strand, const string &exon_id, const string &transcript_id, const gene &g): 
         ginterval(chr, start, end, strand), exon_id(exon_id), transcript_id(transcript_id),gene_ref(g){}
-    exon(std::string chr, int start, int end, const std::string &strand, const std::string &exon_id, const std::string &transcript_id,gene* gref): 
+    exon(string chr, int start, int end, const string &strand, const string &exon_id, const string &transcript_id,gene* gref): 
         ginterval(chr, start, end, strand), exon_id(exon_id), transcript_id(transcript_id),gene_ref(*gref){}
     exon(const gtf &entry, gene *gref) : ginterval(entry), exon_id(entry.info.at("exon_id")), transcript_id(entry.info.at("transcript_id")), gene_ref{*gref}{}
     exon() : exon_id("NULL") {}
 
-    exon(const exon &g1, const exon &g2, const std::string &id) : ginterval(g1,g2), exon_id(id), strand(g1.strand), transcript_id(g1.transcript_id),gene_ref(g1.gene_ref)  {
+    exon(const exon &g1, const exon &g2, const string &id) : ginterval(g1,g2), exon_id(id), strand(g1.strand), transcript_id(g1.transcript_id),gene_ref(g1.gene_ref)  {
     }
     exon(const exon &g1, const exon &g2) : ginterval(g1,g2), exon_id(g1.exon_id), strand(g1.strand), transcript_id(g1.transcript_id), gene_ref(g1.gene_ref){
     } // Merge constructor
@@ -367,16 +371,16 @@ inline std::ostream &operator << ( std::ostream &ost, const gene &ex){
 struct segment{
     ginterval tmplt;
     interval query;
-    segment(std::string chr, int start, int end, int s2, int e2, const std::string &strand): 
+    segment(string chr, int start, int end, int s2, int e2, const string &strand): 
         tmplt(chr, s2, e2, strand), query(start,end){}
 };
 
 struct mapping{
-    std::string rid;
-    std::vector<segment> segments;
+    string rid;
+    vector<segment> segments;
     bool primary;
     mapping(): rid("-1"){}
-    mapping(const std::string &paf, int max_skip, int min_segment){
+    mapping(const string &paf, int max_skip, int min_segment){
 
         std::istringstream ps(paf);
 
@@ -389,13 +393,13 @@ struct mapping{
         ps >> rstart;
         ps >> rend;
 
-        std::string strand;
+        string strand;
         ps >> strand;
         bool complemented = strand == "-";
-        std::string chr;
+        string chr;
         ps >> chr;
 
-        if(chr.find("chr")!= std::string::npos){
+        if(chr.find("chr")!= string::npos){
             chr = chr.substr(3);
         }
 
@@ -405,11 +409,11 @@ struct mapping{
         int num_matches;
         int alig_block_len;
         int mapq;
-        std::string field;
+        string field;
         ps >> template_len >> template_start >> template_end >> num_matches >> alig_block_len >> mapq;
 
         ps >> field;
-        std::string cigar_str = "-1";
+        string cigar_str = "-1";
 
         while(!ps.eof()){ 
             ps >> field;
@@ -427,7 +431,7 @@ struct mapping{
         }
         cigar cig(cigar_str);
 
-        std::vector<segment> aligs;
+        vector<segment> aligs;
 
         int st = template_start;
         int sq = rstart;
@@ -531,18 +535,18 @@ struct mapping{
 
 class isoform{
     public:
-        std::vector<exon> segments;
+        vector<exon> segments;
         int depth;
-        std::string gene;
-        std::string transcript_id;
+        string gene;
+        string transcript_id;
     
 
         isoform() : segments({}), depth(1), gene("NULL"), transcript_id("NULL"){}
         isoform(const isoform &other) : segments(other.segments), depth(other.depth), gene(other.gene), transcript_id(other.transcript_id){}
-        isoform(const std::vector<exon> &segs) : segments(segs), depth(1), gene("NULL"), transcript_id("NULL"){}
-        isoform(const std::vector<exon> &segs, int depth) : segments(segs), depth(depth), gene("NULL"), transcript_id("NULL"){}
-        isoform(const std::vector<exon> &segs, int depth, const std::string &gene) : segments(segs), depth(depth), gene(gene), transcript_id("NULL"){}
-        isoform(const std::vector<exon> &segs, int depth, const std::string &gene, const std::string &tid) : segments(segs), depth(depth), gene(gene), transcript_id(tid){}
+        isoform(const vector<exon> &segs) : segments(segs), depth(1), gene("NULL"), transcript_id("NULL"){}
+        isoform(const vector<exon> &segs, int depth) : segments(segs), depth(depth), gene("NULL"), transcript_id("NULL"){}
+        isoform(const vector<exon> &segs, int depth, const string &gene) : segments(segs), depth(depth), gene(gene), transcript_id("NULL"){}
+        isoform(const vector<exon> &segs, int depth, const string &gene, const string &tid) : segments(segs), depth(depth), gene(gene), transcript_id(tid){}
 
         bool operator<( const isoform &other) const{
             if( other.gene != gene){
@@ -556,25 +560,141 @@ class isoform{
         bool operator==(const isoform &other) const {
             return gene==other.gene && segments == other.segments;
         }
-        isoform &operator =(const std::vector<exon> &segs){
+        isoform &operator =(const vector<exon> &segs){
             this->segments = segs;
             return *this;
         }
 };
 
+struct molecule_descriptor: public std::enable_shared_from_this<molecule_descriptor> {
+    string _id;
+    bool _reversed;
+    int _depth;
+    vector<ginterval> _segments;
+    
+
+    std::map<string, vector<string>> meta;
+    vector< std::pair< int, char>> errors_so_far;
+
+    public:
+    molecule_descriptor(){}
+
+    molecule_descriptor( const string &id, bool reversed) : _id(id), _reversed(reversed), _depth(1){}
+    molecule_descriptor( const isoform &iso) : _id(iso.transcript_id), _reversed(!iso.segments.back().plus_strand), _depth(iso.depth){
+        for(const exon &e :iso.segments){
+            _segments.push_back(e);
+        }
+    }
+
+    auto get_id() const{
+        return _id;
+    }
+
+    auto get_depth() const{
+        return _depth;
+    }
+
+
+    const auto &cget_segments() const{
+        return _segments;
+    }
+    auto &get_segments(){
+        return _segments;
+    }
+    std::shared_ptr<molecule_descriptor> assign_segments(const vector<ginterval> &segments){
+        _segments = segments;
+        return shared_from_this();
+    }
+    std::shared_ptr<molecule_descriptor> id(const string& id){
+        _id = id;
+        return shared_from_this();
+    }
+    std::shared_ptr<molecule_descriptor> comment(const string& comment){
+
+        //TODO
+        return shared_from_this();
+    }
+
+    std::shared_ptr<molecule_descriptor> add_comment(const string& key, const string& value){
+        meta[key].push_back(value);
+        return shared_from_this();
+    }
+   
+    std::shared_ptr<molecule_descriptor> depth(int depth){
+        _depth = depth;
+        return shared_from_this();
+    }
+    
+
+    std::shared_ptr<molecule_descriptor> prepend_segment(const ginterval& i){
+        _segments.insert(_segments.begin(),i);
+        for(std::pair<int, char> &errs : errors_so_far){
+            errs = std::make_pair(errs.first+i.end-i.start, errs.second);
+        }
+        return shared_from_this();
+    }
+
+    std::shared_ptr<molecule_descriptor> append_segment(const ginterval& i){
+        _segments.push_back(i);
+        return shared_from_this();
+    }
+   
+    std::shared_ptr<molecule_descriptor> update_errors(const vector< std::pair< int, char>> &errors_so_far){
+        this->errors_so_far = errors_so_far;
+        return shared_from_this();
+    }
+   
+    size_t size() const{
+        return std::accumulate(_segments.begin(), _segments.end(), 0L, [] (size_t sum_so_far, const ginterval &g) -> size_t { return sum_so_far + g.end - g.start;});
+    }
+
+    string dump_comment() const{
+        std::ostringstream buffer;
+        for(const auto &kv : meta){
+            buffer << kv.first << "=" << (join_str(kv.second.cbegin(), kv.second.cend(), ",")) << "\n";
+        }
+        return buffer.str();
+    }
+
+    friend std::ostream &operator<<(std::ostream &ost, const molecule_descriptor &md){
+        print_tsv(ost, "+"+md._id, md._depth, md.dump_comment());
+
+
+        const vector<std::pair<int, char>> &errors = md.errors_so_far;
+        int size_so_far = 0;
+        for( const ginterval &ival : md._segments){
+            string error_str = "";
+
+
+            for(std::pair<int, char> error : errors){
+                if( error.first > size_so_far && error.first < size_so_far + ival.end - ival.start){
+                    error_str += (std::to_string(error.first-size_so_far) + error.second + ",");
+                }
+            }
+            if(error_str != ""){
+                error_str.pop_back();
+            }
+
+            print_tsv(ost, ival.chr, ival.start, ival.end, (ival.plus_strand?"+":"-"), error_str);
+            size_so_far += (ival.end-ival.start);
+        }
+        return ost;
+    }
+};
+
 //pcr copy structure that tracks pcr errors introduced
 struct pcr_copy{
-    std::string id;
-    std::vector<ginterval> segments;
-    std::vector< std::pair< int, char>> errors_so_far;
+    string id;
+    vector<ginterval> segments;
+    vector< std::pair< int, char>> errors_so_far;
     bool reversed;
     int depth;
-    std::string comment;
+    string comment;
 
     pcr_copy(){}
-    pcr_copy( const std::string &id) : id(id), depth(1){}
+    pcr_copy( const string &id) : id(id), depth(1){}
 
-    pcr_copy( const std::string &id, const isoform &iso) : id(id), depth(iso.depth){
+    pcr_copy( const string &id, const isoform &iso) : id(id), depth(iso.depth){
         for(const exon &e :iso.segments){
             segments.push_back(e);
         }
@@ -584,10 +704,10 @@ struct pcr_copy{
             segments.push_back(e);
         }
     }
-    pcr_copy( const std::string &id, const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far) : id(id), segments(segments), errors_so_far(errors_so_far), depth(1) {}
-    pcr_copy( const std::string &id, const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far, int depth) : id(id), segments(segments), errors_so_far(errors_so_far), depth(depth) {}
-    pcr_copy( const std::vector<ginterval> &segments, const std::vector< std::pair< int, char>> &errors_so_far) : id("copy"), segments(segments), errors_so_far(errors_so_far), depth(1) {}
-    pcr_copy( const std::vector<ginterval> &segments) : id("copy"), segments(segments), depth(1) {}
+    pcr_copy( const string &id, const vector<ginterval> &segments, const vector< std::pair< int, char>> &errors_so_far) : id(id), segments(segments), errors_so_far(errors_so_far), depth(1) {}
+    pcr_copy( const string &id, const vector<ginterval> &segments, const vector< std::pair< int, char>> &errors_so_far, int depth) : id(id), segments(segments), errors_so_far(errors_so_far), depth(depth) {}
+    pcr_copy( const vector<ginterval> &segments, const vector< std::pair< int, char>> &errors_so_far) : id("copy"), segments(segments), errors_so_far(errors_so_far), depth(1) {}
+    pcr_copy( const vector<ginterval> &segments) : id("copy"), segments(segments), depth(1) {}
 
 
     void append(const ginterval &g){
@@ -606,17 +726,18 @@ struct pcr_copy{
 
 //pcr molecule structure that can model paired molecules
 struct pcr_molecule{
-    std::vector<pcr_copy> paired;
+    vector<molecule_descriptor> paired;
+
 
     pcr_molecule() {}
 
     pcr_molecule(const pcr_molecule &other) : paired(other.paired) {}
 
-    pcr_molecule(const pcr_copy &other) {
+    pcr_molecule(const molecule_descriptor &other) {
         paired.push_back(other);
     }
-    pcr_molecule(const std::string &id, const isoform &other) {
-        paired.push_back(pcr_copy{id, other});
+    pcr_molecule(const string &id, const isoform &other) {
+        paired.push_back(*molecule_descriptor{other}.id(id));
 
     }
     pcr_molecule(const pcr_molecule &first, const pcr_molecule &second) : paired(first.paired) {

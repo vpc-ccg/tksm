@@ -33,7 +33,7 @@
 
 #define FMT_HEADER_ONLY 1
 #include <fmt/format.h>
-#include <tqdm/tqdm.h>
+
 
 using std::ofstream;
 using std::vector;
@@ -192,29 +192,31 @@ double polygamma(int n, double x){
 
 
 template <class Distribution, class MeanFoo>
-void multi_truncate(pcr_copy &pcp, MeanFoo mu_func, double sigma, Distribution &dist){
+void multi_truncate(molecule_descriptor &pcp, MeanFoo mu_func, double sigma, Distribution &dist){
     int rand_val = dist(rand_gen);
     
     size_t i = 0;
     int len_so_far = 0;
-    for( const ginterval &g : pcp.segments){
+    auto &segments = pcp.get_segments();
+    for( const ginterval &g : segments){
         len_so_far += (g.end - g.start);
         if(len_so_far >= rand_val){
             break;
         }
         ++i;
     }
-    if( i != pcp.segments.size()){
+
+    if( i != segments.size()){
         std::stringstream ss;
-        ss << pcp.segments[i].chr << ':' << pcp.segments[i].end - (len_so_far - rand_val) << '-' << pcp.segments[i].end << ',';
-        pcp.segments[i].end -= (len_so_far - rand_val); //Update last segment;
-        for(size_t j = i + 1;j<pcp.segments.size();++j){
-            ss << pcp.segments[j] << ',';
+        ss << segments[i].chr << ':' << segments[i].end - (len_so_far - rand_val) << '-' << segments[i].end;
+        pcp.add_comment("truncated", ss.str());
+        segments[i].end -= (len_so_far - rand_val); //Update last segment;
+        for(size_t j = i + 1;j < segments.size();++j){
+            std::stringstream ss;
+            ss << segments[j];
+            pcp.add_comment("truncated", ss.str()); 
         }
-        string trunc_str = ss.str();
-        trunc_str.back() = ';';
-        pcp.comment += "truncated:" + trunc_str;
-        pcp.segments.resize(i+1);
+        segments.resize(i+1);
     }
 
     i = 0;
@@ -229,30 +231,33 @@ void multi_truncate(pcr_copy &pcp, MeanFoo mu_func, double sigma, Distribution &
 
 
 
-void truncate(pcr_copy &pcp, int rand_val, int min_val = 100){
+void truncate(molecule_descriptor &pcp, int rand_val, int min_val = 100){
     if(min_val > rand_val){
         rand_val = min_val;
     }
     size_t i = 0;
     int len_so_far = 0;
-    for( const ginterval &g : pcp.segments){
+    auto &segments = pcp.get_segments();
+    for( const ginterval &g : segments){
         len_so_far += (g.end - g.start);
         if(len_so_far >= rand_val){
             break;
         }
         ++i;
     }
-    if( i != pcp.segments.size()){
+    if( i != segments.size()){
+
         std::stringstream ss;
-        ss << pcp.segments[i].chr << ':' << pcp.segments[i].end - (len_so_far - rand_val) << '-' << pcp.segments[i].end << ',';
-        pcp.segments[i].end -= (len_so_far - rand_val); //Update last segment;
-        for(size_t j = i + 1;j<pcp.segments.size();++j){
-            ss << pcp.segments[j] << ',';
+        ss << segments[i].chr << ':' << segments[i].end - (len_so_far - rand_val) << '-' << segments[i].end;
+        pcp.add_comment("truncated", ss.str());
+
+        segments[i].end -= (len_so_far - rand_val); //Update last segment;
+        for(size_t j = i + 1;j < segments.size();++j){
+            std::stringstream ss;
+            ss << segments[j];
+            pcp.add_comment("truncated", ss.str());
         }
-        string trunc_str = ss.str();
-        trunc_str.back() = ';';
-        pcp.comment += "truncated:" + trunc_str;
-        pcp.segments.resize(i+1);
+        segments.resize(i+1);
     }
 
     i = 0;
@@ -266,7 +271,7 @@ void truncate(pcr_copy &pcp, int rand_val, int min_val = 100){
 }
 
 template <class Distribution>
-void truncate(pcr_copy &pcp, Distribution &dist, int min_val = 100){
+void truncate(molecule_descriptor &pcp, Distribution &dist, int min_val = 100){
     return truncate(pcp, dist(rand_gen), min_val);
 }
 
@@ -499,7 +504,7 @@ class custom_distribution{
             int range_after  = 0;
             //Uniformize
             bool not_first = val_index != 0;
-            bool not_last =  val_index != (values.size() - 1);
+            bool not_last =  val_index != ((long int)values.size() - 1);
             
             if(not_first){
                 bool odd_before = (values[val_index] - values[val_index-1]) % 2 == 1;
@@ -800,15 +805,17 @@ int main(int argc, char **argv){
         custom_distribution2D<> disko {kdefiles[0], kdefiles[1]};
         string mdf_file_path {args["input"].as<string>()};
         std::ifstream mdf_file {mdf_file_path};
-        vector<pcr_copy> molecules = parse_mdf(mdf_file);
+        vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
 
-        for( pcr_copy &pcp : tqdm::tqdm(molecules)){
+        for( molecule_descriptor &pcp : molecules){
 
             truncate(pcp, disko(rand_gen, pcp.size()));
         }
         string outfile_name = args["output"].as<string>();
         std::ofstream outfile{outfile_name};
-        print_all_mdf(outfile, molecules);
+        for(const molecule_descriptor &md : molecules){
+            outfile << md << "\n";
+        }
         return 0;
 
 
@@ -846,8 +853,8 @@ int main(int argc, char **argv){
 
         std::ifstream mdf_file {mdf_file_path};
 
-        vector<pcr_copy> molecules = parse_mdf(mdf_file);
-        for( pcr_copy &pcp : molecules){
+        vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
+        for( molecule_descriptor &pcp : molecules){
             std::variant<
                 std::normal_distribution<>,
                 std::lognormal_distribution<>,
@@ -875,7 +882,10 @@ int main(int argc, char **argv){
 
         string outfile_name = args["output"].as<string>();
         std::ofstream outfile{outfile_name};
-        print_all_mdf(outfile, molecules);
+        for(const molecule_descriptor &md : molecules){
+            outfile << md << "\n";
+        }
+
         return 0;   
     }
     else if( chosen_dist == "fit"){
@@ -925,8 +935,8 @@ int main(int argc, char **argv){
     std::lognormal_distribution<> lognormal_dist(dist_params[0], dist_params[1]);
     std::gamma_distribution<> gamma_dist(dist_params[0], dist_params[1]);
 
-    vector<pcr_copy> molecules = parse_mdf(mdf_file);
-    for( pcr_copy &pcp : molecules){
+    vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
+    for( molecule_descriptor &pcp : molecules){
         if(chosen_dist == "normal"){
             truncate(pcp, normal_dist);
         }
@@ -940,7 +950,10 @@ int main(int argc, char **argv){
 
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};
-    print_all_mdf(outfile, molecules);
+
+    for(const molecule_descriptor &md : molecules){
+        outfile << md << "\n";
+    }
     
     return 0;
 }

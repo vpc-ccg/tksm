@@ -19,15 +19,15 @@ using std::string;
 std::mt19937 rand_gen{std::random_device{}()};
 
 template<class Distribution>
-int add_polyA(vector<pcr_copy> &copies, Distribution &dist, int min_polya_len = 0){
+int add_polyA(vector<molecule_descriptor> &copies, Distribution &dist, int min_polya_len = 0){
 
     int max_size = 0;
-    for(pcr_copy &pcp : copies){
+    for(molecule_descriptor &pcp : copies){
         int poly_a_len = static_cast<int>(dist(rand_gen));
         if(poly_a_len > max_size){
             max_size = poly_a_len;
         }
-        pcp.prepend(ginterval{POLYA_CONTIG_NAME, 0, poly_a_len, "+"});
+        pcp.prepend_segment(ginterval{POLYA_CONTIG_NAME, 0, poly_a_len, "+"});
     }
 
         
@@ -109,7 +109,7 @@ int main(int argc, char **argv){
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
     
-    vector<pcr_copy> molecules = parse_mdf(mdf_file);
+    vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
     int largest_poly_a = 0; 
     std::variant<
         std::weibull_distribution<>,
@@ -135,12 +135,12 @@ int main(int argc, char **argv){
     }
 
     if(args["expand-isoforms"].as<bool>()){
-        vector<pcr_copy> nm;
-        for(const pcr_copy &pcp : molecules){
-            for(int i = 0; i < pcp.depth; ++i){
+        vector<molecule_descriptor> nm;
+        for(const molecule_descriptor &pcp : molecules){
+            for(int i = 0; i < pcp.get_depth(); ++i){
                 nm.push_back(pcp);
-                nm.back().depth = 1;
-                nm.back().id += ("_" + std::to_string(i));
+                nm.back().depth(1)
+                    ->id(nm.back().get_id() + "_" + std::to_string(i));
             }
         }
         molecules = nm;
@@ -150,7 +150,9 @@ int main(int argc, char **argv){
     }, dist);
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};
-    print_all_mdf(outfile, molecules);
+    for(const molecule_descriptor& md : molecules){
+        outfile << md << "\n";
+    }
     
     std::string polya_ref_file = args["polya-reference"].as<string>();
     std::ofstream polya_file{polya_ref_file};

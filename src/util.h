@@ -17,7 +17,17 @@ inline void print_tsv(std::ostream &ost, B b, A... a){
 }
 
 
-
+template<class ITER>
+inline std::string join_str(const ITER &begin, const ITER &end, const std::string &del){
+    std::string str;
+    for(ITER i = begin; i != end; ++i){
+        if(i!=begin){
+            str+=del;
+        }
+        str+=*i;
+    }
+    return str;
+}
 
 inline std::vector<std::string> rsplit(std::string str, std::string delim){
     std::vector<std::string> splits;

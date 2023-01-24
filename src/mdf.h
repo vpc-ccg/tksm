@@ -14,8 +14,8 @@ using std::string;
 using std::ostream;
 using std::ifstream;
 
-inline vector<pcr_copy> parse_mdf(ifstream &ist){
-    vector<pcr_copy> molecules;
+inline vector<molecule_descriptor> parse_mdf(ifstream &ist){
+    vector<molecule_descriptor> molecules;
     string buffer;
     buffer.reserve(1000);
     std::getline(ist, buffer);
@@ -52,7 +52,8 @@ inline vector<pcr_copy> parse_mdf(ifstream &ist){
             segments.emplace_back(chr, start, end, strand);
             std::getline(ist, buffer);
         }
-        molecules.emplace_back(id,segments, errors_so_far, depth);
+//        molecules.emplace_back(id, segments, errors_so_far, depth);
+        molecules.emplace_back(id, !segments[0].plus_strand).depth(depth)->update_errors(errors_so_far)->assign_segments(segments);
     }
     return molecules;
 }
@@ -80,11 +81,13 @@ inline void print_mdf(ostream &ost, const pcr_copy& molecule){
         size_so_far += (ival.end-ival.start);
     }
 }
+
+/*
 inline void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecule, const vector< vector<std::pair<int, char>>> &errors_per_segment){
 
 
     //For now use the depth of first pcr_copy
-    print_tsv(ost, "+"+id, molecule.paired[0].depth/*depth*/, molecule.paired[0].comment);
+    print_tsv(ost, "+"+id, molecule.paired[0].depth, molecule.paired[0].comment);
 
     int interval_counter = 0;
     for( const pcr_copy &pcp : molecule.paired){
@@ -109,14 +112,12 @@ inline void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecu
         }
     }
 }
-
+*/
 inline void print_all_mdf(ostream &ost, const vector<pcr_copy> &molecules){
 
     for( const pcr_copy &molecule : molecules){
         //For now use the depth of first pcr_copy
         print_tsv(ost, "+"+molecule.id, molecule.depth/*depth*/, molecule.comment);
-
-        int interval_counter = 0;
 
         int size_so_far = 0;
         for( const ginterval &ival : molecule.segments){
@@ -135,7 +136,7 @@ inline void print_all_mdf(ostream &ost, const vector<pcr_copy> &molecules){
 
             print_tsv(ost, ival.chr, ival.start, ival.end, (ival.plus_strand?"+":"-"), error_str);
             size_so_far += (ival.end-ival.start);
-            ++interval_counter;
+
         }
     }
 }

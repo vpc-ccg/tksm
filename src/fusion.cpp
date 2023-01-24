@@ -473,7 +473,7 @@ vector<std::pair<gene,gene>> generate_random_fusions( const vector<gene> &gptrs,
 }
 
 auto count_isoforms_from_mdf(
-        vector<pcr_copy> &molecules,
+        vector<molecule_descriptor> &molecules,
         const map<string, gene> &t2g
         ){
 
@@ -481,24 +481,24 @@ auto count_isoforms_from_mdf(
     tree<exon, int> exon_transitions{};
     //
 
-    for( const pcr_copy &pcp : molecules){
+    for( const molecule_descriptor &pcp : molecules){
         int cc =1;
 
-        const gene &g = t2g.at(pcp.id);
+        const gene &g = t2g.at(pcp.get_id());
 
         vector<exon> iso;
-        auto it = pcp.segments.begin();
+        auto it = pcp.cget_segments().begin();
         const auto &seg = *it;
         ++it;
-        exon e(seg.chr, seg.start, seg.end, (seg.plus_strand?"+":"-"),fmt::format("{}-{}",pcp.id, 0),pcp.id,g);  
+        exon e(seg.chr, seg.start, seg.end, (seg.plus_strand?"+":"-"),fmt::format("{}-{}", pcp.get_id(), 0), pcp.get_id(),g);  
         tree<exon, int> *prev = &exon_transitions.try_get(e, 0);
         if(prev->parent != nullptr){
             prev->parent->value(e)++;
         }
         exon preve = e;
-        for(;it!=pcp.segments.end();++it){
+        for(;it!=pcp.cget_segments().end();++it){
             const auto &seg = *it;
-            exon e(seg.chr, seg.start, seg.end, (seg.plus_strand?"+":"-"),fmt::format("{}-{}",pcp.id, cc),pcp.id,g);  
+            exon e(seg.chr, seg.start, seg.end, (seg.plus_strand?"+":"-"),fmt::format("{}-{}",pcp.get_id(), cc), pcp.get_id(),g);  
             
             tree<exon, int> *tre = &(prev->try_get(e,0));
             prev->value(e)++;
@@ -901,7 +901,7 @@ int main(int argc, char **argv){
     map<string, IITree<int, size_t>> exon_interval_tree = make_exon_interval_tree(gtf_exons);
 
     ifstream mf(input_mdf_path);
-    vector<pcr_copy> normal_molecules = parse_mdf(mf);
+    vector<molecule_descriptor> normal_molecules = parse_mdf(mf);
     tree<exon, int> exon_trie = count_isoforms_from_mdf(normal_molecules,t2g);
 
     set<gene> expressed_genes;
@@ -981,10 +981,10 @@ int main(int argc, char **argv){
     ofstream outfile {out_mdf_path};
 
     for(const auto &pcp : normal_molecules){
-        if(delete_genes && deleted_genes.find(t2g.at(pcp.id).gene_id) != deleted_genes.end()){ // Gene is deleted skip
+        if(delete_genes && deleted_genes.find(t2g.at(pcp.get_id()).gene_id) != deleted_genes.end()){ // Gene is deleted skip
             continue;
         }
-        print_mdf(outfile, pcp); 
+        outfile << pcp << "\n";
     }
 
     for(const auto &iso : user_defined_fusion_isoforms){
