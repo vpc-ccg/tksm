@@ -614,12 +614,17 @@ struct molecule_descriptor{
     molecule_descriptor* comment(const string& comment){
         vector<std::string_view> fields = splitSV(comment, ";");
         for( const auto &f : fields){
-            vector<std::string_view> kv = splitSV(f, "=");
-            const auto& key = kv[0];
-            const auto& values_string = kv[1];
-            vector<std::string_view> values = splitSV(values_string, ",");
-            for( const auto &v : values){
-                add_comment(string{key}, string{v});
+            if( f.find_first_of("=") == std::string_view::npos){
+                add_comment(string{f}, ".");
+            }
+            else{
+                vector<std::string_view> kv = splitSV(f, "=");
+                const auto& key = kv[0];
+                const auto& values_string = kv[1];
+                vector<std::string_view> values = splitSV(values_string, ",");
+                for( const auto &v : values){
+                    add_comment(string{key}, string{v});
+                }
             }
         }
         //TODO
@@ -662,7 +667,10 @@ struct molecule_descriptor{
     string dump_comment() const{
         std::ostringstream buffer;
         for(const auto &kv : meta){
-            buffer << kv.first << "=" << (join_str(kv.second.cbegin(), kv.second.cend(), ","));
+            buffer << kv.first;
+            if( kv.second[0] != "."){
+                buffer << "=" << (join_str(kv.second.cbegin(), kv.second.cend(), ","));
+            }
         }
         return buffer.str();
     }
