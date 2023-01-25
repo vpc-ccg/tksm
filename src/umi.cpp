@@ -145,7 +145,7 @@ int main(int argc, char **argv){
         std::cout << options.help() << std::endl;
         return 0;
     }
-    std::vector<string> mandatory = {"input","output", "umi-reference", "format"};
+    std::vector<string> mandatory = {"input","output", "umi-reference"};
 
     int missing_parameters = 0;
     for( string &param : mandatory){
@@ -153,6 +153,11 @@ int main(int argc, char **argv){
             std::cerr << param << " is required!\n";
             ++missing_parameters;
         }
+    }
+
+    if(args.count("format5") + args.count("format3") < 1){
+        missing_parameters++;
+        std::cerr << "format5 and/or format3 is required!\n";
     }
     if(missing_parameters  > 0){
         std::cerr << options.help() << std::endl;
@@ -162,7 +167,7 @@ int main(int argc, char **argv){
     int seed = args["seed"].as<int>();;
     rand_gen.seed(seed);
 
-    string umi_format = args["format"].as<string>();
+    string umi_format = args["format5"].as<string>();
 
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
@@ -195,7 +200,7 @@ int main(int argc, char **argv){
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};
     for(const molecule_descriptor &md : molecules){
-        outfile << md << "\n";
+        outfile << md;
     }
     
     return 0;

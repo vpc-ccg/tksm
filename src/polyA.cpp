@@ -151,7 +151,7 @@ int main(int argc, char **argv){
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};
     for(const molecule_descriptor& md : molecules){
-        outfile << md << "\n";
+        outfile << md;
     }
     
     std::string polya_ref_file = args["polya-reference"].as<string>();

@@ -814,7 +814,7 @@ int main(int argc, char **argv){
         string outfile_name = args["output"].as<string>();
         std::ofstream outfile{outfile_name};
         for(const molecule_descriptor &md : molecules){
-            outfile << md << "\n";
+            outfile << md;
         }
         return 0;
 
@@ -883,7 +883,7 @@ int main(int argc, char **argv){
         string outfile_name = args["output"].as<string>();
         std::ofstream outfile{outfile_name};
         for(const molecule_descriptor &md : molecules){
-            outfile << md << "\n";
+            outfile << md;
         }
 
         return 0;   
@@ -952,7 +952,7 @@ int main(int argc, char **argv){
     std::ofstream outfile{outfile_name};
 
     for(const molecule_descriptor &md : molecules){
-        outfile << md << "\n";
+        outfile << md;
     }
     
     return 0;
