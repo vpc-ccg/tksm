@@ -635,7 +635,12 @@ struct molecule_descriptor{
         meta[key].push_back(value);
         return this;
     }
-   
+  
+    // TODO add key verification
+    const vector<string> &get_comment(const string &key) const{
+        return meta.at(key);
+    }
+
     molecule_descriptor* depth(int depth){
         _depth = depth;
         return this;
