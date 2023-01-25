@@ -29,6 +29,33 @@ inline std::string join_str(const ITER &begin, const ITER &end, const std::strin
     return str;
 }
 
+
+//https://github.com/fenbf/StringViewTests
+inline std::vector<std::string_view>
+splitSV(std::string_view strv, std::string_view delims = " ")
+{
+	std::vector<std::string_view> output;
+	//output.reserve(strv.length() / 4);
+	size_t first = 0;
+
+	while (first < strv.size())
+	{
+		const auto second = strv.find_first_of(delims, first);
+		//std::cout << first << ", " << second << '\n';
+		if (first != second)
+		{
+			output.emplace_back(strv.substr(first, second-first));
+		}
+
+		if (second == std::string_view::npos)
+			break;
+
+		first = second + 1;
+	}
+
+	return output;
+}
+
 inline std::vector<std::string> rsplit(std::string str, std::string delim){
     std::vector<std::string> splits;
     size_t p1 = 0;

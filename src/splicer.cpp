@@ -227,7 +227,7 @@ int main(int argc, char **argv){
         }
         molecule.comment(comment)->depth(count); //rounded down to int
 
-        outfile << molecule << "\n";
+        outfile << molecule;
     }
 }
 

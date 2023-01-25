@@ -566,7 +566,7 @@ class isoform{
         }
 };
 
-struct molecule_descriptor: public std::enable_shared_from_this<molecule_descriptor> {
+struct molecule_descriptor{
     string _id;
     bool _reversed;
     int _depth;
@@ -601,47 +601,58 @@ struct molecule_descriptor: public std::enable_shared_from_this<molecule_descrip
     auto &get_segments(){
         return _segments;
     }
-    std::shared_ptr<molecule_descriptor> assign_segments(const vector<ginterval> &segments){
+    molecule_descriptor* assign_segments(const vector<ginterval> &segments){
         _segments = segments;
-        return shared_from_this();
+        return this;
     }
-    std::shared_ptr<molecule_descriptor> id(const string& id){
+    molecule_descriptor* id(const string& id){
         _id = id;
-        return shared_from_this();
+        return this;
     }
-    std::shared_ptr<molecule_descriptor> comment(const string& comment){
 
+    //Assumes that special characters are not used in the meta data (',', ';', '=')
+    molecule_descriptor* comment(const string& comment){
+        vector<std::string_view> fields = splitSV(comment, ";");
+        for( const auto &f : fields){
+            vector<std::string_view> kv = splitSV(f, "=");
+            const auto& key = kv[0];
+            const auto& values_string = kv[1];
+            vector<std::string_view> values = splitSV(values_string, ",");
+            for( const auto &v : values){
+                add_comment(string{key}, string{v});
+            }
+        }
         //TODO
-        return shared_from_this();
+        return this;
     }
 
-    std::shared_ptr<molecule_descriptor> add_comment(const string& key, const string& value){
+    molecule_descriptor* add_comment(const string& key, const string& value){
         meta[key].push_back(value);
-        return shared_from_this();
+        return this;
     }
    
-    std::shared_ptr<molecule_descriptor> depth(int depth){
+    molecule_descriptor* depth(int depth){
         _depth = depth;
-        return shared_from_this();
+        return this;
     }
     
 
-    std::shared_ptr<molecule_descriptor> prepend_segment(const ginterval& i){
+    molecule_descriptor* prepend_segment(const ginterval& i){
         _segments.insert(_segments.begin(),i);
         for(std::pair<int, char> &errs : errors_so_far){
             errs = std::make_pair(errs.first+i.end-i.start, errs.second);
         }
-        return shared_from_this();
+        return this;
     }
 
-    std::shared_ptr<molecule_descriptor> append_segment(const ginterval& i){
+    molecule_descriptor* append_segment(const ginterval& i){
         _segments.push_back(i);
-        return shared_from_this();
+        return this;
     }
    
-    std::shared_ptr<molecule_descriptor> update_errors(const vector< std::pair< int, char>> &errors_so_far){
+    molecule_descriptor* update_errors(const vector< std::pair< int, char>> &errors_so_far){
         this->errors_so_far = errors_so_far;
-        return shared_from_this();
+        return this;
     }
    
     size_t size() const{
@@ -651,7 +662,7 @@ struct molecule_descriptor: public std::enable_shared_from_this<molecule_descrip
     string dump_comment() const{
         std::ostringstream buffer;
         for(const auto &kv : meta){
-            buffer << kv.first << "=" << (join_str(kv.second.cbegin(), kv.second.cend(), ",")) << "\n";
+            buffer << kv.first << "=" << (join_str(kv.second.cbegin(), kv.second.cend(), ","));
         }
         return buffer.str();
     }
