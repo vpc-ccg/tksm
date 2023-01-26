@@ -134,6 +134,7 @@ int main(int argc, char **argv){
         ("o,output", "Output path", cxxopts::value<string>())
         ("f,fasta", "FASTA file containing barcode sequences (should be given to sequencer module)", cxxopts::value<string>())
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
+        ("keep-meta-barcodes", "Keep the barcodes in the mdf metadata", cxxopts::value<bool>())
         ("h,help", "Help screen")
     ;
     auto args = options.parse(argc, argv);
@@ -188,6 +189,9 @@ int main(int argc, char **argv){
         if( barcode_str != "."){
             md.prepend_segment(ginterval{barcode_ctg_id, 0, (int)barcode_str.size(), "+"});
             used_barcodes.insert(barcode_str);
+        }
+        if( !args["keep-meta-barcodes"].as<bool>()){
+            md.drop_comment("CB");
         }
         outfile << md;
     }
