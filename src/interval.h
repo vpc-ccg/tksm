@@ -635,7 +635,13 @@ struct molecule_descriptor{
         meta[key].push_back(value);
         return this;
     }
-  
+ 
+    molecule_descriptor* drop_comment(const string& key){
+        meta.erase(key);
+        return this;
+    }
+
+
     // TODO add key verification
     const vector<string> &get_comment(const string &key) const{
         return meta.at(key);
