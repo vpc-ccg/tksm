@@ -1,19 +1,33 @@
 outpath:
     /groups/hachgrp/projects/dev-RNAInFuser/analysis/RI-experiments
 
+### Pipeline modules
+# Xpr : expression  --> Must be first module only
+# Xpr_sc : expression fpr single cells   --> Must be first module only
+# Spc : splice --> Must be second module
+# Fus : fusion
+# PCR : pcr
+# plA : polyA
+# UMI : umi
+# SCB : single_cell
+# Trc : truncate
+# Seq : sequence --> Must be last module
 experiments:
     e1:
-        mol_count: 1000000
-        polyA_distr : "normal=40,10"
-        polyA_min_len : 5
         sample : "N1"
-        sc : True
-    # e2:
-    #     mol_count: 1000000
-    #     polyA_distr : "normal=40,10"
-    #     polyA_min_len : 5
-    #     sample : "MCF7-sgnex"
-    #     sc : False
+        pipeline:
+            - Xpr_sc:
+                ''
+            - Spc:
+                '--molecule-count 1000000'
+            - plA:
+                '--normal=40,10 --min-length=5 --expand-isoforms'
+            - PCR:
+                '--cycles 5 -X Taq-setting1'
+            - Trc:
+                '--only-single-isoform'
+            - Seq:
+                '--other-br="--tail_noise_model=nanopore"'
 
 exec:
     transcript_abundance:
@@ -31,6 +45,8 @@ exec:
             /groups/hachgrp/projects/dev-genion/code/kernels/grid.npy
     RI_sequencer:
         /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/sequencer
+    RI_pcr:
+        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/pcr
     badread:
         /groups/hachgrp/projects/dev-simulation/code/Badread/badread-runner.py
     scTagger:
@@ -51,10 +67,6 @@ samples:
     "MCF7-sgnex":
         fastq:
             - /groups/hachgrp/projects/dev-genion/raw-data/wts/fastq/sg-nex-data/SGNex_MCF7_directcDNA_replicate1_run2.fastq.gz
-        protocol:
-            p1
     "N1":
         fastq:
             - /groups/hachgrp/projects/col-flannigan-scrna-2021/raw-data/scrna-long-reads/PAG34747_N1_pass_fastq_concat.fastq
-        protocol:
-            p1

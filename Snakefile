@@ -1,129 +1,156 @@
 import sys
 
 if len(config)==0:
-    configfile: "config.yaml"
+    configfile: 'config.yaml'
 
 outpath = config['outpath']
 preproc_d = f'{outpath}/preprocess'
 RI_d = f'{outpath}/RI'
 nanosim_d = f'{outpath}/nanosim'
 
-def get_experiment_sample(experiment):
-    return config["experiments"][experiment]["sample"]
+def exprmnt_sample(exprmnt):
+    return config['experiments'][exprmnt]['sample']
 
+def module_idx(prefix):
+    return len(prefix.split('.'))
+
+def fastas_for_RI_sequence(wc):
+    fastas = list()
+    fastas.append(config['refs']['DNA'])
+    for idx, module in enumerate(config['experiments'][wc.exprmnt]['pipeline']):
+        if module in ['plA', 'SCS', 'UMI']:
+            prefix = '.'.join(
+                config['experiments'][wc.exprmnt]['pipeline'][:idx+1]
+            )
+            fastas.append(
+                f'{RI_d}/{wc.exprmnt}/{wc.prefix}.fasta',
+            )
+    return ','.join(fastas)
+
+def experiment_prefix(exprmnt):
+    prefix = list()
+    for module in config["experiments"][exprmnt]["pipeline"]:
+        prefix.append(list(module)[0])
+    return '.'.join(prefix)
+    
 rule all:
     input:
-        expand(
-            f'{RI_d}/{{experiment}}/sequenced.fastq',
-            experiment=config['experiments'],
-        ),
-        expand(
-            f'{preproc_d}/lr_sc_expression/{{sample}}.bc_to_tid_counts.tsv.gz',
-            sample={config['experiments'][e]['sample'] for e in config['experiments'] if config['experiments'][e]['sc']},
-        ),
+        [
+            f'{RI_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq'
+            for exprmnt in config['experiments']
+        ],
         
+
 rule RI_sequence:
     input:
         binary = config['exec']['RI_sequencer'],
         badread = config['exec']['badread'],
-        splicer_mdf = f'{RI_d}/{{experiment}}/splicer.mdf',
-        polyA_fasta = f'{RI_d}/{{experiment}}/polyA.fasta',
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+        fastas = fastas_for_RI_sequence,
     output:
-        fastq = f'{RI_d}/{{experiment}}/sequenced.fastq',
+        fastq = f'{RI_d}/{{exprmnt}}/{{prefix}}.Seq.fastq',
     params:
-        dna = config['refs']['DNA'],
-        name = lambda wc: f'{get_experiment_sample(wc.experiment)}_{wc.experiment}_RI',
-        temp_dir = f'{RI_d}/{{experiment}}/sequenced.temps',
+        name = lambda wc: f'{exprmnt_sample(wc.exprmnt)}_{wc.exprmnt}_RI',
+        tmp_dir = f'{RI_d}/{{exprmnt}}/{{prefix}}.Seq.tmps',
+        other = lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
     threads:
         32
     shell:
-        'mkdir -p {params.temp_dir} && '
-        'rm -rf {params.temp_dir}/* && '
+        'rm -rf {params.tmp_dir} && '
+        'mkdir -p {params.tmp_dir} && '
         '{input.binary}'
-        ' -m {input.splicer_mdf}'
+        ' -m {input.mdf}'
+        ' --references={input.fastas}'
         ' -o {output.fastq}'
+        ' --temp "{params.tmp_dir}"'
         ' -n "{params.name}"'
-        ' --temp "{params.temp_dir}"'
         ' --badread={input.badread}'
-        ' --references={params.dna},{input.polyA_fasta}'
         ' --threads={threads}'
-        ' --other-br="--tail_noise_model=nanopore"'
-
-rule RI_polyA:
-    input:
-        binary = config['exec']['RI_polyA'],
-        mdf = f'{RI_d}/{{experiment}}/truncated.mdf',
-    output:
-        mdf = f'{RI_d}/{{experiment}}/polyA.mdf',
-        fasta = f'{RI_d}/{{experiment}}/polyA.fasta',
-    params:
-        distr = lambda wildcards: config['experiments'][wildcards.experiment]['polyA_distr'],
-        min_len = lambda wildcards: config['experiments'][wildcards.experiment]['polyA_min_len'],
-    shell:
-        '{input.binary}'
-        ' -i {input.mdf}'
-        ' -o {output.mdf}'
-        ' --{params.distr}'
-        ' --min-length={params.min_len}'
-        ' --expand-isoforms'
-        ' -a {output.fasta}'
+        ' {params.other}'
 
 rule RI_trunc:
     input:
         binary = config['exec']['RI_truncate'],
-        mdf = f'{RI_d}/{{experiment}}/splicer.mdf',
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
         grid = config['exec']['RI_truncate_kde']['grid'],
         labels = config['exec']['RI_truncate_kde']['labels'],
-    output:
-        mdf = f'{RI_d}/{{experiment}}/truncated.mdf',
-    params:
         gtf = config['refs']['GTF'],
+    output:
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf',
+    params:
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
+    shell:
+        '{input.binary}'
+        ' -i {input.mdf}'
+        ' --kde={input.grid},{input.labels}'
+        ' --gtf={input.gtf}'
+        ' -o {output.mdf}'
+        ' {params}'
+
+rule RI_pcr:
+    input:
+        binary = config['exec']['RI_pcr'],
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+    output:
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.PCR.mdf',
+    params:
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
-        ' --kde={input.grid},{input.labels}'
-        ' --gtf={params.gtf}'
-        ' --only-single-isoform'
+        ' {params}'
+
+rule RI_polyA:
+    input:
+        binary = config['exec']['RI_polyA'],
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+    output:
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.mdf',
+        fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.fasta',
+    params:
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
+    shell:
+        '{input.binary}'
+        ' -i {input.mdf}'
+        ' -o {output.mdf}'
+        ' -a {output.fasta}'
+        ' {params}'
 
 rule RI_splicer:
     input:
         binary = config['exec']['RI_splicer'],
-        abdund_tsv = lambda wc: 
-            f'{preproc_d}/minimap2/{get_experiment_sample(wc.experiment)}.cDNA.abundance.tsv.gz' 
-            if not config['experiments'][wc.experiment]['sc'] else
-            f'{preproc_d}/minimap2/{get_experiment_sample(wc.experiment)}.cDNA.abundance_with_cells.tsv.gz'
-    output:
-        mdf = f'{RI_d}/{{experiment}}/splicer.mdf',
-    params:
+        tsv = f'{RI_d}/{{exprmnt}}/{{prefix}}.tsv.gz',
         gtf = config['refs']['GTF'],
-        mol_count = lambda wc: config['experiments'][wc.experiment]['mol_count'],
+    output:
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Spc.mdf',
+    params:
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
     shell:
         '{input.binary}'
-        ' -g {params.gtf}'
-        ' -a {input.abdund_tsv}'
-        ' --molecule-count {params.mol_count}'
+        ' -a {input.tsv}'
+        ' -g {input.gtf}'
         ' -o {output.mdf}'
+        ' {params}'
 
-rule transcript_abundance:
+rule RI_expression:
     input:
         script = config['exec']['transcript_abundance'],
-        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
+        paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
     output:
-        tsv = f'{preproc_d}/minimap2/{{sample}}.cDNA.abundance.tsv.gz'
+        tsv = f'{RI_d}/{{exprmnt}}/Xpr.tsv.gz',
     shell:
        'python {input.script} -p {input.paf} -o {output.tsv}' 
 
-rule transcript_abundance_with_cells:
+rule RI_expression_sc:
     input:
         script = config['exec']['transcript_abundance'],
-        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
-        lr_matches=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz',
+        paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
+        lr_matches = lambda wc: f'{preproc_d}/scTagger/{exprmnt_sample(wc.exprmnt)}/{exprmnt_sample(wc.exprmnt)}.lr_matches.tsv.gz'
     output:
-        tsv = f'{preproc_d}/minimap2/{{sample}}.cDNA.abundance_with_cells.tsv.gz'
+        tsv = f'{RI_d}/{{exprmnt}}/Xpr_sc.tsv.gz',
     shell:
        'python {input.script} -p {input.paf} -m {input.lr_matches} -o {output.tsv}' 
-
 
 rule minimap_cdna:
     input:
@@ -135,16 +162,6 @@ rule minimap_cdna:
         12
     shell:
         'minimap2 -t {threads} -x map-ont -c --eqx -p0 -o {output.paf} {input.ref} {input.reads}'
-
-# rule lr_sc_expression:
-#     input:
-#         script = config['exec']['lr_expression'],
-#         ref = config['refs']['cDNA'],
-#         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
-#     output:
-#         tsv=f'{preproc_d}/lr_sc_expression/{{sample}}.bc_to_tid_counts.tsv.gz',
-#     shell:
-#        "python {input.script} -r {input.ref} -m {input.lr_tsv} -p {input.paf} -o {output.tsv}" 
 
 rule scTagger_match:
     input:
@@ -175,7 +192,7 @@ rule scTagger_lr_seg:
     input:
         reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
     output:
-        tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
+        tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz',
     threads:
         32
     resources:

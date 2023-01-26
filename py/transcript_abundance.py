@@ -5,7 +5,8 @@ from collections import Counter, defaultdict
 
 from tqdm import tqdm
 
-# Includes EM code from https://github.com/jts/nanopore-rna-analysis/blob/master/nanopore_transcript_abundance.py by Jared Simpson
+# Includes EM code by Jared Simpson from 
+# https://github.com/jts/nanopore-rna-analysis/blob/master/nanopore_transcript_abundance.py 
 
 
 def parse_args():
@@ -83,8 +84,6 @@ def parse_paf(paf):
 # that read to the set of transcripts the read is "compatible" with.
 # Compatibility is defined by the length of an alignment relative
 # to the longest alignment for the read.
-
-
 def get_compatibility(alignments):
     transcript_compatibility = defaultdict(list)
 
@@ -131,8 +130,6 @@ def get_compatibility(alignments):
     return transcript_compatibility
 
 # Calculate the abundance of the transcript set based on read-transcript compatibilities
-
-
 def calculate_abundance(compatibility, verbose=0):
     abundance = defaultdict(float)
     total = 0
@@ -152,8 +149,6 @@ def calculate_abundance(compatibility, verbose=0):
     return abundance
 
 # Update read-transcript compatibility based on transcript abundances
-
-
 def update_compatibility(compatibility, abundance):
     for read in compatibility:
 
@@ -196,6 +191,7 @@ def main():
         # Update compatibility assignments
         update_compatibility(transcript_compatibility, abundance)
 
+    # Split transcript abundances by cellular barcode
     abundance = calculate_split_abundance(transcript_compatibility, rid_to_bc)
     # Write results as a TSV file
     if args.output.endswith('.gz'):
