@@ -181,16 +181,20 @@ int main(int argc, char **argv){
    
     std::ofstream outfile{args["output"].as<string>()};
     std::ofstream fastafile{args["fasta"].as<string>()};
-
+    std::unordered_set<string> used_barcodes;
     for(molecule_descriptor &md : molecules){
         const string &barcode_str = md.get_comment("CB")[0];
         const string barcode_ctg_id = "CB_" + barcode_str;
         if( barcode_str != "."){
             md.prepend_segment(ginterval{barcode_ctg_id, 0, (int)barcode_str.size(), "+"});
-            fastafile << ">" << barcode_ctg_id << "\n" << barcode_str << "\n";
+            used_barcodes.insert(barcode_str);
         }
         outfile << md;
     }
-    
+   
+    for( const string& barcode_str: used_barcodes){
+        const string barcode_ctg_id = "CB_" + barcode_str;
+        fastafile << ">" << barcode_ctg_id << "\n" << barcode_str << "\n";
+    }
     return 0;
 }
