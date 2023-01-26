@@ -72,8 +72,9 @@ rule RI_trunc:
     input:
         binary = config['exec']['RI_truncate'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
-        grid = config['exec']['RI_truncate_kde']['grid'],
-        labels = config['exec']['RI_truncate_kde']['labels'],
+        x = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.X_idxs.npy',
+        y = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.Y_idxs.npy',
+        g = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.grid.npy',
         gtf = config['refs']['GTF'],
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf',
@@ -82,7 +83,7 @@ rule RI_trunc:
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
-        ' --kde={input.grid},{input.labels}'
+        ' --kde={input.g},{input.x}'
         ' --gtf={input.gtf}'
         ' -o {output.mdf}'
         ' {params}'
@@ -151,6 +152,21 @@ rule RI_expression_sc:
         tsv = f'{RI_d}/{{exprmnt}}/Xpr_sc.tsv.gz',
     shell:
        'python {input.script} -p {input.paf} -m {input.lr_matches} -o {output.tsv}' 
+
+rule truncate_kde:
+    input:
+        script = config['exec']['truncate_kde'],
+        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
+    output:
+        x = f'{preproc_d}/truncate_kde/{{sample}}.X_idxs.npy',
+        y = f'{preproc_d}/truncate_kde/{{sample}}.Y_idxs.npy',
+        g = f'{preproc_d}/truncate_kde/{{sample}}.grid.npy',
+    params:
+        out_prefix = f'{preproc_d}/truncate_kde/{{sample}}',
+    threads:
+        32
+    shell:
+       'python {input.script} -i {input.paf} -o {params.out_prefix} --threads {threads} -b -1' 
 
 rule minimap_cdna:
     input:
