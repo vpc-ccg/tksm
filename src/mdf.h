@@ -53,7 +53,7 @@ inline vector<molecule_descriptor> parse_mdf(ifstream &ist){
             std::getline(ist, buffer);
         }
 //        molecules.emplace_back(id, segments, errors_so_far, depth);
-        molecules.emplace_back(id, !segments[0].plus_strand).depth(depth)->update_errors(errors_so_far)->assign_segments(segments);
+        molecules.emplace_back(id, !segments[0].plus_strand).depth(depth)->update_errors(errors_so_far)->assign_segments(segments)->comment(comment);
     }
     return molecules;
 }
