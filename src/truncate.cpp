@@ -533,10 +533,10 @@ class custom_distribution{
             return ret;
         }
         
-        vector<result_type> cdf(){
+        const vector<result_type> &cdf() const {
             return cdfv;
         }
-        vector<result_type> pdf(){
+        const vector<result_type> &pdf() const {
             return pdfv;
         }
 };
@@ -544,15 +544,18 @@ class custom_distribution{
 template<class RealType = double, class IndexType = long>
 class custom_distribution2D{
     using result_type = RealType;
-    vector<IndexType> values;
+    vector<IndexType> x_axis_index;
+    vector<IndexType> y_axis_index;
     vector<custom_distribution<>> distillery;
     public:
-        custom_distribution2D (const string &pfile, const string &stepfile){
+        custom_distribution2D (const string &pfile, const string &x_axis_file, const string &y_axis_file){
             vector<unsigned long> shape;
 
             bool fortran_order;
 
-            npy::LoadArrayFromNumpy(stepfile, shape, fortran_order, values);
+
+            npy::LoadArrayFromNumpy(x_axis_file, shape, fortran_order, x_axis_index);
+            npy::LoadArrayFromNumpy(y_axis_file, shape, fortran_order, y_axis_index);
 
             vector<double> pdata;
             npy::LoadArrayFromNumpy(pfile, shape, fortran_order, pdata);
@@ -560,18 +563,17 @@ class custom_distribution2D{
             IndexType width = shape[0];
 
             if(fortran_order){
-
-                for(size_t i = 0; i < shape[0]; ++i){
+                for(size_t i = 0; i < y_axis_index.size(); ++i){
                     vector<double> ps;
                     for(size_t j = 0; j < std::min(shape[1], i+1); ++j){
                         ps.push_back(pdata[j * shape[0] + i]);
                     }
-                    distillery.emplace_back(ps.cbegin(), ps.cend() , values.begin(), values.begin()+i+1); 
+                    distillery.emplace_back(ps.cbegin(), ps.cend() , x_axis_index.begin(), x_axis_index.end()); 
                 }
             }
             else{
-                for(size_t i = 0; i < values.size();++i){
-                    distillery.emplace_back(pdata.cbegin() + (i * width), pdata.cbegin() + ((i) * width + i + 1) , values.begin(), values.begin()+i+1); 
+                for(size_t i = 0; i < y_axis_index.size();++i){
+                    distillery.emplace_back(pdata.cbegin() + (i * width), pdata.cbegin() + ((i) * width + i + 1) , x_axis_index.begin(), x_axis_index.end()); 
                 }
             }
 
@@ -579,27 +581,44 @@ class custom_distribution2D{
 
         template<class Generator>
         result_type operator()( Generator &g, IndexType slice){
-            auto iter = std::lower_bound(values.begin(), values.end(), slice);
-            if( iter != values.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
+            auto iter = std::lower_bound(y_axis_index.begin(), y_axis_index.end(), slice);
+            if( iter != y_axis_index.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
                 --iter;
             }
 
-            return distillery.at(std::distance(values.begin(),iter))(g);
+            return distillery.at(std::distance(y_axis_index.begin(),iter))(g);
         }
 
         vector<result_type> cdf( IndexType slice){
-            auto iter = std::lower_bound(values.begin(), values.end(), slice);
-            if( iter != values.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
+            auto iter = std::lower_bound(y_axis_index.begin(), y_axis_index.end(), slice);
+            if( iter != y_axis_index.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
                 --iter;
             }
-            return distillery.at(std::distance(values.begin(), iter)).cdf();
+            return distillery.at(std::distance(y_axis_index.begin(), iter)).cdf();
         }
         vector<result_type> pdf( IndexType slice){
-            auto iter = std::lower_bound(values.begin(), values.end(), slice);
-            if( iter != values.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
+            auto iter = std::lower_bound(y_axis_index.begin(), y_axis_index.end(), slice);
+            if( iter != y_axis_index.begin() && std::abs(*iter-slice) > std::abs(*(iter-1)-slice)){
                 --iter;
             }
-            return distillery.at(std::distance(values.begin(), iter)).pdf();
+            return distillery.at(std::distance(y_axis_index.begin(), iter)).pdf();
+        }
+
+        friend ostream &operator << ( ostream &ost, const custom_distribution2D<RealType, IndexType> &dist){
+            for(IndexType i : dist.x_axis_index){
+                ost << i << "\t";
+            }
+            ost << "\n";
+
+            for(int j = 0; j < dist.y_axis_index.size(); ++j){
+                ost << dist.y_axis_index[j] << "\t";
+                const custom_distribution<RealType, IndexType> &d1 =dist.distillery[j];
+                for(double v : d1.cdf()){
+                    ost << v << "\t";
+                }
+                ost << "\n";
+            }
+            return ost;
         }
 };
 
@@ -624,39 +643,12 @@ inline auto sample_from_cdf(const vector<double> &cdf, auto &rand_gen)  {
     return std::distance(cdf.cbegin(), iter);
 }
 
-int main2(int argc, char **argv){
+int main_print_mtx(int argc, char **argv){
 
-    custom_distribution2D<> disko {argv[1], argv[2]};
+    custom_distribution2D<> disko {argv[1], argv[2], argv[3]};
     std::default_random_engine rg{};
+    std::cout << disko<< "\n";
 
-    for(int i = 0; i< 100000; ++i){
-        std::cout << disko(rg, std::stoi(argv[3])) << "\n";
-    }
-
-    return 0;
-}
-int main3(){
-
-
-    for(int i =1;i<=20;++i){
-        std::cerr << i << "\t" << polygamma(0,i) << "\t" << polygamma(1,i) << "\n";
-    }
-
-    std::lognormal_distribution<> dist(4, 0.3);
-    std::vector<int> lens;
-    vector<int> tlens;
-    for(int i =0; i < 10000; ++i){
-        int val = dist(rand_gen);
-        if (val < 0)
-            val = 0;
-        lens.push_back( val);
-        tlens.push_back(val);
-        std::cout << val << "\n";
-    }
-
-    auto [distname, ll, mu, sigma] = fit(lens);
-        
-    std::cerr << distname << " with " << mu << ", " << sigma << " is chosen!\n";
     return 0;
 }
 
@@ -802,7 +794,7 @@ int main(int argc, char **argv){
 */
        
         const vector<string> &kdefiles = args["kde"].as<vector<string>>();
-        custom_distribution2D<> disko {kdefiles[0], kdefiles[1]};
+        custom_distribution2D<> disko {kdefiles[0], kdefiles[1], kdefiles[2]};
         string mdf_file_path {args["input"].as<string>()};
         std::ifstream mdf_file {mdf_file_path};
         vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
