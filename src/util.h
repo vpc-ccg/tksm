@@ -84,4 +84,14 @@ inline void strip_for_each(std::vector<std::string> &vec, const std::string &chr
         st = strip_str(st, chrs);
     }
 }
+
+
+inline void format_annot_id(std::string& id, bool remove_version = true){
+    if(remove_version){
+        if(id.find_last_of(".") != std::string::npos){
+            id = rsplit(id, ".")[0];
+        }
+    }
+}
+
 #endif

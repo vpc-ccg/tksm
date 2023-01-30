@@ -722,8 +722,8 @@ int main(int argc, char **argv){
         gtf entry{buffer};
 
         if(entry.type == gtf::entry_type::transcript && entry.info["transcript_biotype"] == "protein_coding"){
-            string gid = entry.info["gene_id"].substr(0,15);
-            string tid = entry.info["transcript_id"].substr(0,15);
+            string gid = entry.info["gene_id"];
+            string tid = entry.info["transcript_id"];
             gene2transcripts[gid].push_back(tid);
         }
     }
@@ -826,7 +826,7 @@ int main(int argc, char **argv){
             if(!pf.primary()){
                 continue;
             }
-            if(args["only-single-isoform"].as<bool>() && single_isoform_transcripts.find(pf.tname.substr(0,15)) == single_isoform_transcripts.end()){
+            if(args["only-single-isoform"].as<bool>() && single_isoform_transcripts.find(pf.tname) == single_isoform_transcripts.end()){
                 continue;
             }
             lens.push_back( pf.qend - pf.qstart);
