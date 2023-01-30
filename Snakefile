@@ -83,7 +83,7 @@ rule RI_trunc:
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
-        ' --kde={input.g},{input.x}'
+        ' --kde={input.g},{input.x},{input.y}'
         ' --gtf={input.gtf}'
         ' -o {output.mdf}'
         ' {params}'
