@@ -11,7 +11,9 @@ kde_vals = None
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="KDE computation module of truncation of transcriptomic long-reads using their cDNA mapping.",)
+        description="KDE computation module of truncation of transcriptomic long-reads using their cDNA mapping.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument("-i",
                         "--input",
                         type=str,
@@ -25,29 +27,29 @@ def parse_args():
     parser.add_argument('-b',
                         '--bandwidth',
                         type=float,
-                        default=60.0,
-                        help="Bandwidth value for the KDE. If set to -1, script will use cross validation to compute it. Default: 60.0",
+                        default=100.0,
+                        help="Bandwidth value for the KDE. If set to -1, script will use cross validation to compute it.",
                         )
     parser.add_argument('--grid-start',
                         type=int,
                         default=100,
-                        help="Read/transcript length start of the KDE grid. Default: 100",
+                        help="Read/transcript length start of the KDE grid.",
                         )
     parser.add_argument('--grid-end',
                         type=int,
                         default=5000,
-                        help="Read/transcript length end of the KDE grid. Default: 5000",
+                        help="Read/transcript length end of the KDE grid.",
                         )
     parser.add_argument('--grid-step',
                         type=int,
-                        default=10,
-                        help="Read/transcript length step of the KDE grid. Default: 10",
+                        default=100,
+                        help="Read/transcript length step of the KDE grid.",
                         )
     parser.add_argument('-t',
                         '--threads',
                         type=int,
                         default=1,
-                        help="Number of threads to run KDE and GridSearchCV. Default: 1",
+                        help="Number of threads to run KDE and GridSearchCV.",
                         )
     args = parser.parse_args()
     return args
@@ -89,17 +91,23 @@ def main():
 
     alens, tlens = get_alignment_lens(args.input)
     len_values = np.vstack([alens, tlens]).T
+    print(len_values.shape)
     if args.bandwidth <= 0:
         print('Non-positive bandwidth selected selected: recomputing bandwidth with GridSearchCV')
-        grid_finer = GridSearchCV(
-            KernelDensity(),
-            {"bandwidth": np.arange(10, 120, 10)},
-            n_jobs=args.threads,
-            cv=3,
-            verbose=3,
-        )
-        grid_finer.fit(len_values)
-        args.bandwidth = grid_finer.best_params_['bandwidth']
+        bandwidths = list()
+        for i in range(3):                
+            grid_finder = GridSearchCV(
+                KernelDensity(),
+                {"bandwidth": np.arange(50, 1000, 100)},
+                n_jobs=args.threads,
+                cv=3,
+                verbose=3,
+            )
+            grid_finder.fit(len_values[np.random.randint(len_values.shape[0], size=100_000), :])
+            bandwidths.append(grid_finder.best_params_['bandwidth'])
+            print(bandwidths[-1])
+        print(bandwidths)
+        args.bandwidth = np.median(bandwidths)
     print(f'Using bandwidth = {args.bandwidth}')
     kd = KernelDensity(bandwidth=args.bandwidth)
     global kde_vals

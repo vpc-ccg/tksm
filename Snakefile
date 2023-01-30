@@ -166,7 +166,7 @@ rule truncate_kde:
     threads:
         32
     shell:
-       'python {input.script} -i {input.paf} -o {params.out_prefix} --threads {threads} -b -1' 
+       'python {input.script} -i {input.paf} -o {params.out_prefix} --threads {threads}' 
 
 rule minimap_cdna:
     input:
