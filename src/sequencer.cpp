@@ -114,14 +114,14 @@ int main(int argc, char **argv){
     }
     else{//Generate fasta from mdf
         std::ifstream infile(input_filename);
-        vector<pcr_copy> molecules = parse_mdf(infile);
+        vector<molecule_descriptor> molecules = parse_mdf(infile);
         map<string, string> refs;
         for(const string &path : args["references"].as<vector<string>>()){
             refs.merge(read_fasta_fast(path));
         }
         int64_t total_throughput = std::accumulate(molecules.begin(),molecules.end(),0L,
-        [] (int64_t sum, const pcr_copy &pc) {
-            for(const auto &ival : pc.segments){
+        [] (int64_t sum, const molecule_descriptor &pc) {
+            for(const auto &ival : pc.cget_segments()){
                 sum+=(ival.end - ival.start);
             }
             return sum;
@@ -133,9 +133,9 @@ int main(int argc, char **argv){
 
         std::cerr << "Throughput per thread :" << throughput_per_batch << "\n";
 
-        for( const pcr_copy& pc : molecules){
+        for( const molecule_descriptor& pc : molecules){
             pcr_molecule pcm{pc};
-            for(const auto& seg : pc.segments){
+            for(const auto& seg : pc.cget_segments()){
                 throughput_so_far += (seg.end - seg.start);
             }
             if(throughput_so_far > throughput_per_batch && current_batch + 1< args["t"].as<int>()){
@@ -151,10 +151,10 @@ int main(int argc, char **argv){
                 ost.close();
                 ost.open(batch_file);
             }
-            ost << ">" << pc.id << " depth=1\n";
+            ost << ">" << pc.get_id()<< " depth=1\n";
             
             size_t seq_index = 0;
-            for(const auto& seg : pc.segments){
+            for(const auto& seg : pc.cget_segments()){
                 string seq = refs.at(seg.chr).substr(seg.start, seg.end - seg.start);
                 for(const auto &pr : pc.errors_so_far){
                     if((unsigned) pr.first > seq_index && (unsigned) pr.first < seq_index + seq.size()){
