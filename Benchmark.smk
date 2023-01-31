@@ -65,10 +65,10 @@ def run_longest_polys(seq):
 
 rule all:
     input:
-        # [
-        #     f'{RI_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq'
-        #     for exprmnt in config['experiments']
-        # ],
+        [
+            f'{RI_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq'
+            for exprmnt in config['experiments']
+        ],
         [
             f'{plots_d}/{sample}/substition_analysis.tsv'
             for sample in config['samples']

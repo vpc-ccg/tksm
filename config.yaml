@@ -8,8 +8,8 @@ outpath:
 # Fus : fusion
 # PCR : pcr
 # plA : polyA
-# UMI : umi
 # SCB : single_cell
+# UMI : umi
 # Trc : truncate
 # Seq : sequence --> Must be last module
 experiments:
@@ -22,8 +22,12 @@ experiments:
                 '--molecule-count 1000000'
             - plA:
                 '--normal=40,10 --min-length=5 --expand-isoforms'
-            # - PCR:
-            #     '--cycles 5 -X Taq-setting1'
+            - SCB:
+                ''
+            - UMI:
+                '--format5 10'
+            - PCR:
+                '--cycles 5 -X Taq-setting1'
             - Trc:
                 '--only-single-isoform'
             - Seq:
@@ -34,12 +38,16 @@ exec:
         /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/splicer
     RI_polyA:
         /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/polyA
+    RI_pcr:
+        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/pcr
+    RI_sc_barcoder:
+        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/single-cell-barcoder
+    RI_umi:
+        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/umi
     RI_truncate:
         /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/truncate
     RI_sequencer:
         /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/sequencer
-    RI_pcr:
-        /groups/hachgrp/projects/dev-RNAInFuser/scripts/RNAInFuser/build/pcr
     badread:
         /groups/hachgrp/projects/dev-simulation/code/Badread/badread-runner.py
     transcript_abundance:
@@ -61,9 +69,9 @@ refs:
 
 
 samples:
-    "MCF7-sgnex":
-        fastq:
-            - /groups/hachgrp/projects/dev-genion/raw-data/wts/fastq/sg-nex-data/SGNex_MCF7_directcDNA_replicate1_run2.fastq.gz
+    # "MCF7-sgnex":
+    #     fastq:
+    #         - /groups/hachgrp/projects/dev-genion/raw-data/wts/fastq/sg-nex-data/SGNex_MCF7_directcDNA_replicate1_run2.fastq.gz
     "N1":
         fastq:
             - /groups/hachgrp/projects/col-flannigan-scrna-2021/raw-data/scrna-long-reads/PAG34747_N1_pass_fastq_concat.fastq
