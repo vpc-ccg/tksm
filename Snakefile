@@ -6,7 +6,6 @@ if len(config)==0:
 outpath = config['outpath']
 preproc_d = f'{outpath}/preprocess'
 RI_d = f'{outpath}/RI'
-nanosim_d = f'{outpath}/nanosim'
 
 def exprmnt_sample(exprmnt):
     return config['experiments'][exprmnt]['sample']
@@ -41,7 +40,7 @@ rule all:
         ],
         
 
-rule RI_sequence:
+rule sequence:
     input:
         binary = config['exec']['RI_sequencer'],
         badread = config['exec']['badread'],
@@ -68,7 +67,7 @@ rule RI_sequence:
         ' --threads={threads}'
         ' {params.other}'
 
-rule RI_trunc:
+rule trunc:
     input:
         binary = config['exec']['RI_truncate'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
@@ -88,7 +87,7 @@ rule RI_trunc:
         ' -o {output.mdf}'
         ' {params}'
 
-rule RI_pcr:
+rule pcr:
     input:
         binary = config['exec']['RI_pcr'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
@@ -102,7 +101,7 @@ rule RI_pcr:
         ' -o {output.mdf}'
         ' {params}'
 
-rule RI_polyA:
+rule polyA:
     input:
         binary = config['exec']['RI_polyA'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
@@ -118,7 +117,7 @@ rule RI_polyA:
         ' -a {output.fasta}'
         ' {params}'
 
-rule RI_splicer:
+rule splicer:
     input:
         binary = config['exec']['RI_splicer'],
         tsv = f'{RI_d}/{{exprmnt}}/{{prefix}}.tsv.gz',
@@ -134,7 +133,7 @@ rule RI_splicer:
         ' -o {output.mdf}'
         ' {params}'
 
-rule RI_expression:
+rule expression:
     input:
         script = config['exec']['transcript_abundance'],
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
@@ -143,7 +142,7 @@ rule RI_expression:
     shell:
        'python {input.script} -p {input.paf} -o {output.tsv}' 
 
-rule RI_expression_sc:
+rule expression_sc:
     input:
         script = config['exec']['transcript_abundance'],
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
@@ -175,7 +174,7 @@ rule minimap_cdna:
     output:
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
     threads:
-        12
+        32
     shell:
         'minimap2 -t {threads} -x map-ont -c --eqx -p0 -o {output.paf} {input.ref} {input.reads}'
 

@@ -22,8 +22,8 @@ experiments:
                 '--molecule-count 1000000'
             - plA:
                 '--normal=40,10 --min-length=5 --expand-isoforms'
-            - PCR:
-                '--cycles 5 -X Taq-setting1'
+            # - PCR:
+            #     '--cycles 5 -X Taq-setting1'
             - Trc:
                 '--only-single-isoform'
             - Seq:
