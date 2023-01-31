@@ -1,6 +1,10 @@
 import sys
 import gzip
+from multiprocessing import Pool
+
 import re
+from itertools import groupby
+import functools
 
 import numpy as np
 import pandas as pd
@@ -34,6 +38,31 @@ def experiment_prefix(exprmnt):
         prefix.append(list(module)[0])
     return '.'.join(prefix)
 
+def longest_polys(seq, s, e, step, match_score=1, mismatch_score=-2, char='A'):
+    if e-s == 0:
+        return
+    if seq[s] == char:
+        scores = [match_score]
+    else:
+        scores = [0]
+    for m in (match_score if c == char else mismatch_score for c in seq[s+step:e:step]):
+        scores.append(max(0, scores[-1]+m))
+    for k, g in groupby(enumerate(scores), lambda x: x[1] > 0):
+        if not k:
+            continue
+        i, S = list(zip(*g))
+        max_s, max_i = max(zip(S, i))
+        l = max_i+1-i[0]
+        yield i[0], l, seq[s:e:step][i[0]:i[0]+l].count(char)/l
+
+def run_longest_polys(seq):
+    L = 0
+    for c in ['A','T']:
+        for i,l,p in longest_polys(seq, 0, len(seq), 1):
+            if p > .8:
+                L = max(L,l)
+    return L
+
 rule all:
     input:
         # [
@@ -48,6 +77,7 @@ rule all:
         f'{plots_d}/all_mapping_raw_lengths.png',
         f'{plots_d}/all_mapped_lengths.png',
         f'{plots_d}/all_error_dist.png',
+        f'{plots_d}/all_polyA.png',
     default_target: True
 
 rule plot_all_raw_lengths:
@@ -75,8 +105,6 @@ rule plot_all_raw_lengths:
                     mod = 4 if line[0]=='@' else 2
                 if idx % mod == 1:
                     lens.append(len(line)-1)
-                if idx == 10000:
-                    break
             lens = np.array(lens)
             lens_arrays.append(lens)
             max_up = max(max_up, np.percentile(lens, 99))
@@ -248,3 +276,56 @@ rule plot_substition_analysis:
             axs[i].legend()
             axs[i].set_title(title + " per 100 bases")
         plt.savefig(output[0], dpi=300)
+
+rule plot_polyA:
+    input:
+        fastqs = [config['samples'][s]['fastq'] for s in config['samples']],
+    output:
+        png = f'{plots_d}/all_polyA.png',
+    params:
+        bins=30,
+    threads:
+        32
+    run:
+        fig = plt.figure()
+        bb = None
+        max_up = 0
+        samples = list(config['samples'].keys())
+        print('Reading FASTQ/A files')
+        polys_arrays = list()
+        for fastq in tqdm(input.fastqs):
+            seqs = list()
+            if fastq.endswith('.gz'):
+                infile = gzip.open(fastq, 'rt')
+            else:
+                infile = open(fastq, 'rt')
+            for idx,line in tqdm(enumerate(infile)):
+                if idx == 0:
+                    mod = 4 if line[0]=='@' else 2
+                if idx % mod != 1:
+                    continue
+                seqs.append(line.rstrip()) 
+            if threads > 1:
+                p = Pool(threads)
+                mapper = functools.partial(p.imap_unordered, chunksize=100)
+            else:
+                mapper = map
+            polys = list()
+            for l in tqdm(mapper(run_longest_polys, seqs), total=len(seqs)):
+                polys.append(l)
+            if threads > 1:
+                p.close()
+            polys_arrays.append(np.array(polys))
+            max_up = max(max_up, np.percentile(polys, 99))
+        for polys,sample in zip(polys_arrays, samples):
+            polys = polys[polys < max_up]
+            _, bb, _ = plt.hist(
+                polys,
+                bins = params.bins if bb is None else bb,
+                density = True,
+                label = sample,
+                alpha = .5,
+            )
+        plt.legend()
+        plt.title("Poly(A,T) length distribution")
+        plt.savefig(output[0],dpi=300)
