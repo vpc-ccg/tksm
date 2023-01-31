@@ -215,9 +215,7 @@ int main(int argc, char **argv){
 
     while(std::getline(table_file, buffer)){
         std::istringstream(buffer) >> tid >> tpm >> comment;
-        if(!args["use-whole-id"].as<bool>()){
-            tid = tid.substr(0,15);
-        }
+        format_annot_id(tid, !args["use-whole-id"].as<bool>());
         molecule_descriptor molecule = isoforms[tid];
         comment.append(";");
         double count = tpm*molecule_count/1'000'000;
