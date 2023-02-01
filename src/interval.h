@@ -680,8 +680,9 @@ struct molecule_descriptor{
         for(const auto &kv : meta){
             buffer << kv.first;
             if( kv.second[0] != "."){
-                buffer << "=" << (join_str(kv.second.cbegin(), kv.second.cend(), ",")) << ";";
+                buffer << "=" << (join_str(kv.second.cbegin(), kv.second.cend(), ","));
             }
+            buffer << ";";
         }
         return buffer.str();
     }
