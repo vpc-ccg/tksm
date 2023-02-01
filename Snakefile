@@ -6,7 +6,6 @@ if len(config)==0:
 outpath = config['outpath']
 preproc_d = f'{outpath}/preprocess'
 RI_d = f'{outpath}/RI'
-nanosim_d = f'{outpath}/nanosim'
 
 def exprmnt_sample(exprmnt):
     return config['experiments'][exprmnt]['sample']
@@ -41,7 +40,7 @@ rule all:
         ],
         
 
-rule RI_sequence:
+rule sequence:
     input:
         binary = config['exec']['RI_sequencer'],
         badread = config['exec']['badread'],
@@ -52,7 +51,7 @@ rule RI_sequence:
     params:
         name = lambda wc: f'{exprmnt_sample(wc.exprmnt)}_{wc.exprmnt}_RI',
         tmp_dir = f'{RI_d}/{{exprmnt}}/{{prefix}}.Seq.tmps',
-        other = lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
+        other = lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['Seq'],
     threads:
         32
     shell:
@@ -68,7 +67,7 @@ rule RI_sequence:
         ' --threads={threads}'
         ' {params.other}'
 
-rule RI_trunc:
+rule trunc:
     input:
         binary = config['exec']['RI_truncate'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
@@ -79,7 +78,7 @@ rule RI_trunc:
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['Trc'],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
@@ -88,29 +87,29 @@ rule RI_trunc:
         ' -o {output.mdf}'
         ' {params}'
 
-rule RI_pcr:
+rule pcr:
     input:
         binary = config['exec']['RI_pcr'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.PCR.mdf',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['PCR'],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
         ' {params}'
 
-rule RI_polyA:
+rule umi:
     input:
-        binary = config['exec']['RI_polyA'],
+        binary = config['exec']['RI_umi'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.mdf',
-        fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.fasta',
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.mdf',
+        fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.fasta',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['UMI'],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
@@ -118,15 +117,47 @@ rule RI_polyA:
         ' -a {output.fasta}'
         ' {params}'
 
-rule RI_splicer:
+rule single_cell:
+    input:
+        binary = config['exec']['RI_sc_barcoder'],
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+    output:
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.mdf',
+        fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.fasta',
+    params:
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['SCB'],
+    shell:
+        '{input.binary}'
+        ' -i {input.mdf}'
+        ' -o {output.mdf}'
+        ' -a {output.fasta}'
+        ' {params}'
+
+rule polyA:
+    input:
+        binary = config['exec']['RI_polyA'],
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+    output:
+        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.mdf',
+        fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.fasta',
+    params:
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['plA'],
+    shell:
+        '{input.binary}'
+        ' -i {input.mdf}'
+        ' -o {output.mdf}'
+        ' -a {output.fasta}'
+        ' {params}'
+
+rule splicer:
     input:
         binary = config['exec']['RI_splicer'],
-        tsv = f'{RI_d}/{{exprmnt}}/{{prefix}}.tsv.gz',
+        tsv = f'{RI_d}/{{exprmnt}}/{{prefix}}.tsv',
         gtf = config['refs']['GTF'],
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Spc.mdf',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)],
+        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['Spc'],
     shell:
         '{input.binary}'
         ' -a {input.tsv}'
@@ -134,22 +165,22 @@ rule RI_splicer:
         ' -o {output.mdf}'
         ' {params}'
 
-rule RI_expression:
+rule expression:
     input:
         script = config['exec']['transcript_abundance'],
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
     output:
-        tsv = f'{RI_d}/{{exprmnt}}/Xpr.tsv.gz',
+        tsv = f'{RI_d}/{{exprmnt}}/Xpr.tsv',
     shell:
        'python {input.script} -p {input.paf} -o {output.tsv}' 
 
-rule RI_expression_sc:
+rule expression_sc:
     input:
         script = config['exec']['transcript_abundance'],
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
         lr_matches = lambda wc: f'{preproc_d}/scTagger/{exprmnt_sample(wc.exprmnt)}/{exprmnt_sample(wc.exprmnt)}.lr_matches.tsv.gz'
     output:
-        tsv = f'{RI_d}/{{exprmnt}}/Xpr_sc.tsv.gz',
+        tsv = f'{RI_d}/{{exprmnt}}/Xpr_sc.tsv',
     shell:
        'python {input.script} -p {input.paf} -m {input.lr_matches} -o {output.tsv}' 
 
@@ -175,7 +206,7 @@ rule minimap_cdna:
     output:
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
     threads:
-        12
+        32
     shell:
         'minimap2 -t {threads} -x map-ont -c --eqx -p0 -o {output.paf} {input.ref} {input.reads}'
 
