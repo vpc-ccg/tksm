@@ -216,8 +216,14 @@ int main(int argc, char **argv){
     while(std::getline(table_file, buffer)){
         std::istringstream(buffer) >> tid >> tpm >> comment;
         format_annot_id(tid, !args["use-whole-id"].as<bool>());
+        auto md_ptr = isoforms.find(tid);
+        if(md_ptr == isoforms.end()){
+            std::cerr << "Isoform " << tid << " is not found in the input GTF " << path_to_gtf << "!\n";
+            continue;
+        }
         molecule_descriptor molecule = isoforms[tid];
         comment.append(";");
+        comment = "CB=" + comment;
         double count = tpm*molecule_count/1'000'000;
         double carry = count - int(count);
         if( dist(rand_gen) > carry){
