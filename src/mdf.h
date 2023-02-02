@@ -16,8 +16,8 @@ using std::ostream;
 using std::ifstream;
 
 
-inline Generator<molecule_descriptor> stream_mdf(ifstream &ist, bool unroll = false){
 
+inline Generator<molecule_descriptor> stream_mdf(ifstream &ist, bool unroll = false){
     string buffer;
     buffer.reserve(1000);
     std::getline(ist, buffer);
@@ -69,7 +69,15 @@ inline Generator<molecule_descriptor> stream_mdf(ifstream &ist, bool unroll = fa
         }
     }
 }
-
+inline vector<molecule_descriptor> parse_mdf(ifstream &ist, bool unroll = false){
+    auto streamer = stream_mdf(ist, unroll);
+    vector<molecule_descriptor> mdfs;
+    while(streamer){
+        mdfs.push_back(streamer());
+    }
+    return mdfs;
+}
+/*
 inline vector<molecule_descriptor> parse_mdf(ifstream &ist){
     vector<molecule_descriptor> molecules;
     string buffer;
@@ -113,7 +121,7 @@ inline vector<molecule_descriptor> parse_mdf(ifstream &ist){
     }
     return molecules;
 }
-
+*/
 inline void print_mdf(ostream &ost, const pcr_copy& molecule){
     //For now use the depth of first pcr_copy
     print_tsv(ost, "+"+molecule.id, molecule.depth/*depth*/, molecule.comment);
