@@ -8,35 +8,39 @@ preproc_d = f'{outpath}/preprocess'
 RI_d = f'{outpath}/RI'
 
 def exprmnt_sample(exprmnt):
-    return config['experiments'][exprmnt]['sample']
+    return config['RI_experiments'][exprmnt]['sample']
 
-def module_idx(prefix):
+def component_idx(prefix):
     return len(prefix.split('.'))
 
 def fastas_for_RI_sequence(wc):
     fastas = list()
     fastas.append(config['refs']['DNA'])
-    for idx, module in enumerate(config['experiments'][wc.exprmnt]['pipeline']):
-        if module in ['plA', 'SCS', 'UMI']:
+    for idx, component in enumerate(config['RI_experiments'][wc.exprmnt]['pipeline']):
+        component = list(component.keys())[0]
+        if component in ['plA', 'SCS', 'UMI']:
             prefix = '.'.join(
-                config['experiments'][wc.exprmnt]['pipeline'][:idx+1]
+                [
+                    list(c.keys())[0]
+                    for c in config['RI_experiments'][wc.exprmnt]['pipeline'][:idx+1]
+                ]
             )
             fastas.append(
-                f'{RI_d}/{wc.exprmnt}/{wc.prefix}.fasta',
+                f'{RI_d}/{wc.exprmnt}/{prefix}.fasta',
             )
-    return ','.join(fastas)
+    return fastas
 
 def experiment_prefix(exprmnt):
     prefix = list()
-    for module in config["experiments"][exprmnt]["pipeline"]:
-        prefix.append(list(module)[0])
+    for component in config['RI_experiments'][exprmnt]['pipeline']:
+        prefix.append(list(component)[0])
     return '.'.join(prefix)
     
 rule all:
     input:
         [
             f'{RI_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq'
-            for exprmnt in config['experiments']
+            for exprmnt in config['RI_experiments']
         ],
         
 
@@ -51,7 +55,8 @@ rule sequence:
     params:
         name = lambda wc: f'{exprmnt_sample(wc.exprmnt)}_{wc.exprmnt}_RI',
         tmp_dir = f'{RI_d}/{{exprmnt}}/{{prefix}}.Seq.tmps',
-        other = lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['Seq'],
+        fastas = lambda wc: ','.join(fastas_for_RI_sequence(wc)),
+        other = lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Seq'],
     threads:
         32
     shell:
@@ -59,7 +64,7 @@ rule sequence:
         'mkdir -p {params.tmp_dir} && '
         '{input.binary}'
         ' -m {input.mdf}'
-        ' --references={input.fastas}'
+        ' --references={params.fastas}'
         ' -o {output.fastq}'
         ' --temp "{params.tmp_dir}"'
         ' -n "{params.name}"'
@@ -78,7 +83,7 @@ rule trunc:
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['Trc'],
+        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Trc'],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
@@ -94,7 +99,7 @@ rule pcr:
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.PCR.mdf',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['PCR'],
+        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['PCR'],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
@@ -109,7 +114,7 @@ rule umi:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.mdf',
         fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.fasta',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['UMI'],
+        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['UMI'],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
@@ -125,7 +130,7 @@ rule single_cell:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.mdf',
         fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.fasta',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['SCB'],
+        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['SCB'],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
@@ -141,7 +146,7 @@ rule polyA:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.mdf',
         fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.fasta',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['plA'],
+        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['plA'],
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
@@ -157,7 +162,7 @@ rule splicer:
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Spc.mdf',
     params:
-        lambda wc: config['experiments'][wc.exprmnt]['pipeline'][module_idx(wc.prefix)]['Spc'],
+        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Spc'],
     shell:
         '{input.binary}'
         ' -a {input.tsv}'

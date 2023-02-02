@@ -2,6 +2,7 @@
 *.o
 *.pch
 main
+data/*
 build/*
 test/binaries/*
 simulator
