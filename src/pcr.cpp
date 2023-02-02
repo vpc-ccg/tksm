@@ -384,7 +384,7 @@ int main(int argc, char **argv){
     }
 
     options.add_options()
-        ("m,molecule-description", "Molecule description file", cxxopts::value<string>())
+        ("i,molecule-description", "Molecule description file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
         ("read-count", "Number of reads to simulate", cxxopts::value<size_t>()->default_value("100000"))
         ("cycles", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
