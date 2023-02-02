@@ -27,7 +27,7 @@ experiments:
             - UMI:
                 '--format5 10'
             - PCR:
-                '--cycles 5 -X Taq-setting1'
+                '--cycles 5 -x Taq-setting1'
             - Trc:
                 '--only-single-isoform'
             - Seq:
