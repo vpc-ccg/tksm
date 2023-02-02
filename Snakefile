@@ -6,7 +6,13 @@ if len(config)==0:
 outpath = config['outpath']
 preproc_d = f'{outpath}/preprocess'
 RI_d = f'{outpath}/RI'
+DEBUG=True
 
+if DEBUG:
+    def pipe(X):
+        return X
+    def temp(X):
+        return X
 def exprmnt_sample(exprmnt):
     return config['RI_experiments'][exprmnt]['sample']
 
@@ -42,7 +48,15 @@ rule all:
             f'{RI_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq'
             for exprmnt in config['RI_experiments']
         ],
-        
+       
+
+rule make_binary:
+    input:
+        "src/{prefix}.cpp"
+    output:
+        "build/{prefix}"
+    shell:
+        "make {output}"
 
 rule sequence:
     input:
