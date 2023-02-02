@@ -135,7 +135,7 @@ rule single_cell:
         '{input.binary}'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
-        ' -a {output.fasta}'
+        ' -f {output.fasta}'
         ' {params}'
 
 rule polyA:
