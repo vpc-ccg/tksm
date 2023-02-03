@@ -25,7 +25,7 @@ def fastas_for_RI_sequence(wc):
     fastas.append(config['refs']['DNA'])
     for idx, component in enumerate(config['RI_experiments'][wc.exprmnt]['pipeline']):
         component = list(component.keys())[0]
-        if component in ['plA', 'SCS', 'UMI']:
+        if component in ['plA', 'SCB', 'UMI']:
             prefix = '.'.join(
                 [
                     list(c.keys())[0]
