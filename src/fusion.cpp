@@ -850,12 +850,12 @@ int main(int argc, char **argv){
     options.add_options()
         //("p,paf",  "Path to whole genome mappings in paf format", cxxopts::value<string>())
         ("g,gtf",  "Path to gtf annotation file", cxxopts::value<string>())
-        ("d,dna",  "Path to human genome reference file", cxxopts::value<string>())
+        ("r,dna",  "Path to human genome reference file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
-        ("m,input", "Path to input mdf", cxxopts::value<string>())
+        ("i,input", "Path to input mdf", cxxopts::value<string>())
         ("fusion-count", "Number of gene fusions to simulate", cxxopts::value<int>()->default_value("0"))
         ("translocation-ratio", "Percentage of fusions to be simulated as translocations", cxxopts::value<double>()->default_value("0.1"))
-        ("f,fusion-file", "Tab separated file to describe fusions", cxxopts::value<string>())
+        ("fusion-file", "Tab separated file to describe fusions", cxxopts::value<string>())
         ("disable-deletions", "Disables deletions (from fusions) to remove expression on overlapping genes", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))       
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("h,help", "Help screen")
@@ -884,7 +884,7 @@ int main(int argc, char **argv){
     string path_to_dna   {args["dna"].as<string>()};
 
     string out_mdf_path {args["output"].as<string>()};
-    string input_mdf_path {args["m"].as<string>()};
+    string input_mdf_path {args["input"].as<string>()};
 
     int seed = args["seed"].as<int>();;
     rand_gen.seed(seed);
@@ -921,8 +921,8 @@ int main(int argc, char **argv){
     vector<isoform> user_defined_fusion_isoforms;
     set<string> deleted_genes;
     int event_count_so_far = 0;
-    if(args["f"].count() > 0){
-        auto [given_fus, event_positions, _event_count] = simulate_given_fusions(args["f"].as<string>(), exon_trie, gene_ptrs);
+    if(args["fusion-file"].count() > 0){
+        auto [given_fus, event_positions, _event_count] = simulate_given_fusions(args["fusion-file"].as<string>(), exon_trie, gene_ptrs);
         event_count_so_far = _event_count;
         for( const auto &ff : given_fus){
             user_defined_fusion_isoforms.push_back(ff.second);

@@ -41,7 +41,7 @@ int main(int argc, char **argv){
     options.add_options()
         ("i,input",  "input mdf file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
-        ("a,polya-reference", "Output poly A reference file", cxxopts::value<string>())
+        ("r,polya-reference", "Output poly A reference file", cxxopts::value<string>())
         ("expand-isoforms", "Expand isoforms to molecules", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("gamma", "Use Gamma distribution [α,β]", cxxopts::value<vector<double>>())

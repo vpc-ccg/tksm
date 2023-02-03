@@ -78,7 +78,7 @@ rule sequence:
         'rm -rf {params.tmp_dir} && '
         'mkdir -p {params.tmp_dir} && '
         '{input.binary}'
-        ' -m {input.mdf}'
+        ' -i {input.mdf}'
         ' --references={params.fastas}'
         ' -o {output.fastq}'
         ' --temp "{params.tmp_dir}"'
@@ -134,7 +134,7 @@ rule umi:
         '{input.binary}'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
-        ' -a {output.fasta}'
+        ' -f {output.fasta}'
         ' {params}'
 
 rule single_cell:
@@ -166,7 +166,7 @@ rule polyA:
         '{input.binary}'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
-        ' -a {output.fasta}'
+        ' -f {output.fasta}'
         ' {params}'
 
 rule splicer:

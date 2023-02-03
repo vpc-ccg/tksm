@@ -132,11 +132,10 @@ int main(int argc, char **argv){
     options.add_options()
         ("i,input",  "input mdf file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
-        ("a,umi-reference", "Output umi reference file", cxxopts::value<string>())
+        ("f,umi-fasta", "Output umi reference file", cxxopts::value<string>())
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("format5", "UMI sequence format or length", cxxopts::value<string>()->default_value("16"))
         ("format3", "UMI sequence format or length to be attached to 3'", cxxopts::value<string>()->default_value(""))
-        ("back-ratio", "Ratio of umi's inserted to the 3' of the molecule", cxxopts::value<double>()->default_value("0.0"))
         ("h,help", "Help screen")
     ;
     auto args = options.parse(argc, argv);
@@ -145,7 +144,7 @@ int main(int argc, char **argv){
         std::cout << options.help() << std::endl;
         return 0;
     }
-    std::vector<string> mandatory = {"input","output", "umi-reference"};
+    std::vector<string> mandatory = {"input","output", "umi-fasta"};
 
     int missing_parameters = 0;
     for( string &param : mandatory){
@@ -186,7 +185,7 @@ int main(int argc, char **argv){
     }
     molecules = nm;
 
-    std::string umi_ref_file = args["umi-reference"].as<string>();
+    std::string umi_ref_file = args["umi-fasta"].as<string>();
     std::ofstream umi_file{umi_ref_file};
 
     if(std::isdigit(umi_format[0])){
