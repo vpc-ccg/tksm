@@ -45,29 +45,34 @@ NS_experiments:
 plots:
     - {
         rule: raw_lengths,
-        data: [MCF7-sgnex,NS_1],
+        data: [MCF7-sgnex, RI_1, NS_1],
         title: ''
     }
     - {
-        rule: mapped_raw_lengths,
-        data: [MCF7-sgnex, RI_1],
+        rule: raw_lengths,
+        data: [N1, RI_2],
         title: ''
     }
-    - {
-        rule: mapped_lengths,
-        data: [MCF7-sgnex, RI_1],
-        title: ''
-    }
-    - {
-        rule: substition,
-        data: [MCF7-sgnex, RI_1],
-        title: ''
-    }
-    - {
-        rule: polyA,
-        data: [MCF7-sgnex, RI_1],
-        title: ''
-    }
+    # - {
+    #     rule: mapped_raw_lengths,
+    #     data: [MCF7-sgnex, 'RI_1'],
+    #     title: ''
+    # }
+    # - {
+    #     rule: mapped_lengths,
+    #     data: [MCF7-sgnex, NS_1],
+    #     title: ''
+    # }
+    # - {
+    #     rule: substition,
+    #     data: [MCF7-sgnex, NS_1],
+    #     title: ''
+    # }
+    # - {
+    #     rule: polyA,
+    #     data: [MCF7-sgnex, NS_1],
+    #     title: ''
+    # }
 
 exec:
     RI_splicer:
@@ -97,19 +102,18 @@ exec:
 
 refs:
     cDNA:
-        /groups/hachgrp/annotations/cDNA/97/Homo_sapiens.GRCh38.cdna.all.fa
+        data/refs/Homo_sapiens.GRCh38.cdna.all.fa
     DNA:
-        /groups/hachgrp/annotations/DNA/97/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+        data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
     GTF:
-        /groups/hachgrp/annotations/GTF/97/Homo_sapiens.GRCh38.97.gtf
+        data/refs/Homo_sapiens.GRCh38.108.gtf
     10x_bc:
-        /groups/hachgrp/software/cellranger/3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/3M-february-2018.txt.gz
-
+        data/refs/3M-february-2018.txt.gz
 
 samples:
     'MCF7-sgnex':
         fastq:
-            - /groups/hachgrp/projects/dev-genion/raw-data/wts/fastq/sg-nex-data/SGNex_MCF7_directcDNA_replicate1_run2.fastq.gz
+            - data/samples/MCF7-sgnex.fastq.gz
     'N1':
         fastq:
-            - /groups/hachgrp/projects/col-flannigan-scrna-2021/raw-data/scrna-long-reads/PAG34747_N1_pass_fastq_concat.fastq
+            - data/samples/N1.fastq

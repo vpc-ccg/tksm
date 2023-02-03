@@ -21,14 +21,21 @@ module RI_smk:
     snakefile: 'Snakefile'
     config: config
 
-
 outpath   = config['outpath']
 preproc_d = f'{outpath}/preprocess'
 RI_d      = f'{outpath}/RI'
 NS_d = f'{outpath}/NS'
 plots_d   = f'{outpath}/plots'
 
-use rule * from RI_smk exclude minimap_cdna  as RI_*
+use rule * from RI_smk as RI_*
+
+use rule minimap_cdna from RI_smk as RI_minimap_cdna with:
+    input:
+        reads = lambda wc: get_sample_fastqs(wc.sample),
+        ref = config['refs']['cDNA'],
+use rule scTagger_lr_seg from RI_smk as RI_scTagger_lr_seg with:
+    input:
+        reads = lambda wc: get_sample_fastqs(wc.sample),
 
 def longest_polys(seq, s, e, step, match_score=1, mismatch_score=-2, char='A'):
     if e-s == 0:
@@ -356,18 +363,6 @@ rule polyA:
         plt.title('Poly(A,T) length distribution')
         plt.savefig(output[0],dpi=300)
 
-rule minimap_cdna:
-    input:
-        reads = lambda wc: get_sample_fastqs(wc.sample),
-        ref = config['refs']['cDNA'],
-    output:
-        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
-    threads:
-        32
-    shell:
-        'minimap2 -t {threads} -x map-ont -c --eqx -p0 -o {output.paf} {input.ref} {input.reads}'
-
-
 rule NS_analysis:
     input:
         reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
@@ -388,7 +383,7 @@ rule NS_analysis:
         ' --annotation {input.gtf}'
         ' -o {params.output_prefix}'
         ' -t {threads}'
-        '--no_intron_retention'
+        ' --no_intron_retention'
 
 rule NS_quantify:
     input:
