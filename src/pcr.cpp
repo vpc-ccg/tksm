@@ -125,7 +125,7 @@ int main(int argc, char **argv){
     }
 
     options.add_options()
-        ("i,input", "Molecule description file", cxxopts::value<string>())
+        ("i,input", "Molecule description file", cxxopts::value<string>(),)
         ("o,output", "Output path", cxxopts::value<string>())
         ("read-count", "Number of reads to simulate", cxxopts::value<size_t>()->default_value("100000"))
         ("cycles", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
@@ -143,7 +143,7 @@ int main(int argc, char **argv){
         return 0;
     }
 
-    std::vector<string> mandatory =  {"molecule-description", "output"};
+    std::vector<string> mandatory =  {"input", "output"};
     if(args.count("fastq") > 0 && args["fastq"].as<bool>()){
         mandatory.push_back("references");
     }
@@ -180,7 +180,7 @@ int main(int argc, char **argv){
     int seed = args["seed"].as<int>();;
     rand_gen.seed(seed);
 
-    ifstream md_file(args["molecule-description"].as<string>());
+    ifstream md_file(args["input"].as<string>());
     vector<molecule_descriptor> molecules = parse_mdf(md_file);
 
     if( molecules.size() > 2 * args["read-count"].as<size_t>()){
