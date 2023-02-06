@@ -24,7 +24,6 @@ using std::tuple;
 using std::ostream;
 using std::ofstream;
 using std::ifstream;
-using std::cerr;
 
 
 //Random number generator, seed is set in the main function
@@ -125,7 +124,7 @@ int main(int argc, char **argv){
     }
 
     options.add_options()
-        ("i,input", "Molecule description file", cxxopts::value<string>(),)
+        ("i,input", "Molecule description file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
         ("read-count", "Number of reads to simulate", cxxopts::value<size_t>()->default_value("100000"))
         ("cycles", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
