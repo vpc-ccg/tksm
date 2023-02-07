@@ -14,7 +14,7 @@ outpath:
 # Seq : sequence --> Must be last module
 RI_experiments:
     e1:
-        sample : "N1"
+        sample : "N1_chr21"
         pipeline:
             - Xpr_sc:
                 ''
@@ -71,20 +71,42 @@ exec:
         py/truncate_kde.py
 
 refs:
-    cDNA:
-        /groups/hachgrp/annotations/cDNA/97/Homo_sapiens.GRCh38.cdna.all.fa
-    DNA:
-        /groups/hachgrp/annotations/DNA/97/Homo_sapiens.GRCh38.dna.primary_assembly.fa
-    GTF:
-        /groups/hachgrp/annotations/GTF/97/Homo_sapiens.GRCh38.97.gtf
+    Homo_sapiens:
+        cDNA:
+            data/refs/Homo_sapiens.GRCh38.cdna.all.fa
+        DNA:
+            data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+        GTF:
+            data/refs/Homo_sapiens.GRCh38.108.gtf
+    Homo_sapiens_chr21:
+        cDNA:
+            data/refs/Homo_sapiens.GRCh38.cdna.chr21.fa
+        DNA:
+            data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.chr21.fa
+        GTF:
+            data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
     10x_bc:
-        /groups/hachgrp/software/cellranger/3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/3M-february-2018.txt.gz
+        data/refs/3M-february-2018.txt.gz
 
 
 samples:
     'MCF7-sgnex':
         fastq:
-            - /groups/hachgrp/projects/dev-genion/raw-data/wts/fastq/sg-nex-data/SGNex_MCF7_directcDNA_replicate1_run2.fastq.gz
+            - data/samples/MCF7-sgnex.fastq.gz
+        ref:
+            Homo_sapiens
+    'MCF7-sgnex_chr21':
+        fastq:
+            - data/samples/MCF7-sgnex_subsample.fastq.gz
+        ref:
+            Homo_sapiens_chr21
     'N1':
         fastq:
-            - /groups/hachgrp/projects/col-flannigan-scrna-2021/raw-data/scrna-long-reads/PAG34747_N1_pass_fastq_concat.fastq
+            - data/samples/N1.fastq
+        ref:
+            Homo_sapiens
+    'N1_chr21':
+        fastq:
+            - data/samples/N1_subsample.fastq.gz
+        ref:
+            Homo_sapiens_chr21

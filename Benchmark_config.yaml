@@ -12,13 +12,28 @@ RI_experiments:
             - plA:
                 '--normal=40,10 --min-length=5 --expand-isoforms'
             - PCR:
-                '--cycles 5 -X Taq-setting1'
+                '--cycles 5 -x Taq-setting1'
+            - Trc:
+                '--only-single-isoform'
+            - Seq:
+                '--other-br="--tail_noise_model=nanopore"'
+    RI_1_chr21:
+        sample : 'MCF7-sgnex_chr21'
+        pipeline:
+            - Xpr:
+                ''
+            - Spc:
+                '--molecule-count 5000'
+            - plA:
+                '--normal=40,10 --min-length=5 --expand-isoforms'
+            - PCR:
+                '--cycles 5 -x Taq-setting1'
             - Trc:
                 '--only-single-isoform'
             - Seq:
                 '--other-br="--tail_noise_model=nanopore"'
     RI_2:
-        sample : 'N1'
+        sample : 'N1_chr21'
         pipeline:
             - Xpr_sc:
                 ''
@@ -31,7 +46,7 @@ RI_experiments:
             - UMI:
                 '--format5 10'
             - PCR:
-                '--cycles 5 -X Taq-setting1'
+                '--cycles 5 -x Taq-setting1'
             - Trc:
                 '--only-single-isoform'
             - Seq:
@@ -41,39 +56,17 @@ NS_experiments:
         sample : 'MCF7-sgnex'
         simulation_params:
             '-n 100000 --seed 42'
+    NS_1_chr21:
+        sample : 'MCF7-sgnex_chr21'
+        simulation_params:
+            '-n 50000 --seed 42'
 
 plots:
     - {
-        rule: raw_lengths,
-        data: [MCF7-sgnex, RI_1, NS_1],
-        title: ''
+        rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition],
+        data: [MCF7-sgnex_chr21, RI_1_chr21, NS_1_chr21],
     }
-    - {
-        rule: raw_lengths,
-        data: [N1, RI_2],
-        title: ''
-    }
-    # - {
-    #     rule: mapped_raw_lengths,
-    #     data: [MCF7-sgnex, 'RI_1'],
-    #     title: ''
-    # }
-    # - {
-    #     rule: mapped_lengths,
-    #     data: [MCF7-sgnex, NS_1],
-    #     title: ''
-    # }
-    # - {
-    #     rule: substition,
-    #     data: [MCF7-sgnex, NS_1],
-    #     title: ''
-    # }
-    # - {
-    #     rule: polyA,
-    #     data: [MCF7-sgnex, NS_1],
-    #     title: ''
-    # }
-
+    
 exec:
     RI_splicer:
         build/splicer
@@ -101,12 +94,20 @@ exec:
         simulator.py
 
 refs:
-    cDNA:
-        data/refs/Homo_sapiens.GRCh38.cdna.all.fa
-    DNA:
-        data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
-    GTF:
-        data/refs/Homo_sapiens.GRCh38.108.gtf
+    Homo_sapiens:
+        cDNA:
+            data/refs/Homo_sapiens.GRCh38.cdna.all.fa
+        DNA:
+            data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+        GTF:
+            data/refs/Homo_sapiens.GRCh38.108.gtf
+    Homo_sapiens_chr21:
+        cDNA:
+            data/refs/Homo_sapiens.GRCh38.cdna.all.fa
+        DNA:
+            data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+        GTF:
+            data/refs/Homo_sapiens.GRCh38.108.gtf
     10x_bc:
         data/refs/3M-february-2018.txt.gz
 
@@ -114,6 +115,20 @@ samples:
     'MCF7-sgnex':
         fastq:
             - data/samples/MCF7-sgnex.fastq.gz
+        ref:
+            Homo_sapiens
+    'MCF7-sgnex_chr21':
+        fastq:
+            - data/samples/MCF7-sgnex_subsample.fastq.gz
+        ref:
+            Homo_sapiens_chr21
     'N1':
         fastq:
             - data/samples/N1.fastq
+        ref:
+            Homo_sapiens
+    'N1_chr21':
+        fastq:
+            - data/samples/N1_subsample.fastq.gz
+        ref:
+            Homo_sapiens_chr21
