@@ -34,7 +34,7 @@ int main(int argc, char **argv){
     cxxopts::Options options("RNAInfuser sequencer module", "Sequencer");
     const string software_name = "rnainfuser";
     options.add_options("RNAInfuser")
-        ("m,molecule-description", "Molecule description file", cxxopts::value<string>())
+        ("i,input", "Molecule description file", cxxopts::value<string>())
         ("r,references",  "List of comma separated references, (required for fastq output)", cxxopts::value<vector<string>>())
         ("o,output", "Output path", cxxopts::value<string>())
         ("temp", "Temp folder", cxxopts::value<string>()->default_value("."))
@@ -42,7 +42,6 @@ int main(int argc, char **argv){
         ("badread", "path to badread-runner.py (default checks $PATH)", cxxopts::value<string>()->default_value("badread-runner.py"))
         ("t,threads", "Number of threads/batches", cxxopts::value<int>())
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
-        ("fasta", "Input is fasta", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("keep-temp", "Keep generated temp files", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("h,help", "Help screen")
     ;
@@ -63,10 +62,8 @@ int main(int argc, char **argv){
         return 0;
     }
 
-    std::vector<string> mandatory =  {"molecule-description", "output"};
-    if(args.count("fasta") == 0){
-        mandatory.push_back("references");
-    }
+    std::vector<string> mandatory =  {"input", "output", "references"};
+
 
     int missing_parameters = 0;
     for( string &param : mandatory){
@@ -84,92 +81,65 @@ int main(int argc, char **argv){
 
     vector<string> batch_files;
     vector<int64_t> actual_throughputs;
-    string input_filename {args["m"].as<string>()};
-    if(args.count("fasta") > 0 ){ //Input is fasta
-        map<string, string> seqs = read_fasta_fast(input_filename);
-        int64_t total_throughput = std::accumulate(seqs.begin(),seqs.end(),0L, [] (int64_t sum, const std::pair<string, string> &sp) { return sum + sp.second.size();});
-        int64_t throughput_per_batch = total_throughput / args["threads"].as<int>() + 1;
-        int64_t throughput_so_far = throughput_per_batch;
-        int current_batch = -1;
-        std::ofstream ost;
-        for( const auto &sp : seqs){
-            int64_t seq_len = sp.second.size();
-            if(throughput_so_far + seq_len > throughput_per_batch && current_batch + 1< args["t"].as<int>()){
-                if(current_batch >= 0){
-                    actual_throughputs.push_back(throughput_so_far);
-                }
-                ++current_batch;
+    string input_filename {args["input"].as<string>()};
 
-                throughput_so_far = 0;
-                string batch_file = args["temp"].as<string>() + "/" + software_name + "." +
-                    args["name"].as<string>() + ".batch-" + std::to_string(current_batch) + ".fasta";
-                batch_files.push_back(batch_file);
-                ost.close();
-                ost.open(batch_file);
-            }
-            ost << ">" << sp.first << "\n" << sp.second << "\n";
-            throughput_so_far += seq_len;
-        }
-        actual_throughputs.push_back(throughput_so_far);
+    std::ifstream infile(input_filename);
+    vector<molecule_descriptor> molecules = parse_mdf(infile);
+    map<string, string> refs;
+    for(const string &path : args["references"].as<vector<string>>()){
+        refs.merge(read_fasta_fast(path));
     }
-    else{//Generate fasta from mdf
-        std::ifstream infile(input_filename);
-        vector<molecule_descriptor> molecules = parse_mdf(infile);
-        map<string, string> refs;
-        for(const string &path : args["references"].as<vector<string>>()){
-            refs.merge(read_fasta_fast(path));
+    int64_t total_throughput = std::accumulate(molecules.begin(),molecules.end(),0L,
+    [] (int64_t sum, const molecule_descriptor &pc) {
+        for(const auto &ival : pc.cget_segments()){
+            sum+=(ival.end - ival.start);
         }
-        int64_t total_throughput = std::accumulate(molecules.begin(),molecules.end(),0L,
-        [] (int64_t sum, const molecule_descriptor &pc) {
-            for(const auto &ival : pc.cget_segments()){
-                sum+=(ival.end - ival.start);
-            }
-            return sum;
-        });
-        int64_t throughput_per_batch = total_throughput / args["threads"].as<int>() + 1;
-        int64_t throughput_so_far = throughput_per_batch;
-        int current_batch = -1;
-        std::ofstream ost;
+        return sum;
+    });
+    int64_t throughput_per_batch = total_throughput / args["threads"].as<int>() + 1;
+    int64_t throughput_so_far = throughput_per_batch;
+    int current_batch = -1;
+    std::ofstream ost;
 
-        std::cerr << "Throughput per thread :" << throughput_per_batch << "\n";
+    std::cerr << "Throughput per thread :" << throughput_per_batch << "\n";
 
-        for( const molecule_descriptor& pc : molecules){
-            pcr_molecule pcm{pc};
-            for(const auto& seg : pc.cget_segments()){
-                throughput_so_far += (seg.end - seg.start);
-            }
-            if(throughput_so_far > throughput_per_batch && current_batch + 1< args["t"].as<int>()){
-                if(current_batch >= 0){
-                    actual_throughputs.push_back(throughput_so_far);
-                }
-                ++current_batch;
-
-                throughput_so_far = 0;
-                string batch_file = args["temp"].as<string>() + "/" + software_name + "." +
-                    args["name"].as<string>() + ".batch-" + std::to_string(current_batch) + ".fasta";
-                batch_files.push_back(batch_file);
-                ost.close();
-                ost.open(batch_file);
-            }
-            ost << ">" << pc.get_id()<< " depth=1\n";
-            
-            size_t seq_index = 0;
-            for(const auto& seg : pc.cget_segments()){
-                string seq = refs.at(seg.chr).substr(seg.start, seg.end - seg.start);
-                for(const auto &pr : pc.errors_so_far){
-                    if((unsigned) pr.first > seq_index && (unsigned) pr.first < seq_index + seq.size()){
-                        seq[ pr.first - seq_index] = pr.second;
-                    }
-                }
-                if(!seg.plus_strand){
-                    reverse_complement::complement_inplace(seq);
-                }
-                ost << seq << "\n";
-                seq_index += seq.size();
-            }
+    for( const molecule_descriptor& pc : molecules){
+        pcr_molecule pcm{pc};
+        for(const auto& seg : pc.cget_segments()){
+            throughput_so_far += (seg.end - seg.start);
         }
-        actual_throughputs.push_back(throughput_so_far);
+        if(throughput_so_far > throughput_per_batch && current_batch + 1< args["t"].as<int>()){
+            if(current_batch >= 0){
+                actual_throughputs.push_back(throughput_so_far);
+            }
+            ++current_batch;
+
+            throughput_so_far = 0;
+            string batch_file = args["temp"].as<string>() + "/" + software_name + "." +
+                args["name"].as<string>() + ".batch-" + std::to_string(current_batch) + ".fasta";
+            batch_files.push_back(batch_file);
+            ost.close();
+            ost.open(batch_file);
+        }
+        ost << ">" << pc.get_id()<< " depth=1\n";
+        
+        size_t seq_index = 0;
+        for(const auto& seg : pc.cget_segments()){
+            string seq = refs.at(seg.chr).substr(seg.start, seg.end - seg.start);
+            for(const auto &pr : pc.errors_so_far){
+                if((unsigned) pr.first > seq_index && (unsigned) pr.first < seq_index + seq.size()){
+                    seq[ pr.first - seq_index] = pr.second;
+                }
+            }
+            if(!seg.plus_strand){
+                reverse_complement::complement_inplace(seq);
+            }
+            ost << seq << "\n";
+            seq_index += seq.size();
+        }
     }
+    actual_throughputs.push_back(throughput_so_far);
+
     
     auto throughput_iter = actual_throughputs.begin();
     string other = args["other-br"].as<string>();

@@ -13,6 +13,7 @@ if DEBUG:
         return X
     def temp(X):
         return X
+
 def exprmnt_sample(exprmnt):
     return config['RI_experiments'][exprmnt]['sample']
 
@@ -21,10 +22,11 @@ def component_idx(prefix):
 
 def fastas_for_RI_sequence(wc):
     fastas = list()
-    fastas.append(config['refs']['DNA'])
+    sample = exprmnt_sample(wc.exprmnt)
+    fastas.append(config['refs'][get_sample_ref(sample)]['DNA'])
     for idx, component in enumerate(config['RI_experiments'][wc.exprmnt]['pipeline']):
         component = list(component.keys())[0]
-        if component in ['plA', 'SCS', 'UMI']:
+        if component in ['plA', 'SCB', 'UMI']:
             prefix = '.'.join(
                 [
                     list(c.keys())[0]
@@ -41,7 +43,27 @@ def experiment_prefix(exprmnt):
     for component in config['RI_experiments'][exprmnt]['pipeline']:
         prefix.append(list(component)[0])
     return '.'.join(prefix)
-    
+
+def get_sample_ref(name):
+    if name in config['samples']:
+        return config['samples'][name]['ref']
+    elif name in config['RI_experiments']:
+        return get_sample_ref(config['RI_experiments'][name]['sample'])
+    else:
+        print(f'Invalid experiment/sample name! {name}')
+        1/0
+
+def get_sample_fastqs(name):
+    if name in config['samples']:
+        sample = name
+        return config['samples'][sample]['fastq']
+    elif name in config['RI_experiments']:
+        exprmnt = name
+        return [f'{RI_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq']
+    else:
+        print(f'Invalid experiment/sample name! {name}')
+        1/0
+
 rule all:
     input:
         [
@@ -74,10 +96,10 @@ rule sequence:
     threads:
         32
     shell:
-        'rm -rf {params.tmp_dir} && '
         'mkdir -p {params.tmp_dir} && '
+        'rm -f {params.tmp_dir}/* && '
         '{input.binary}'
-        ' -m {input.mdf}'
+        ' -i {input.mdf}'
         ' --references={params.fastas}'
         ' -o {output.fastq}'
         ' --temp "{params.tmp_dir}"'
@@ -93,7 +115,7 @@ rule trunc:
         x = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.X_idxs.npy',
         y = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.Y_idxs.npy',
         g = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.grid.npy',
-        gtf = config['refs']['GTF'],
+        gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf',
     params:
@@ -133,7 +155,7 @@ rule umi:
         '{input.binary}'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
-        ' -a {output.fasta}'
+        ' -f {output.fasta}'
         ' {params}'
 
 rule single_cell:
@@ -165,14 +187,14 @@ rule polyA:
         '{input.binary}'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
-        ' -a {output.fasta}'
+        ' -f {output.fasta}'
         ' {params}'
 
 rule splicer:
     input:
         binary = config['exec']['RI_splicer'],
         tsv = f'{RI_d}/{{exprmnt}}/{{prefix}}.tsv',
-        gtf = config['refs']['GTF'],
+        gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Spc.mdf',
     params:
@@ -220,8 +242,8 @@ rule truncate_kde:
 
 rule minimap_cdna:
     input:
-        reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
-        ref = config['refs']['cDNA'],
+        reads = lambda wc: get_sample_fastqs(wc.sample),
+        ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
     output:
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
     threads:
@@ -256,7 +278,7 @@ rule scTagger_extract_bc:
 
 rule scTagger_lr_seg:
     input:
-        reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
+        reads = lambda wc: get_sample_fastqs(wc.sample),
     output:
         tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz',
     threads:

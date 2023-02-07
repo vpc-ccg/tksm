@@ -1,0 +1,17 @@
+name: RNAInFuser_bench
+channels:
+  - anaconda 
+  - conda-forge
+  - bioconda
+dependencies:
+  - snakemake
+  - python-edlib
+  - numpy
+  - matplotlib
+  - tqdm
+  - pandas
+  - scikit-learn
+  - sctagger=1.1
+  - minimap2
+  - nanosim=3.1.0
+  - gxx

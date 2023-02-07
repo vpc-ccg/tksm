@@ -4,6 +4,24 @@
 #include <vector>
 #include <string>
 #include <ostream>
+#include <map>
+
+#define FMT_HEADER_ONLY
+#include <fmt/core.h>
+#define FMTLOG_HEADER_ONLY
+#include <fmtlog/fmtlog.h>
+
+inline fmtlog::fmtlogT::LogLevel parse_loglevel(const std::string &str){   
+
+    static std::map<std::string, fmtlog::fmtlogT::LogLevel> log_level_map {
+        {"DEBUG", fmtlog::DBG},
+        {"INFO", fmtlog::INF},
+        {"WARN", fmtlog::WRN},
+        {"ERROR", fmtlog::ERR},
+        {"OFF", fmtlog::OFF}
+    };
+    return log_level_map.at(str);
+}
 
 template< class B>
 inline void print_tsv(std::ostream &ost, B b){

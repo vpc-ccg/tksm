@@ -657,9 +657,8 @@ int main(int argc, char **argv){
     std::cout << approx_trigamma(2) << "\n";
     options.add_options()
         ("i,input", "Molecule description file", cxxopts::value<string>())
-        ("gtf", "Path to GTF annotation", cxxopts::value<string>())
+        ("g,gtf", "Path to GTF annotation", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
-        ("log", "log lengths of the input mappings", cxxopts::value<string>())
         ("fit", "Use estimated distribution from the given fast{a,q}", cxxopts::value<string>())
         ("only-single-isoform", "Use only single isoform genes", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("multivariate", "Use estimated distribution from the given paf", cxxopts::value<string>())
@@ -738,10 +737,6 @@ int main(int argc, char **argv){
     }
     vector<double> dist_params;
 
-    ofstream logfile;
-    if(args["log"].count()>0){
-        logfile.open(args["log"].as<string>());
-    }
 
     if( chosen_dist == "kde"){
 
@@ -779,13 +774,9 @@ int main(int argc, char **argv){
             }
             lens.push_back( pf.qend - pf.qstart);
             tlens.push_back( pf.tlen);
-            if( args["log"].count() > 0){
-                logfile << pf.qend - pf.qstart << "\t" << pf.tlen << "\n";
-            }
+
         }
-        if(args["log"].count()>0){
-            logfile.close();
-        }
+
         auto [distname, mu_func, sigma] = multi_variate(lens, tlens);
         
         std::cerr << distname << " is chosen!\n";
@@ -847,9 +838,7 @@ int main(int argc, char **argv){
             }
             lens.push_back( pf.qend - pf.qstart);
 
-            if( args["log"].count() > 0){
-                logfile << pf.qend - pf.qstart << "\t" << pf.tlen << "\n";
-            }
+
         }
 
         auto [name, ll, mean, std] = fit(lens);

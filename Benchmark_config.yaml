@@ -1,20 +1,39 @@
 outpath:
-    /groups/hachgrp/projects/dev-RNAInFuser/analysis/RI-experiments
+    /groups/hachgrp/projects/dev-RNAInFuser/analysis/RI-experiments/paper2
 
-### Pipeline modules
-# Xpr : expression  --> Must be first module only
-# Xpr_sc : expression fpr single cells   --> Must be first module only
-# Spc : splice --> Must be second module
-# Fus : fusion
-# PCR : pcr
-# plA : polyA
-# SCB : single_cell
-# UMI : umi
-# Trc : truncate
-# Seq : sequence --> Must be last module
 RI_experiments:
-    e1:
-        sample : "N1_chr21"
+    RI_1:
+        sample : 'MCF7-sgnex'
+        pipeline:
+            - Xpr:
+                ''
+            - Spc:
+                '--molecule-count 1000000'
+            - plA:
+                '--normal=40,10 --min-length=5 --expand-isoforms'
+            - PCR:
+                '--cycles 5 -x Taq-setting1'
+            - Trc:
+                '--only-single-isoform'
+            - Seq:
+                '--other-br="--tail_noise_model=nanopore"'
+    RI_1_chr21:
+        sample : 'MCF7-sgnex_chr21'
+        pipeline:
+            - Xpr:
+                ''
+            - Spc:
+                '--molecule-count 5000'
+            - plA:
+                '--normal=40,10 --min-length=5 --expand-isoforms'
+            - PCR:
+                '--cycles 5 -x Taq-setting1'
+            - Trc:
+                '--only-single-isoform'
+            - Seq:
+                '--other-br="--tail_noise_model=nanopore"'
+    RI_2:
+        sample : 'N1_chr21'
         pipeline:
             - Xpr_sc:
                 ''
@@ -32,22 +51,22 @@ RI_experiments:
                 '--only-single-isoform'
             - Seq:
                 '--other-br="--tail_noise_model=nanopore"'
-    # e2:
-    #     sample : "MCF7-sgnex"
-    #     pipeline:
-    #         - Xpr:
-    #             ''
-    #         - Spc:
-    #             '--molecule-count 1000000'
-    #         - plA:
-    #             '--normal=40,10 --min-length=5 --expand-isoforms'
-    #         - PCR:
-    #             '--cycles 5 -x Taq-setting1'
-    #         - Trc:
-    #             '--only-single-isoform'
-    #         - Seq:
-    #             '--other-br="--tail_noise_model=nanopore"'
+NS_experiments:
+    NS_1:
+        sample : 'MCF7-sgnex'
+        simulation_params:
+            '-n 100000 --seed 42'
+    NS_1_chr21:
+        sample : 'MCF7-sgnex_chr21'
+        simulation_params:
+            '-n 50000 --seed 42'
 
+plots:
+    - {
+        rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition, polyA,tpm_plot],
+        data: [MCF7-sgnex_chr21, RI_1_chr21, NS_1_chr21],
+    }
+    
 exec:
     RI_splicer:
         build/splicer
@@ -69,6 +88,10 @@ exec:
         py/transcript_abundance.py
     truncate_kde:
         py/truncate_kde.py
+    tNS_simulate:
+        read_analysis.py
+    tNS_analyze:
+        simulator.py
 
 refs:
     Homo_sapiens:
@@ -87,7 +110,6 @@ refs:
             data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
     10x_bc:
         data/refs/3M-february-2018.txt.gz
-
 
 samples:
     'MCF7-sgnex':
