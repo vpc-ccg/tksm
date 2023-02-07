@@ -32,7 +32,7 @@ use rule * from RI_smk as RI_*
 use rule minimap_cdna from RI_smk as RI_minimap_cdna with:
     input:
         reads = lambda wc: get_sample_fastqs(wc.sample),
-        ref = config['refs']['cDNA'],
+        ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
 use rule scTagger_lr_seg from RI_smk as RI_scTagger_lr_seg with:
     input:
         reads = lambda wc: get_sample_fastqs(wc.sample),
@@ -62,6 +62,17 @@ def run_longest_polys(seq):
                 L = max(L,l)
     return L
 
+def get_sample_ref(name):
+    if name in config['samples']:
+        return config['samples'][name]['ref']
+    elif name in config['RI_experiments']:
+        return get_sample_ref(config['RI_experiments'][name]['sample'])
+    elif name in config['NS_experiments']:
+        return get_sample_ref(config['NS_experiments'][name]['sample'])
+    else:
+        print(f'Invalid experiment/sample name! {name}')
+        1/0
+
 def get_sample_fastqs(name):
     if name in config['samples']:
         sample = name
@@ -82,8 +93,9 @@ def NS_exprmnt_sample(exprmnt):
 rule all:
     input:
         [
-            f'{plots_d}/{p["rule"]}/{".".join(p["data"])}.png'
+            f'{plots_d}/{r}/{".".join(p["data"])}.png'
             for p in config['plots']
+                for r in p['rules']
         ]
     default_target: True
 
@@ -363,12 +375,57 @@ rule polyA:
         plt.title('Poly(A,T) length distribution')
         plt.savefig(output[0],dpi=300)
 
+rule expression:
+    input:
+        script = config['exec']['transcript_abundance'],
+        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
+    output:
+        tsv = f'{plots_d}/expression_stats/{{sample}}.expression_stats.tsv',
+    shell:
+       'python {input.script} -p {input.paf} -o {output.tsv}' 
+
+rule tpm_plot:
+    input:
+        tsvs = lambda wc: [
+            f'{plots_d}/expression_stats/{s}.expression_stats.tsv'
+            for s in wc.samples.split('.')
+        ],
+    output:
+        png = f'{plots_d}/tpm_plot/{{samples}}.png',        
+    run:
+
+        frames = dict()
+        real = pd.read_csv(input.tsvs[0], sep="\t", header=0)
+        real_keys = set(real['target_id'])
+        real.set_index('target_id', inplace=True)
+
+        samples = wildcards.samples.split('.')
+        fl = len(samples)-1
+        fig,axs = plt.subplots(fl,1,sharex=True,sharey=True,figsize=(12,12*fl))
+        for i, (k,v) in enumerate(zip(samples[1:], input.tsvs[1:])):
+            ax = axs[i]
+            frame = pd.read_csv(v, sep="\t", header=0)
+            keys = real_keys.intersection(set(frame['target_id']))
+            frame.set_index('target_id',inplace=True)
+
+            X = frame.loc[list(keys)]['tpm']
+            Y = real.loc[list(keys)]['tpm']
+
+            ax.plot(X,Y, 'o', alpha=.5, label = k)
+
+            ax.set_xlabel('Simulated read TPM')
+            ax.set_ylabel('Simulation input reads TPM')
+            ax.legend()
+            ax.set_xscale('log')
+            ax.set_yscale('log')
+        plt.savefig(output[0])
+
 rule NS_analysis:
     input:
         reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
-        dna = config['refs']['DNA'],
-        cdna = config['refs']['cDNA'],
-        gtf = config['refs']['GTF'],
+        dna  = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['DNA'],
+        cdna = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
+        gtf  = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['GTF'],
     output:
         analysis_dir = directory(f'{NS_d}/{{sample}}/analysis'),
     params:
@@ -391,9 +448,9 @@ rule NS_quantify:
     output:
         quantify_tsv = f'{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv',
     params:
-        dna = config['refs']['DNA'],
-        cdna = config['refs']['cDNA'],
-        gtf  = config['refs']['GTF'],
+        dna  = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['DNA'],
+        cdna = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
+        gtf  = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['GTF'],
         output_prefix = f'{NS_d}/{{sample}}/abundance/sim',
     threads:
         32
@@ -409,8 +466,8 @@ rule NS_simulate:
     input:
         analysis_dir = lambda wc: f'{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis',
         quantify_tsv = lambda wc: f'{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv',
-        dna = config['refs']['DNA'],
-        cdna = config['refs']['cDNA'],
+        dna  = lambda wildcards: config['refs'][get_sample_ref(wildcards.exprmnt)]['DNA'],
+        cdna = lambda wildcards: config['refs'][get_sample_ref(wildcards.exprmnt)]['cDNA'],
     output:
         fasta = f'{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta',
     params:
