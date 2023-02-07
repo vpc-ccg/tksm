@@ -100,6 +100,7 @@ void describe_program(const cxxopts::ParseResult &args){
     logi("abundance: {}", args["abundance"].as<string>());
     logi("output: {}", args["output"].as<string>());
     logi("Non-coding transcripts are {}",  args["non-coding"].as<bool>() ? "not skipped" : "skipped");
+    logi("seed: {}", args["seed"].as<int>())
     fmtlog::poll(true);
 }
 
@@ -121,14 +122,7 @@ int main(int argc, char **argv){
     ;
     auto args = options.parse(argc, argv);
 
-    map<string, fmtlog::fmtlogT::LogLevel> log_level_map {
-        {"DEBUG", fmtlog::DBG},
-        {"INFO", fmtlog::INF},
-        {"WARN", fmtlog::WRN},
-        {"ERROR", fmtlog::ERR},
-        {"OFF", fmtlog::OFF}
-    };
-    fmtlog::setLogLevel(log_level_map.at(args["verbosity"].as<string>()));
+    fmtlog::setLogLevel(parse_loglevel(args["verbosity"].as<string>()));
 
     if(args.count("help") > 0){
         std::cout << options.help() << std::endl;

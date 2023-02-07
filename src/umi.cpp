@@ -12,7 +12,7 @@
 #include "interval.h"
 #include "mdf.h"
 
-#define FMT_HEADER_ONLY 1
+
 #include <fmt/format.h>
 
 using std::string;
@@ -125,6 +125,17 @@ void add_UMIs(vector<molecule_descriptor> &copies, ostream &umifile, int len){
     }
 }
 
+void describe_program( const cxxopts::ParseResult &args){
+    logi("Running UMI tagging module");
+    logi("Input MDF: {}", args["input"].as<string>());
+    logi("Output MDF: {}", args["output"].as<string>());
+    logi("Output UMI FASTA: {}", args["umi-fasta"].as<string>());
+    logi("5' UMI tag format: {}", args["format5"].as<string>());
+    logi("3' UMI tag format: {}", args["format3"].as<string>());
+    logi("Random seed: {}", args["seed"].as<int>());
+    fmtlog::poll(true);
+}
+
 int main(int argc, char **argv){
 
     cxxopts::Options options("RNAInfuser UMI", "UMI module of RNAInfuser");
@@ -136,9 +147,12 @@ int main(int argc, char **argv){
         ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
         ("format5", "UMI sequence format or length", cxxopts::value<string>()->default_value("16"))
         ("format3", "UMI sequence format or length to be attached to 3'", cxxopts::value<string>()->default_value(""))
+        ("verbosity", "choose verbosity among [DEBUG, INFO, WARN, ERROR, OFF]", cxxopts::value<string>()->default_value("WARN"))
         ("h,help", "Help screen")
     ;
     auto args = options.parse(argc, argv);
+    fmtlog::setLogLevel(parse_loglevel(args["verbosity"].as<string>()));
+    fmtlog::flushOn(fmtlog::DBG);
 
     if(args.count("help") > 0){
         std::cout << options.help() << std::endl;
@@ -163,6 +177,8 @@ int main(int argc, char **argv){
         return 1;
     }
 
+    describe_program(args);
+
     int seed = args["seed"].as<int>();;
     rand_gen.seed(seed);
 
@@ -170,7 +186,9 @@ int main(int argc, char **argv){
 
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
-    
+   
+    logi("Parsing MDF file {}", mdf_file_path);
+
     vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
 
 
@@ -188,6 +206,8 @@ int main(int argc, char **argv){
     std::string umi_ref_file = args["umi-fasta"].as<string>();
     std::ofstream umi_file{umi_ref_file};
 
+    logi("Adding UMI tags");
+
     if(std::isdigit(umi_format[0])){
         int length = stoi(umi_format);
         add_UMIs(molecules, umi_file, length);
@@ -196,7 +216,12 @@ int main(int argc, char **argv){
         add_UMIs(molecules,umi_file, umi_format, args["format3"].as<string>());
     }
 
+
+
     string outfile_name = args["output"].as<string>();
+    
+    logi("Printing output MDF: {}", outfile_name);
+
     std::ofstream outfile{outfile_name};
     for(const molecule_descriptor &md : molecules){
         outfile << md;
