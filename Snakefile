@@ -6,6 +6,7 @@ if len(config)==0:
 outpath = config['outpath']
 preproc_d = f'{outpath}/preprocess'
 RI_d = f'{outpath}/RI'
+time_d = f'{outpath}/time'
 DEBUG=True
 
 if DEBUG:
@@ -88,6 +89,8 @@ rule sequence:
         fastas = fastas_for_RI_sequence,
     output:
         fastq = f'{RI_d}/{{exprmnt}}/{{prefix}}.Seq.fastq',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/{{prefix}}.Seq.benchmark'
     params:
         name = lambda wc: f'{exprmnt_sample(wc.exprmnt)}_{wc.exprmnt}_RI',
         tmp_dir = f'{RI_d}/{{exprmnt}}/{{prefix}}.Seq.tmps',
@@ -118,6 +121,8 @@ rule trunc:
         gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/{{prefix}}.Trc.benchmark'
     params:
         lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Trc'],
     shell:
@@ -134,6 +139,8 @@ rule pcr:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.PCR.mdf',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/{{prefix}}.PCR.benchmark'
     params:
         lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['PCR'],
     shell:
@@ -149,6 +156,8 @@ rule umi:
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.mdf',
         fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.fasta',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/{{prefix}}.UMI.benchmark'
     params:
         lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['UMI'],
     shell:
@@ -165,6 +174,8 @@ rule single_cell:
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.mdf',
         fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.fasta',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/{{prefix}}.SCB.benchmark'
     params:
         lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['SCB'],
     shell:
@@ -181,6 +192,8 @@ rule polyA:
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.mdf',
         fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.fasta',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/{{prefix}}.plA.benchmark'
     params:
         lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['plA'],
     shell:
@@ -197,6 +210,8 @@ rule splicer:
         gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Spc.mdf',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/{{prefix}}.Spc.benchmark'
     params:
         lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Spc'],
     shell:
@@ -212,6 +227,8 @@ rule expression:
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
     output:
         tsv = f'{RI_d}/{{exprmnt}}/Xpr.tsv',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/Xpr.benchmark'
     shell:
        'python {input.script} -p {input.paf} -o {output.tsv}' 
 
@@ -222,6 +239,8 @@ rule expression_sc:
         lr_matches = lambda wc: f'{preproc_d}/scTagger/{exprmnt_sample(wc.exprmnt)}/{exprmnt_sample(wc.exprmnt)}.lr_matches.tsv.gz'
     output:
         tsv = f'{RI_d}/{{exprmnt}}/Xpr_sc.tsv',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/Xpr_sc.benchmark'
     shell:
        'python {input.script} -p {input.paf} -m {input.lr_matches} -o {output.tsv}' 
 
@@ -233,6 +252,8 @@ rule truncate_kde:
         x = f'{preproc_d}/truncate_kde/{{sample}}.X_idxs.npy',
         y = f'{preproc_d}/truncate_kde/{{sample}}.Y_idxs.npy',
         g = f'{preproc_d}/truncate_kde/{{sample}}.grid.npy',
+    benchmark:
+        f'{time_d}/{{sample}}/truncate_kde.benchmark'
     params:
         out_prefix = f'{preproc_d}/truncate_kde/{{sample}}',
     threads:
@@ -246,6 +267,8 @@ rule minimap_cdna:
         ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
     output:
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
+    benchmark:
+        f'{time_d}/{{sample}}/minimap2_cdna.benchmark'
     threads:
         32
     shell:
@@ -257,6 +280,8 @@ rule scTagger_match:
         wl_tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz',
     output:
         lr_tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz',
+    benchmark:
+        f'{time_d}/{{sample}}/scTagger_match.benchmark'
     threads: 32
     resources:
         mem='64G',
@@ -270,9 +295,8 @@ rule scTagger_extract_bc:
         wl=config['refs']['10x_bc'],
     output:
         tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz',
-    resources:
-        mem='16G',
-        time=59,
+    benchmark:
+        f'{time_d}/{{sample}}/scTagger_extract_bc.benchmark'
     shell:
         'scTagger.py extract_sr_bc_from_lr -i {input.tsv} -wl {input.wl} -o {output.tsv}'
 
@@ -283,8 +307,7 @@ rule scTagger_lr_seg:
         tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz',
     threads:
         32
-    resources:
-        mem='256G',
-        time=59,
+    benchmark:
+        f'{time_d}/{{sample}}/scTagger_lr_seg.benchmark'
     shell:
         'scTagger.py extract_lr_bc -r {input.reads} -o {output.tsv} -t {threads}'

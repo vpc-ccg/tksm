@@ -25,6 +25,7 @@ outpath   = config['outpath']
 preproc_d = f'{outpath}/preprocess'
 RI_d      = f'{outpath}/RI'
 NS_d = f'{outpath}/NS'
+time_d = f'{outpath}/time'
 plots_d   = f'{outpath}/plots'
 
 use rule * from RI_smk as RI_*
@@ -428,6 +429,8 @@ rule NS_analysis:
         gtf  = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['GTF'],
     output:
         analysis_dir = directory(f'{NS_d}/{{sample}}/analysis'),
+    benchmark:
+        f'{time_d}/{{sample}}/NS_analysis.benchmark',
     params:
         output_prefix = f'{NS_d}/{{sample}}/analysis/sim',
     threads:
@@ -447,6 +450,8 @@ rule NS_quantify:
         reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
     output:
         quantify_tsv = f'{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv',
+    benchmark:
+        f'{time_d}/{{sample}}/NS_quantify.benchmark',
     params:
         dna  = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['DNA'],
         cdna = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
@@ -470,6 +475,8 @@ rule NS_simulate:
         cdna = lambda wildcards: config['refs'][get_sample_ref(wildcards.exprmnt)]['cDNA'],
     output:
         fasta = f'{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta',
+    benchmark:
+        f'{time_d}/{{exprmnt}}/NS_simulate.benchmark',
     params:
         analysis_model = lambda wc: f'{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis/sim',
         out_prefix = lambda wc: f'{NS_d}/{wc.exprmnt}/simulation',
