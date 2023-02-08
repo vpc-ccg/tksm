@@ -62,7 +62,7 @@ exec:
     RI_truncate:
         build/truncate
     RI_sequencer:
-        build/sequencer
+        py/sequence.py
     badread:
         /groups/hachgrp/projects/dev-simulation/code/Badread/badread-runner.py
     transcript_abundance:

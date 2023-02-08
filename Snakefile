@@ -99,15 +99,10 @@ rule sequence:
     threads:
         32
     shell:
-        'mkdir -p {params.tmp_dir} && '
-        'rm -f {params.tmp_dir}/* && '
         '{input.binary}'
         ' -i {input.mdf}'
         ' --references={params.fastas}'
         ' -o {output.fastq}'
-        ' --temp "{params.tmp_dir}"'
-        ' -n "{params.name}"'
-        ' --badread={input.badread}'
         ' --threads={threads}'
         ' {params.other}'
 
