@@ -11,9 +11,7 @@
 
 #include "interval.h"
 #include "mdf.h"
-
-#define FMT_HEADER_ONLY 1
-#include <fmt/format.h>
+#include "util.h"
 
 using std::string;
 
@@ -164,41 +162,29 @@ int main(int argc, char **argv){
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
     
-    vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
+    //vector<molecule_descriptor> molecules = parse_mdf(mdf_file, true);
 
-//Unroll the depth
-    vector<molecule_descriptor> nm;
-    for(const molecule_descriptor &pcp : molecules){
-        for(int i = 0; i < pcp.get_depth(); ++i){
-            nm.push_back(pcp);
-            nm.back().depth(1);
-            nm.back().id(nm.back().get_id() +"_" + std::to_string(i));
-        }
-    }
-    molecules = nm;
+    auto streamer = stream_mdf(mdf_file, true);
 
-
-
-   
     std::ofstream outfile{args["output"].as<string>()};
     std::ofstream fastafile{args["fasta"].as<string>()};
     std::unordered_set<string> used_barcodes;
-    for(molecule_descriptor &md : molecules){
+    while(streamer){
+        molecule_descriptor md = streamer();
         const string &barcode_str = md.get_comment("CB")[0];
         const string barcode_ctg_id = "CB_" + barcode_str;
         if( barcode_str != "."){
             md.prepend_segment(ginterval{barcode_ctg_id, 0, (int)barcode_str.size(), "+"});
-            used_barcodes.insert(barcode_str);
+            if( used_barcodes.count(barcode_str) == 0){
+                fastafile << ">" << barcode_ctg_id << "\n" << barcode_str << "\n";
+                used_barcodes.insert(barcode_str);
+            }
         }
         if( !args["keep-meta-barcodes"].as<bool>()){
             md.drop_comment("CB");
         }
         outfile << md;
     }
-   
-    for( const string& barcode_str: used_barcodes){
-        const string barcode_ctg_id = "CB_" + barcode_str;
-        fastafile << ">" << barcode_ctg_id << "\n" << barcode_str << "\n";
-    }
+
     return 0;
 }

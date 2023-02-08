@@ -19,18 +19,22 @@ using std::string;
 std::mt19937 rand_gen{std::random_device{}()};
 
 template<class Distribution>
-int add_polyA(vector<molecule_descriptor> &copies, Distribution &dist, int min_polya_len = 0){
+int add_polyA(molecule_descriptor &md, Distribution &dist, int min_polya_len = 0){
+    int poly_a_len = static_cast<int>(dist(rand_gen));
+    md.prepend_segment(ginterval{POLYA_CONTIG_NAME, 0, poly_a_len, "+"});
+    return poly_a_len;
+}
+
+template<class Distribution>
+int add_polyA_vec(vector<molecule_descriptor> &copies, Distribution &dist, int min_polya_len = 0){
 
     int max_size = 0;
-    for(molecule_descriptor &pcp : copies){
-        int poly_a_len = static_cast<int>(dist(rand_gen));
+    for(molecule_descriptor &md : copies){
+        int poly_a_len = add_polyA(md , dist, min_polya_len);
         if(poly_a_len > max_size){
             max_size = poly_a_len;
         }
-        pcp.prepend_segment(ginterval{POLYA_CONTIG_NAME, 0, poly_a_len, "+"});
-    }
-
-        
+    }   
     return max_size;
 }
 
@@ -108,8 +112,9 @@ int main(int argc, char **argv){
     int min_polya_len = args["min-length"].as<int>();
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
-    
-    vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
+   
+
+//    vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
     int largest_poly_a = 0; 
     std::variant<
         std::weibull_distribution<>,
@@ -134,26 +139,20 @@ int main(int argc, char **argv){
         return 1;
     }
 
-    if(args["expand-isoforms"].as<bool>()){
-        vector<molecule_descriptor> nm;
-        for(const molecule_descriptor &pcp : molecules){
-            for(int i = 0; i < pcp.get_depth(); ++i){
-                nm.push_back(pcp);
-                nm.back().depth(1)
-                    ->id(nm.back().get_id() + "_" + std::to_string(i));
-            }
-        }
-        molecules = nm;
-    }
-    std::visit([&molecules, min_polya_len, &largest_poly_a](auto dist){
-        largest_poly_a = add_polyA(molecules, dist, min_polya_len);
-    }, dist);
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};
-    for(const molecule_descriptor& md : molecules){
+    auto mdf_stream = stream_mdf(mdf_file, args["expand-isoforms"].as<bool>());
+    while(mdf_stream){
+        molecule_descriptor md = mdf_stream();
+        std::visit([&md, min_polya_len, &largest_poly_a](auto dist){
+            int poly_a_len = add_polyA(md, dist, min_polya_len);
+            if(poly_a_len > largest_poly_a){
+                largest_poly_a = poly_a_len;
+            }
+        }, dist);
         outfile << md;
     }
-    
+
     std::string polya_ref_file = args["polya-reference"].as<string>();
     std::ofstream polya_file{polya_ref_file};
 

@@ -192,12 +192,12 @@ double polygamma(int n, double x){
 
 
 template <class Distribution, class MeanFoo>
-void multi_truncate(molecule_descriptor &pcp, MeanFoo mu_func, double sigma, Distribution &dist){
+void multi_truncate(molecule_descriptor &md, MeanFoo mu_func, double sigma, Distribution &dist){
     int rand_val = dist(rand_gen);
     
     size_t i = 0;
     int len_so_far = 0;
-    auto &segments = pcp.get_segments();
+    auto &segments = md.get_segments();
     for( const ginterval &g : segments){
         len_so_far += (g.end - g.start);
         if(len_so_far >= rand_val){
@@ -209,35 +209,35 @@ void multi_truncate(molecule_descriptor &pcp, MeanFoo mu_func, double sigma, Dis
     if( i != segments.size()){
         std::stringstream ss;
         ss << segments[i].chr << ':' << segments[i].end - (len_so_far - rand_val) << '-' << segments[i].end;
-        pcp.add_comment("truncated", ss.str());
+        md.add_comment("truncated", ss.str());
         segments[i].end -= (len_so_far - rand_val); //Update last segment;
         for(size_t j = i + 1;j < segments.size();++j){
             std::stringstream ss;
             ss << segments[j];
-            pcp.add_comment("truncated", ss.str()); 
+            md.add_comment("truncated", ss.str()); 
         }
         segments.resize(i+1);
     }
 
     i = 0;
-    for( const auto &p : pcp.errors_so_far){
+    for( const auto &p : md.errors_so_far){
         if(p.first > rand_val){
             break;
         }
         ++i;
     }
-    pcp.errors_so_far.resize(i);
+    md.errors_so_far.resize(i);
 }
 
 
 
-void truncate(molecule_descriptor &pcp, int rand_val, int min_val = 100){
+void truncate(molecule_descriptor &md, int rand_val, int min_val = 100){
     if(min_val > rand_val){
         rand_val = min_val;
     }
     size_t i = 0;
     int len_so_far = 0;
-    auto &segments = pcp.get_segments();
+    auto &segments = md.get_segments();
     for( const ginterval &g : segments){
         len_so_far += (g.end - g.start);
         if(len_so_far >= rand_val){
@@ -249,30 +249,30 @@ void truncate(molecule_descriptor &pcp, int rand_val, int min_val = 100){
 
         std::stringstream ss;
         ss << segments[i].chr << ':' << segments[i].end - (len_so_far - rand_val) << '-' << segments[i].end;
-        pcp.add_comment("truncated", ss.str());
+        md.add_comment("truncated", ss.str());
 
         segments[i].end -= (len_so_far - rand_val); //Update last segment;
         for(size_t j = i + 1;j < segments.size();++j){
             std::stringstream ss;
             ss << segments[j];
-            pcp.add_comment("truncated", ss.str());
+            md.add_comment("truncated", ss.str());
         }
         segments.resize(i+1);
     }
 
     i = 0;
-    for( const auto &p : pcp.errors_so_far){
+    for( const auto &p : md.errors_so_far){
         if(p.first > rand_val){
             break;
         }
         ++i;
     }
-    pcp.errors_so_far.resize(i);
+    md.errors_so_far.resize(i);
 }
 
 template <class Distribution>
-void truncate(molecule_descriptor &pcp, Distribution &dist, int min_val = 100){
-    return truncate(pcp, dist(rand_gen), min_val);
+void truncate(molecule_descriptor &md, Distribution &dist, int min_val = 100){
+    return truncate(md, dist(rand_gen), min_val);
 }
 
 struct identity{
@@ -739,73 +739,21 @@ int main(int argc, char **argv){
 
 
     if( chosen_dist == "kde"){
-        /*
-        auto get_numbers = [](){
-            int x,y;
-            std::cin >> x >> y;
-            return std::make_pair(x,y);
-        };
 
-
-        int binsize = 100;
-        vector< vector< std::pair<int, int>>> bins;
-        size_t initial_fill_size = 10000000;
-        //Initial filling
-        for(int i = 0; i < initial_fill_size; ++i){
-            auto [a,b] = get_numbers();
-            size_t _tb = b / binsize;
-            if( _tb > bins.size()){
-                bins.resize(_tb+1);
-            }
-            bins[_tb].emplace_back(a,b);
-        }
-        auto request_truncation = [&get_numbers, binsize, &bins] (int size){
-            int target_bin = size / binsize;
-            if( target_bin > bins.size()){
-                bins.resize(target_bin+1);
-            }
-            int iter_c = 0;
-            int max_trials = 10000;
-            size_t max_reservation = 10000;
-            while(bins[target_bin].size() == 0){
-                auto [a, b] = get_numbers();
-                size_t _tb = b / binsize;
-                if( _tb > bins.size()){
-                    bins.resize(_tb+1);
-                }
-                if(bins[_tb].size() < max_reservation){
-                    bins[_tb].emplace_back(a,b);
-                }
-                ++iter_c;
-                if( iter_c > max_trials){
-                    std::cerr << "Exceeded max trials for truncation size " << size << " may be outside of the KDE dist! Returning 0\n";
-                    return 0;
-                }
-            }
-            int ret_value = bins[target_bin].back().first;
-            bins[target_bin].pop_back();
-            return ret_value;
-        };
-*/
-       
         const vector<string> &kdefiles = args["kde"].as<vector<string>>();
         custom_distribution2D<> disko {kdefiles[0], kdefiles[1], kdefiles[2]};
         string mdf_file_path {args["input"].as<string>()};
         std::ifstream mdf_file {mdf_file_path};
-        vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
-
-        for( molecule_descriptor &pcp : molecules){
-
-            truncate(pcp, disko(rand_gen, pcp.size()));
-        }
+        auto streamer = stream_mdf(mdf_file, true);
         string outfile_name = args["output"].as<string>();
         std::ofstream outfile{outfile_name};
-        for(const molecule_descriptor &md : molecules){
+        
+        while(streamer){
+            auto md = streamer();
+            truncate(md, disko(rand_gen, md.size()));
             outfile << md;
         }
         return 0;
-
-
     }
     else if( chosen_dist == "multivariate"){
         string dist_fit_file_path {args["multivariate"].as<string>()};
@@ -833,39 +781,39 @@ int main(int argc, char **argv){
         
         std::cerr << distname << " is chosen!\n";
         string mdf_file_path {args["input"].as<string>()};
+        
+
+        string outfile_name = args["output"].as<string>();
+        std::ofstream outfile{outfile_name};
 
         std::ifstream mdf_file {mdf_file_path};
+        auto streamer = stream_mdf(mdf_file, true);
 
-        vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
-        for( molecule_descriptor &pcp : molecules){
+        while(streamer){
+            auto md = streamer();           
             std::variant<
                 std::normal_distribution<>,
                 std::lognormal_distribution<>,
                 std::gamma_distribution<>> dist;
-            std::normal_distribution<> normal_dist(mu_func(pcp.size()), sigma);
-            std::lognormal_distribution<> lognormal_dist(mu_func(pcp.size()), sigma);
+            std::normal_distribution<> normal_dist(mu_func(md.size()), sigma);
+            std::lognormal_distribution<> lognormal_dist(mu_func(md.size()), sigma);
             if( distname == "normal"){
-                dist = std::normal_distribution<>(mu_func(pcp.size()), sigma);
+                dist = std::normal_distribution<>(mu_func(md.size()), sigma);
             }
             else if( distname == "lognormal"){
-                dist = std::lognormal_distribution<>(mu_func(pcp.size()), sigma);
+                dist = std::lognormal_distribution<>(mu_func(md.size()), sigma);
             }
             else if( distname == "gamma"){
-                dist = std::gamma_distribution<>(mu_func(pcp.size()), sigma);
+                dist = std::gamma_distribution<>(mu_func(md.size()), sigma);
             }
             else{
                 std::cerr << distname << " not implemented!\n";
                 return -1;
             }
-            std::visit([&pcp](auto dist){
-                    truncate(pcp, dist);
+            std::visit([&md](auto dist){
+                    truncate(md, dist);
             }, dist);
-        }
-
-
-        string outfile_name = args["output"].as<string>();
-        std::ofstream outfile{outfile_name};
-        for(const molecule_descriptor &md : molecules){
+            
             outfile << md;
         }
 
@@ -907,34 +855,31 @@ int main(int argc, char **argv){
         }
 
     }
-    string mdf_file_path {args["input"].as<string>()};
 
-    std::ifstream mdf_file {mdf_file_path};
 
     std::normal_distribution<> normal_dist(dist_params[0], dist_params[1]);
 
     std::lognormal_distribution<> lognormal_dist(dist_params[0], dist_params[1]);
     std::gamma_distribution<> gamma_dist(dist_params[0], dist_params[1]);
 
-    vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
-    for( molecule_descriptor &pcp : molecules){
-        if(chosen_dist == "normal"){
-            truncate(pcp, normal_dist);
-        }
-        else if(chosen_dist == "lognormal"){
-            truncate(pcp, lognormal_dist);
-        }
-        else if(chosen_dist == "gamma"){
-            truncate(pcp, gamma_dist);
-        }
-    }
-
     string outfile_name = args["output"].as<string>();
     std::ofstream outfile{outfile_name};
 
-    for(const molecule_descriptor &md : molecules){
+    string mdf_file_path {args["input"].as<string>()};
+    std::ifstream mdf_file {mdf_file_path};
+    auto streamer = stream_mdf(mdf_file, true);
+    while(streamer){
+        auto md = streamer();
+        if(chosen_dist == "normal"){
+            truncate(md, normal_dist);
+        }
+        else if(chosen_dist == "lognormal"){
+            truncate(md, lognormal_dist);
+        }
+        else if(chosen_dist == "gamma"){
+            truncate(md, gamma_dist);
+        }
         outfile << md;
     }
-    
     return 0;
 }

@@ -33,9 +33,6 @@ class PCRRunner{
     int     cycles;
     double  efficiency;
     double  error_rate;
-    using mut_tree = tree<int, vector<std::pair< int, char >>>;
-
-
     std::uniform_real_distribution<> z1dist  {0,1};
     std::uniform_int_distribution<> basedist {0,3};
     char bases[4] = {'A','C','T','G'};
@@ -91,14 +88,10 @@ class PCRRunner{
             vector<int> positions(pcp.size());
             std::iota(positions.begin(), positions.end(), 0);
 
-            for( int i = 0; i < pcp.get_depth(); ++i){
-                mut_tree mutation_tree;
-                molecule_descriptor pc_c{pcp};
-                pc_c.id(pc_c.get_id() + "_" + std::to_string(i));
-                for(int cycle = 0; cycle < cycles; ++cycle){
-                    do_pcr(ost, pc_c, cycle, positions, vector<std::pair<int, char>>{}, drop_ratio);
-                }
+            for(int cycle = 0; cycle < cycles; ++cycle){
+                do_pcr(ost, pcp, cycle, positions, vector<std::pair<int, char>>{}, drop_ratio);
             }
+
 
         }
         return 0;

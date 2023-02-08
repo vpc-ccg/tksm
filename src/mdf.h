@@ -7,6 +7,7 @@
 #include <vector>
 #include <utility>
 
+#include "generator.h"
 #include "interval.h"
 
 using std::vector;
@@ -14,6 +15,69 @@ using std::string;
 using std::ostream;
 using std::ifstream;
 
+
+
+inline Generator<molecule_descriptor> stream_mdf(ifstream &ist, bool unroll = false){
+    string buffer;
+    buffer.reserve(1000);
+    std::getline(ist, buffer);
+    while(ist){
+        auto fields = rsplit(buffer, "\t");
+        string id {fields[0].substr(1)};
+        int depth{stoi(fields[1])};
+//        int exon_count{stoi(fields[2])};
+        string comment{fields[2]};
+        vector<ginterval> segments;
+        vector<std::pair<int, char>> errors_so_far;
+        size_t size_so_far = 0;
+        std::getline(ist, buffer);
+        while(ist && buffer[0] != '+'){
+        //        for(int i = 0; i< exon_count; ++i){
+
+            auto fields = rsplit(buffer, "\t");
+            string chr{fields[0]};
+            int start {stoi(fields[1])};
+            int end   {stoi(fields[2])};
+            string strand{fields[3]};
+            if(fields.size() > 4){
+                auto mutations = rsplit(fields[4], ",");
+                for(string mutation : mutations){
+                    if(mutation == ""){
+                        continue;
+                    }
+                    char target = mutation[mutation.size()-1];
+                    int mutation_pos = stoi(mutation.substr(0,mutation.size()-1));
+                    errors_so_far.push_back(std::make_pair( size_so_far + mutation_pos, target));
+                }
+            }
+            size_so_far += (end-start);
+            segments.emplace_back(chr, start, end, strand);
+            std::getline(ist, buffer);
+        }
+        molecule_descriptor md{id, !segments[0].plus_strand};
+        md.depth(depth)->update_errors(errors_so_far)->assign_segments(segments)->comment(comment);
+        if (unroll){
+            molecule_descriptor mdc = md;
+            mdc.depth(1);
+            for(int i =0;i<md.get_depth();++i){
+                mdc.id(md.get_id() + "_" + std::to_string(i));
+                co_yield mdc;
+            }
+        }
+        else{
+            co_yield md;
+        }
+    }
+}
+inline vector<molecule_descriptor> parse_mdf(ifstream &ist, bool unroll = false){
+    auto streamer = stream_mdf(ist, unroll);
+    vector<molecule_descriptor> mdfs;
+    while(streamer){
+        mdfs.push_back(streamer());
+    }
+    return mdfs;
+}
+/*
 inline vector<molecule_descriptor> parse_mdf(ifstream &ist){
     vector<molecule_descriptor> molecules;
     string buffer;
@@ -57,7 +121,7 @@ inline vector<molecule_descriptor> parse_mdf(ifstream &ist){
     }
     return molecules;
 }
-
+*/
 inline void print_mdf(ostream &ost, const pcr_copy& molecule){
     //For now use the depth of first pcr_copy
     print_tsv(ost, "+"+molecule.id, molecule.depth/*depth*/, molecule.comment);
