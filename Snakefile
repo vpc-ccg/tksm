@@ -92,19 +92,25 @@ rule sequence:
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.Seq.benchmark'
     params:
-        name = lambda wc: f'{exprmnt_sample(wc.exprmnt)}_{wc.exprmnt}_RI',
-        tmp_dir = f'{RI_d}/{{exprmnt}}/{{prefix}}.Seq.tmps',
-        fastas = lambda wc: ','.join(fastas_for_RI_sequence(wc)),
         other = lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Seq'],
     threads:
         32
     shell:
         '{input.binary}'
         ' -i {input.mdf}'
-        ' --references={params.fastas}'
+        ' --references {input.fastas}'
         ' -o {output.fastq}'
-        ' --threads={threads}'
+        ' --threads {threads}'
         ' {params.other}'
+
+rule mirror:
+    input:
+        "{anything}"
+    output:
+        temp("{anything}.mirror")
+    shell:
+        "cat {input} > {output}"
+
 
 rule trunc:
     input:
@@ -115,7 +121,7 @@ rule trunc:
         g = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.grid.npy',
         gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf',
+        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.Trc.benchmark'
     params:
@@ -133,7 +139,7 @@ rule pcr:
         binary = config['exec']['RI_pcr'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.PCR.mdf',
+        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.PCR.mdf'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.PCR.benchmark'
     params:
@@ -149,8 +155,8 @@ rule umi:
         binary = config['exec']['RI_umi'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.mdf',
-        fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.fasta',
+        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.mdf'),
+        fasta = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.fasta'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.UMI.benchmark'
     params:
@@ -167,8 +173,8 @@ rule single_cell:
         binary = config['exec']['RI_sc_barcoder'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.mdf',
-        fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.fasta',
+        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.mdf'),
+        fasta = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.fasta'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.SCB.benchmark'
     params:
@@ -185,8 +191,8 @@ rule polyA:
         binary = config['exec']['RI_polyA'],
         mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.mdf',
-        fasta = f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.fasta',
+        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.mdf'),
+        fasta = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.fasta'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.plA.benchmark'
     params:
@@ -204,7 +210,7 @@ rule splicer:
         tsv = f'{RI_d}/{{exprmnt}}/{{prefix}}.tsv',
         gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.Spc.mdf',
+        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.Spc.mdf'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.Spc.benchmark'
     params:
