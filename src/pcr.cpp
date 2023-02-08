@@ -119,7 +119,7 @@ int main(int argc, char **argv){
     options.add_options()
         ("i,input", "Molecule description file", cxxopts::value<string>())
         ("o,output", "Output path", cxxopts::value<string>())
-        ("read-count", "Number of reads to simulate", cxxopts::value<size_t>()->default_value("100000"))
+        ("molecule-count", "Number of molecules to simulate", cxxopts::value<size_t>()->default_value("100000"))
         ("cycles", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
         ("efficiency", "Probability of a molecule being duplicated during each pcr cycle", cxxopts::value<double>()->default_value("0.75"))
         ("error-rate", "Probability of substition errors for each base during each pcr cycle", cxxopts::value<double>()->default_value("0.000001"))
@@ -156,7 +156,7 @@ int main(int argc, char **argv){
     int cycles = args["cycles"].as<int>();
     double pcr_efficiency = args["efficiency"].as<double>();
     double error_rate = args["error-rate"].as<double>();
-    int number_of_target_reads = args["read-count"].as<size_t>();
+    int number_of_target_reads = args["molecule-count"].as<size_t>();
 
     if(args["preset"].count() > 0){
         if (pcr_presets.find(args["preset"].as<string>()) == pcr_presets.end()){
@@ -175,9 +175,9 @@ int main(int argc, char **argv){
     ifstream md_file(args["input"].as<string>());
     vector<molecule_descriptor> molecules = parse_mdf(md_file);
 
-    if( molecules.size() > 2 * args["read-count"].as<size_t>()){
+    if( molecules.size() > 2 * args["molecule-count"].as<size_t>()){
         std::shuffle(molecules.begin(), molecules.end(), rand_gen);
-        molecules.resize( 2 * args["read-count"].as<size_t>());
+        molecules.resize( 2 * args["molecule-count"].as<size_t>());
     }
 
 
