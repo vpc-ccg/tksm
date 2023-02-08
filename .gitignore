@@ -13,3 +13,4 @@ simulator
 *.bam
 *.bai
 *.mdf
+*__pycache__*
