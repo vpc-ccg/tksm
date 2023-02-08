@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 
+import sys
 import uuid
 import random
 import argparse
 import functools
 from multiprocessing import Pool
 import gzip
+
+from badread_scripts.error_model import ErrorModel
+from badread_scripts.qscore_model import QScoreModel
+from badread_scripts.tail_noise_model import KDE_noise_generator
+from badread_scripts.identities import Identities
+from badread_scripts import settings
+from badread_scripts.simulate import sequence_fragment
 
 from tqdm import tqdm
 
@@ -28,10 +36,10 @@ def parse_args():
                         required=True,
                         help="Reference FASTA files, space separated.")
     parser.add_argument("-o",
-                        "--output",
+                        "--badread-fastq",
                         type=str,
                         help="FASTQ file.")
-    parser.add_argument("--perfect-reads",
+    parser.add_argument("--perfect-fastq",
                         type=str,
                         help="Generate perfect reads.")
     parser.add_argument('-t',
@@ -40,8 +48,45 @@ def parse_args():
                         default=1,
                         help="Number of threads.",
                         )
+
+    parser.add_argument('--badread-identity', type=str, default='87.5,97.5,5',
+                          help='Sequencing identity distribution (mean, max and stdev, '
+                               'default: DEFAULT)')
+    parser.add_argument('--badread-error_model', type=str, default='nanopore2020',
+                          help='Can be "nanopore2018", "nanopore2020", "pacbio2016", "random" or '
+                               'a model filename')
+    parser.add_argument('--badread-qscore_model', type=str, default='nanopore2020',
+                          help='Can be "nanopore2018", "nanopore2020", "pacbio2016", "random", '
+                               '"ideal" or a model filename')
+    parser.add_argument('--badread-tail_noise_model', type=str, default='none',
+                          help='Can be "nanopore", "pacbio", "none" or a model filename')
+
     args = parser.parse_args()
-    if not args.output and not args.perfect_reads:
+
+    # Process arguments and check for errors
+    try:
+        identity_parameters = [float(x) for x in args.badread_identity.split(',')]
+        assert len(identity_parameters) == 3, "Must specify 3 values for --badread-identity"
+        args.badread_mean_identity = identity_parameters[0]
+        args.badread_max_identity = identity_parameters[1]
+        args.badread_identity_stdev = identity_parameters[2]
+    except (ValueError, IndexError):
+        sys.exit('Error: could not parse --identity values')
+    if args.badread_mean_identity > 100.0:
+        sys.exit('Error: mean read identity cannot be more than 100')
+    if args.badread_max_identity > 100.0:
+        sys.exit('Error: max read identity cannot be more than 100')
+    if args.badread_mean_identity <= settings.MIN_MEAN_READ_IDENTITY:
+        sys.exit(f'Error: mean read identity must be at least {settings.MIN_MEAN_READ_IDENTITY}')
+    if args.badread_max_identity <= settings.MIN_MEAN_READ_IDENTITY:
+        sys.exit(f'Error: max read identity must be at least {settings.MIN_MEAN_READ_IDENTITY}')
+    if args.badread_mean_identity > args.badread_max_identity:
+        sys.exit(f'Error: mean identity ({args.badread_mean_identity}) cannot be larger than max '
+                 f'identity ({args.badread_max_identity})')
+    if args.badread_identity_stdev < 0.0:
+        sys.exit('Error: read identity stdev cannot be negative')
+
+    if not args.badread_fastq and not args.perfect_fastq:
         parser.error("Must specify either --output or --perfect-reads.")
     return args
 
@@ -118,14 +163,16 @@ def apply_modifications(seq, modifications):
         return ''.join(seq)
 
 
-def badread_fastq(molecule_id, seq):
+def badread_fastq(molecule_id, raw_seq):
+    target_identity = identities.get_identity()
+    seq, quals, actual_identity, identity_by_qscores = sequence_fragment(raw_seq, target_identity, error_model, qscore_model, tail_model)
     read_id = uuid.UUID(int=random.getrandbits(128))
     result = list()
-    info = f"length={len(seq)} molecule_id={molecule_id}"
+    info = f"length={len(seq)} error_free_length={len(raw_seq)} read_identity={actual_identity * 100.0:.2f}% molecule_id={molecule_id}"
     result.append(f"@{read_id} {info}")
     result.append(seq)
     result.append("+")
-    result.append("K" * len(seq))
+    result.append(quals)
     return "\n".join(result)
 
 def perfect_fastq(molecule_id, seq):
@@ -161,17 +208,23 @@ if __name__ == "__main__":
 
     targets = dict()
     target_outfiles = dict()
-    if args.output:
+    if args.badread_fastq:
+        identities = Identities(args.badread_mean_identity, args.badread_identity_stdev, args.badread_max_identity, sys.stderr)
+        error_model = ErrorModel(args.badread_error_model, sys.stderr)
+        qscore_model = QScoreModel(args.badread_qscore_model, sys.stderr)
+        tail_model = KDE_noise_generator.load(args.badread_tail_noise_model)
+
         targets['badread_fastq']=badread_fastq
-        target_outfiles['badread_fastq'] = open(args.output, 'w+')
-    if args.perfect_reads:
+        target_outfiles['badread_fastq'] = open(args.badread_fastq, 'w+')
+    if args.perfect_fastq:
         targets['perfect_fastq']=perfect_fastq
-        target_outfiles['perfect_fastq'] = open(args.perfect_reads, 'w+')
+        target_outfiles['perfect_fastq'] = open(args.perfect_fastq, 'w+')
+
     mdf_to_seq_targeted = functools.partial(mdf_to_seq, targets=targets)
     with open(args.input, 'r') as f:
         mdg = mdf_generator(f)
         if args.threads > 1:
-            mapper = functools.partial(Pool(args.threads).imap_unordered, chunksize=1000)
+            mapper = functools.partial(Pool(args.threads).imap_unordered, chunksize=10)
         else:
             mapper = map
         for read_dict in tqdm(mapper(mdf_to_seq_targeted, mdg), desc="Sequencing"):
