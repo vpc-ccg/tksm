@@ -7,6 +7,7 @@
 #include <fstream>
 #include <set>
 
+
 #include <climits>
 
 #include <cgranges/IITree.h>
@@ -189,8 +190,12 @@ int main(int argc, char **argv){
         comment = "CB=" + comment;
         double count = tpm*molecule_count/1'000'000;
         double carry = count - int(count);
-        if( dist(rand_gen) > carry){
+
+        if( dist(rand_gen) < carry){
             count++;
+        }
+        if( int(count) == 0){
+            continue;
         }
         molecule.comment(comment)->depth(count); //rounded down to int
 
