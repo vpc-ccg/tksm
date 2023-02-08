@@ -100,7 +100,7 @@ void describe_program(const cxxopts::ParseResult &args){
     logi("abundance: {}", args["abundance"].as<string>());
     logi("output: {}", args["output"].as<string>());
     logi("Non-coding transcripts are {}",  args["non-coding"].as<bool>() ? "not skipped" : "skipped");
-    logi("seed: {}", args["seed"].as<int>())
+    logi("seed: {}", args["seed"].as<int>());
     fmtlog::poll(true);
 }
 
