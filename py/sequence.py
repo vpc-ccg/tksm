@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
+
+import uuid
+import random
 import argparse
 import functools
 from multiprocessing import Pool
 import gzip
 
 from tqdm import tqdm
+
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -25,8 +30,10 @@ def parse_args():
     parser.add_argument("-o",
                         "--output",
                         type=str,
-                        required=True,
                         help="FASTQ file.")
+    parser.add_argument("--perfect-reads",
+                        type=str,
+                        help="Generate perfect reads.")
     parser.add_argument('-t',
                         '--threads',
                         type=int,
@@ -34,6 +41,8 @@ def parse_args():
                         help="Number of threads.",
                         )
     args = parser.parse_args()
+    if not args.output and not args.perfect_reads:
+        parser.error("Must specify either --output or --perfect-reads.")
     return args
 
 def generate_fasta(fasta):
@@ -43,7 +52,7 @@ def generate_fasta(fasta):
         f = gzip.open(fasta, 'rt')
     else:
         f = open(fasta, 'r')
-    for idx, l in enumerate(f):
+    for _, l in enumerate(f):
         l = l.rstrip('\n')
         if l[0]=='>':
             if len(seq) == 0:
@@ -108,11 +117,29 @@ def apply_modifications(seq, modifications):
             seq[pos] = char
         return ''.join(seq)
 
-def apply_badread(seq):
-    return seq
 
-def mdf_to_seq(mdf):
-    read_id, intervals = mdf
+def badread_fastq(molecule_id, seq):
+    read_id = uuid.UUID(int=random.getrandbits(128))
+    result = list()
+    info = f"length={len(seq)} molecule_id={molecule_id}"
+    result.append(f"@{read_id} {info}")
+    result.append(seq)
+    result.append("+")
+    result.append("K" * len(seq))
+    return "\n".join(result)
+
+def perfect_fastq(molecule_id, seq):
+    read_id = uuid.UUID(int=random.getrandbits(128))
+    result = list()
+    info = f"length={len(seq)} molecule_id={molecule_id}"
+    result.append(f"@{read_id} {info}")
+    result.append(seq)
+    result.append("+")
+    result.append("K" * len(seq))
+    return "\n".join(result)
+
+def mdf_to_seq(mdf, targets=dict()):
+    molecule_id, intervals = mdf
     seq = list()
     for chrom, start, end, strand, modifications in intervals:
         segment = reference_seqs[chrom][start:end].upper()
@@ -122,27 +149,37 @@ def mdf_to_seq(mdf):
         else:
             seq.append(reverse_complement(segment))
     seq = ''.join(seq)
-    seq = apply_badread(seq)
 
-    result = list()
-    result.append(f"@{read_id} length={len(seq)}")
-    result.append(seq)
-    result.append("+")
-    result.append("K" * len(seq))
-    return '\n'.join(result)
+    results = dict()
+    for k,v in targets.items():
+        results[k] = v(molecule_id, seq)
+    return results
 
 if __name__ == "__main__":
     args = parse_args()
-    global reference_seqs
     reference_seqs = get_reference_seqs(args.reference)
-    with open(args.input, 'r') as f, open(args.output, 'w+') as o:
+
+    targets = dict()
+    target_outfiles = dict()
+    if args.output:
+        targets['badread_fastq']=badread_fastq
+        target_outfiles['badread_fastq'] = open(args.output, 'w+')
+    if args.perfect_reads:
+        targets['perfect_fastq']=perfect_fastq
+        target_outfiles['perfect_fastq'] = open(args.perfect_reads, 'w+')
+    mdf_to_seq_targeted = functools.partial(mdf_to_seq, targets=targets)
+    with open(args.input, 'r') as f:
         mdg = mdf_generator(f)
         if args.threads > 1:
             mapper = functools.partial(Pool(args.threads).imap_unordered, chunksize=1000)
         else:
             mapper = map
-        
-        for read in tqdm(mapper(mdf_to_seq, mdg), desc="Sequencing"):
-            print(read, file=o)
+        for read_dict in tqdm(mapper(mdf_to_seq_targeted, mdg), desc="Sequencing"):
+            for k,v in read_dict.items():
+                print(v, file=target_outfiles[k])
+
         if args.threads > 1:
             Pool(args.threads).close()
+
+    for v in target_outfiles.values():
+        v.close()
