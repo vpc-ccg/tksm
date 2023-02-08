@@ -30,7 +30,7 @@ def parse_args():
                         required=True,
                         help="MDF file.")
     parser.add_argument("-r",
-                        "--reference",
+                        "--references",
                         type=str,
                         nargs="+",
                         required=True,
@@ -119,6 +119,7 @@ def get_reference_seqs(reference):
         })
     return reference_seqs
 
+
 def mdf_generator(f):
     # MDF format:
     # Each entry starts with a header: +<mol_id>\t<depth>\t<comments>; 
@@ -138,6 +139,7 @@ def mdf_generator(f):
             intervals = list()
         else:
             chrom, start, end, strand, modifications = line
+
             start, end = int(start), int(end)
             intervals.append(
                 (chrom, start, end, strand, modifications)
@@ -204,7 +206,7 @@ def mdf_to_seq(mdf, targets=dict()):
 
 if __name__ == "__main__":
     args = parse_args()
-    reference_seqs = get_reference_seqs(args.reference)
+    reference_seqs = get_reference_seqs(args.references)
 
     targets = dict()
     target_outfiles = dict()
