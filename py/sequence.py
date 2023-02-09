@@ -36,20 +36,29 @@ def parse_args():
                         required=True,
                         help="Reference FASTA files, space separated.")
     parser.add_argument("-o",
-                        "--badread-fastq",
+                        "--badread",
                         type=str,
-                        help="FASTQ file.")
-    parser.add_argument("--perfect-fastq",
+                        help="Badread reads output file. Default: no output.")
+    parser.add_argument("--perfect",
                         type=str,
-                        help="Generate perfect reads.")
+                        help="Perfect reads output file. Default: no output.")
+    parser.add_argument("--skip-qual-compute",
+                        default=False,
+                        action="store_true",
+                        help="Use all 'K' for q-scores. Default: compute quality score using Edlib alignment to input sequences.")
+    parser.add_argument("-O",
+                        "--output-format",
+                        type=str,
+                        default=None,
+                        choices=['fastq', 'fasta'],
+                        help="Output format. Default: infer from output file extension and fallback to FASTA. Accepts .gz files too.")
     parser.add_argument('-t',
                         '--threads',
                         type=int,
                         default=1,
                         help="Number of threads.",
                         )
-
-    parser.add_argument('--badread-identity', type=str, default='87.5,97.5,5',
+    parser.add_argument('--badread-identity',type=str,default='87.5,97.5,5',
                           help='Sequencing identity distribution (mean, max and stdev, '
                                'default: DEFAULT)')
     parser.add_argument('--badread-error_model', type=str, default='nanopore2020',
@@ -86,7 +95,7 @@ def parse_args():
     if args.badread_identity_stdev < 0.0:
         sys.exit('Error: read identity stdev cannot be negative')
 
-    if not args.badread_fastq and not args.perfect_fastq:
+    if not args.badread and not args.perfect:
         parser.error("Must specify either --output or --perfect-reads.")
     return args
 
@@ -165,27 +174,66 @@ def apply_modifications(seq, modifications):
         return ''.join(seq)
 
 
-def badread_fastq(molecule_id, raw_seq):
+def badread(molecule_id, raw_seq, compute_qual=False):
     target_identity = identities.get_identity()
-    seq, quals, actual_identity, identity_by_qscores = sequence_fragment(raw_seq, target_identity, error_model, qscore_model, tail_model)
-    read_id = uuid.UUID(int=random.getrandbits(128))
-    result = list()
-    info = f"length={len(seq)} error_free_length={len(raw_seq)} read_identity={actual_identity * 100.0:.2f}% molecule_id={molecule_id}"
-    result.append(f"@{read_id} {info}")
-    result.append(seq)
-    result.append("+")
-    result.append(quals)
-    return "\n".join(result)
+    (
+        seq, 
+        quals, 
+        actual_identity, 
+        _
+    ) = sequence_fragment(
+        raw_seq,
+        target_identity,
+        error_model,
+        qscore_model,
+        tail_model,
+        compute_qual,
+    )
+    info = [
+        f"length={len(seq)}",
+        f"error_free_length={len(raw_seq)}",
+        f"read_identity={actual_identity * 100.0:.2f}%",
+        f"molecule_id={molecule_id}",
+    ]
+    return (seq, quals, info)
 
-def perfect_fastq(molecule_id, seq):
-    read_id = uuid.UUID(int=random.getrandbits(128))
-    result = list()
+def perfect(molecule_id, seq):
+    quals = 'K' * len(seq)
     info = f"length={len(seq)} molecule_id={molecule_id}"
-    result.append(f"@{read_id} {info}")
-    result.append(seq)
-    result.append("+")
-    result.append("K" * len(seq))
-    return "\n".join(result)
+    info = [
+        f"length={len(seq)}",
+        f"error_free_length={len(seq)}",
+        f"read_identity={1 * 100.0:.2f}%",
+        f"molecule_id={molecule_id}",
+    ]
+    return (seq, quals, info)
+
+def fastq_formatter(read_id, seq, quals, info):
+    result = [
+        f"@{read_id} {' '.join(info)}",
+        seq,
+        '+',
+        quals,
+    ]
+    return '\n'.join(result)
+
+def fasta_formatter(read_id, seq, _, info):
+    result = [
+        f">{read_id} {' '.join(info)}",
+        seq,
+    ]
+    return '\n'.join(result)
+
+def get_output_file(outfile):
+    if outfile.endswith('.gz'):
+        f = gzip.open(outfile, 'wt+')
+        outfile = outfile[:-3]
+    else:
+        f = open(outfile, 'w+')
+    if outfile.endswith('.fastq') or outfile.endswith('.fq'):
+        return f, fastq_formatter
+    else:
+        return f, fasta_formatter
 
 def mdf_to_seq(mdf, targets=dict()):
     molecule_id, intervals = mdf
@@ -200,8 +248,10 @@ def mdf_to_seq(mdf, targets=dict()):
     seq = ''.join(seq)
 
     results = dict()
-    for k,v in targets.items():
-        results[k] = v(molecule_id, seq)
+    read_id = uuid.UUID(int=random.getrandbits(128))
+    for k,(seq_producer, read_formatter) in targets.items():
+        seq, quals, info = seq_producer(molecule_id, seq)
+        results[k] = read_formatter(read_id, seq, quals, info)        
     return results
 
 if __name__ == "__main__":
@@ -210,17 +260,20 @@ if __name__ == "__main__":
 
     targets = dict()
     target_outfiles = dict()
-    if args.badread_fastq:
+    if args.badread:
         identities = Identities(args.badread_mean_identity, args.badread_identity_stdev, args.badread_max_identity, sys.stderr)
         error_model = ErrorModel(args.badread_error_model, sys.stderr)
         qscore_model = QScoreModel(args.badread_qscore_model, sys.stderr)
         tail_model = KDE_noise_generator.load(args.badread_tail_noise_model)
 
-        targets['badread_fastq']=badread_fastq
-        target_outfiles['badread_fastq'] = open(args.badread_fastq, 'w+')
-    if args.perfect_fastq:
-        targets['perfect_fastq']=perfect_fastq
-        target_outfiles['perfect_fastq'] = open(args.perfect_fastq, 'w+')
+        output_file, output_file_formatter = get_output_file(args.badread)
+        target_outfiles['badread'] = output_file
+        partial_badread = functools.partial(badread, compute_qual=(not args.skip_qual_compute) and output_file_formatter == fastq_formatter)
+        targets['badread']= [partial_badread, output_file_formatter]
+    if args.perfect:
+        output_file, output_file_formatter = get_output_file(args.perfect)
+        target_outfiles['perfect'] = output_file
+        targets['perfect']= [perfect, output_file_formatter]
 
     mdf_to_seq_targeted = functools.partial(mdf_to_seq, targets=targets)
     with open(args.input, 'r') as f:

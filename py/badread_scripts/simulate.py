@@ -298,7 +298,7 @@ def get_junk_fragment(fragment_length):
     return junk_frag[:fragment_length]
 
 
-def sequence_fragment(fragment, target_identity, error_model, qscore_model, tail_model):
+def sequence_fragment(fragment, target_identity, error_model, qscore_model, tail_model, compute_qscores=True):
 
     # Buffer the fragment a bit so errors can be added to the first and last bases.
     k_size = error_model.kmer_size
@@ -389,7 +389,12 @@ def sequence_fragment(fragment, target_identity, error_model, qscore_model, tail
     end_trim = len(''.join(new_fragment_bases[-k_size:]))
 
     seq = ''.join(new_fragment_bases)
-    qual, actual_identity, identity_by_qscores = get_qscores(seq, fragment, qscore_model)
+    if compute_qscores:
+        qual, actual_identity, identity_by_qscores = get_qscores(seq, fragment, qscore_model)
+    else:
+        qual = 'K'*len(seq)
+        actual_identity = 1.0 - (errors / frag_len)
+        identity_by_qscores = None
     assert(len(seq) == len(qual))
 
     seq = seq[start_trim:-end_trim]
