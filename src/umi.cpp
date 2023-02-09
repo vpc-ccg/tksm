@@ -1,5 +1,6 @@
 #include "umi.h"
 
+#include <cassert>
 #include <iostream>
 #include <iterator>
 #include <string>
@@ -42,7 +43,7 @@ class fmt2seq{
         std::array<char,4> table  {{'A','T','C','G'}};
         std::array<string, 128> lookup;
         string fmt;
-        fmt2seq(const string &fmt):fmt(fmt){
+        fmt2seq(const string &fmt): fmt(fmt){
 #define set_l(A,B) lookup[A[0]]=B
 #define set_sl(A,B) set_l(#A,#B)
             set_sl(A,A);
@@ -71,6 +72,7 @@ class fmt2seq{
 
             for( char c : fmt){
                 string buffer;
+                assert(lookup[c].size() > 0);
                 std::sample(lookup[c].begin(),lookup[c].end(),std::back_inserter(buffer),1,gen);
                 st << buffer;
             }
@@ -78,28 +80,27 @@ class fmt2seq{
         }
 };
 
-void add_UMIs(vector<molecule_descriptor> &copies, ostream &umifile, const string &format, const string &format_back){
+void add_UMIs(vector<molecule_descriptor> &copies, ostream &umifile, const string &format5, const string &format3){
 
-    fmt2seq make_seq(format);
-    fmt2seq make_back_seq(format_back);
+    fmt2seq make_seq5(format5);
+    fmt2seq make_seq3(format3);
 
     int index = 0;
     for(molecule_descriptor &pcp : copies){
-        string umi_seq = make_seq[rand_gen];
+        string umi_seq5 = make_seq5[rand_gen];
+        string umi_seq3 = make_seq3[rand_gen];
         string umi_ctg_name = fmt::format("RI_umi_ctg_{}",index);
 
-        string umi_back_seq = make_back_seq[rand_gen];
-
         umifile << fmt::format(">{}\n", umi_ctg_name);
-        umifile << umi_seq << umi_back_seq << "\n";
+        umifile << umi_seq5 << umi_seq3 << "\n";
 
-        int len = static_cast<int>(umi_seq.size());
-        int len_back = static_cast<int>(umi_back_seq.size());
-        if(len > 0){
-            pcp.prepend_segment(ginterval{umi_ctg_name, 0, len, "+"});
+        int len5 = static_cast<int>(umi_seq5.size());
+        int len3 = static_cast<int>(umi_seq3.size());
+        if(len5 > 0){
+            pcp.prepend_segment(ginterval{umi_ctg_name, 0, len5, "+"});
         }
-        if(len_back > 0){
-            pcp.append_segment(ginterval{umi_ctg_name, len, len + len_back,  "+"});
+        if(len3 > 0){
+            pcp.append_segment(ginterval{umi_ctg_name, len5, len5 + len3,  "+"});
         }
         ++index;
     }
@@ -182,50 +183,59 @@ int main(int argc, char **argv){
     int seed = args["seed"].as<int>();;
     rand_gen.seed(seed);
 
-    string umi_format = args["format5"].as<string>();
+    string format5 = args["format5"].as<string>();
+    string format3 = args["format3"].as<string>();
 
     string mdf_file_path {args["input"].as<string>()};
     std::ifstream mdf_file {mdf_file_path};
    
     logi("Parsing MDF file {}", mdf_file_path);
 
-    vector<molecule_descriptor> molecules = parse_mdf(mdf_file);
+    auto streamer = stream_mdf(mdf_file);
 
-
-//Unroll the depth
-    vector<molecule_descriptor> nm;
-    for(const molecule_descriptor &pcp : molecules){
-        for(int i = 0; i < pcp.get_depth(); ++i){
-            nm.push_back(pcp);
-            nm.back().depth(1);
-            nm.back().id(nm.back().get_id() +"_" + std::to_string(i));
-        }
-    }
-    molecules = nm;
-
-    std::string umi_ref_file = args["umi-fasta"].as<string>();
-    std::ofstream umi_file{umi_ref_file};
 
     logi("Adding UMI tags");
 
-    if(std::isdigit(umi_format[0])){
-        int length = stoi(umi_format);
-        add_UMIs(molecules, umi_file, length);
+    if(isdigit(format5[0])){
+        int len = std::stoi(format5);
+        format5 = std::string(len, 'N');
     }
-    else{
-        add_UMIs(molecules,umi_file, umi_format, args["format3"].as<string>());
+    if(isdigit(format3[0])){
+        int len = std::stoi(format3);
+        format3 = std::string(len, 'N');
     }
 
-
+    fmt2seq make_seq5(format5);
+    fmt2seq make_seq3(format3);
 
     string outfile_name = args["output"].as<string>();
-    
-    logi("Printing output MDF: {}", outfile_name);
-
+    logi("Adding UMIs and printing to: {}", outfile_name);
+    fmtlog::poll(true);
     std::ofstream outfile{outfile_name};
-    for(const molecule_descriptor &md : molecules){
+    std::string umi_ref_file = args["umi-fasta"].as<string>();
+    std::ofstream umifile{umi_ref_file};
+
+    int index = 0;
+    while(streamer){
+        molecule_descriptor md = streamer();
+        string umi_seq5 = make_seq5[rand_gen];
+        string umi_seq3 = make_seq3[rand_gen];
+        string umi_ctg_name = fmt::format("RI_umi_ctg_{}",index);
+
+        umifile << fmt::format(">{}\n", umi_ctg_name);
+        umifile << umi_seq5 << umi_seq3 << "\n";
+
+        int len5 = static_cast<int>(umi_seq5.size());
+        int len3 = static_cast<int>(umi_seq3.size());
+        if(len5 > 0){
+            md.prepend_segment(ginterval{umi_ctg_name, 0, len5, "+"});
+        }
+        if(len3 > 0){
+            md.append_segment(ginterval{umi_ctg_name, len5, len5 + len3,  "+"});
+        }
+        ++index;
         outfile << md;
     }
-    
+
     return 0;
 }
