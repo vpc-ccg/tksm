@@ -13,11 +13,11 @@
 using std::vector;
 using std::string;
 using std::ostream;
-using std::ifstream;
+using std::istream;
 
 
 
-inline Generator<molecule_descriptor> stream_mdf(ifstream &ist, bool unroll = false){
+inline Generator<molecule_descriptor> stream_mdf(istream &ist, bool unroll = false){
     string buffer;
     buffer.reserve(1000);
     std::getline(ist, buffer);
@@ -69,7 +69,7 @@ inline Generator<molecule_descriptor> stream_mdf(ifstream &ist, bool unroll = fa
         }
     }
 }
-inline vector<molecule_descriptor> parse_mdf(ifstream &ist, bool unroll = false){
+inline vector<molecule_descriptor> parse_mdf(istream &ist, bool unroll = false){
     auto streamer = stream_mdf(ist, unroll);
     vector<molecule_descriptor> mdfs;
     while(streamer){
@@ -78,7 +78,7 @@ inline vector<molecule_descriptor> parse_mdf(ifstream &ist, bool unroll = false)
     return mdfs;
 }
 /*
-inline vector<molecule_descriptor> parse_mdf(ifstream &ist){
+inline vector<molecule_descriptor> parse_mdf(istream &ist){
     vector<molecule_descriptor> molecules;
     string buffer;
     buffer.reserve(1000);
