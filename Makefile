@@ -4,6 +4,12 @@ OPT ?= -O2
 CXXFLAGS += ${OPT} -Wall -std=c++20 -Iextern/include
 LDFLAGS += -lz -lpthread 
 
+#GIT_VERSION:=$(shell git describe --dirty --always --tags)
+GIT_VERSION:=""
+ifneq ($(GIT_VERSION),"")
+	CXXFLAGS += -DVERSION=\"${GIT_VERSION}\"
+endif
+
 SRCD=src
 OBJD=obj
 TSTD=test
