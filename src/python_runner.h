@@ -37,6 +37,6 @@ int run_##FUNC_NAME(int argc, char **argv_s){ \
     } \
     PyMem_RawFree(program); \
     return 0;   \
-}
+}static_assert(true, "")
 
 #endif
