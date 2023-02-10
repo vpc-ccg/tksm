@@ -4,6 +4,7 @@
 main
 data/*
 build/*
+py_headers/*
 test/binaries/*
 simulator
 .snakemake
