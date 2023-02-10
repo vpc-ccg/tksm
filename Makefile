@@ -37,6 +37,10 @@ ${TSTB}/%:${TSTD}/%.cpp
 	mkdir -p ${TSTB}
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
+py_header/%.h: py/%.py
+	mkdir -p py_header
+	xxd -i $< > $@
+
 reverse_complement_test: ${TSTB}/reverse_complement_test
 	./${TSTB}/reverse_complement_test
 
