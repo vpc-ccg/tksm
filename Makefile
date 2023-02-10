@@ -1,4 +1,8 @@
 
+
+INSTALL_PREFIX ?= /usr
+CXXFLAGS += -DINSTALL_PATH=\"${INSTALL_PREFIX}/bin\"
+
 CXX ?= g++
 OPT ?= -O2
 CXXFLAGS += ${OPT} -Wall -std=c++20 -Iextern/include -Ipy_header
@@ -19,7 +23,7 @@ TSTB=test/binaries
 BUILDD=build
 PCH_LIB = libs.h
 PCH_HEADERS = tree.h graph.h interval.h reverse_complement.h cigar.h extern/IITree.h extern/cxxopts.h kde.h
-SOURCE_FILES = fusion.cpp pcr.cpp  sequencer.cpp splicer.cpp polyA.cpp truncate.cpp umi.cpp single-cell-barcoder.cpp kde.cpp
+SOURCE_FILES =  pcr.cpp  sequencer.cpp splicer.cpp polyA.cpp truncate.cpp umi.cpp single-cell-barcoder.cpp kde.cpp
 
 SOURCE_PATH = $(SOURCE_FILES:%.cpp=${SRCD}/%.cpp)
 EXEC_FILES = $(SOURCE_FILES:%.cpp=${BUILDD}/%)
@@ -28,7 +32,9 @@ PCH_OUT = $(PCH_LIB:%.h=${OBJD}/%.pch)
 HEADER_PATH = $(PCH_HEADERS:%.h=${SRCD}/%.h)
 PY_FILES = py/truncate_kde.py py/transcript_abundance.py py/sequence.py
 PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
-all: $(EXEC_FILES)
+
+
+all: $(EXEC_FILES) install.sh
 
 $(BUILDD)/%:$(SRCD)/%.cpp $(PY_HEADERS) 
 	@mkdir -p ${BUILDD}
@@ -64,6 +70,12 @@ all:
 
 .PHONY: clean
 
+install.sh:
+	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
+	@echo cp ${BUILDD}/* ${INSTALL_PREFIX}/bin >> $@
+	@echo cp py/badread_models ${INSTALL_PREFIX}/bin -r >> $@
+	chmod +x $@
 clean:
 	@rm -f ${BUILDD}/*
 	@rm -f ${OBJD}/*.o
+	@rm -f ${PY_HEADERS}
