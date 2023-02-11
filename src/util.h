@@ -10,18 +10,43 @@
 #include <fmt/core.h>
 #define FMTLOG_HEADER_ONLY
 #include <fmtlog/fmtlog.h>
+using std::map;
+using std::string;
+using std::vector;
+using std::ostream;
 
-inline fmtlog::fmtlogT::LogLevel parse_loglevel(const std::string &str){   
+class LogLevels{
+    public:
 
-    static std::map<std::string, fmtlog::fmtlogT::LogLevel> log_level_map {
-        {"DEBUG", fmtlog::DBG},
-        {"INFO", fmtlog::INF},
-        {"WARN", fmtlog::WRN},
-        {"ERROR", fmtlog::ERR},
-        {"OFF", fmtlog::OFF}
-    };
-    return log_level_map.at(str);
-}
+        static std::string log_choices(){
+            static map<string, fmtlog::fmtlogT::LogLevel> log_level_map {
+                {"DEBUG", fmtlog::DBG},
+                {"INFO", fmtlog::INF},
+                {"WARN", fmtlog::WRN},
+                {"ERROR", fmtlog::ERR},
+                {"OFF", fmtlog::OFF}
+            };
+        
+            std::string str;
+            for(auto &p: log_level_map){
+                if(str.size()){
+                    str+=", ";
+                }
+                str+=p.first;
+            }
+            return str;
+        }
+        static fmtlog::fmtlogT::LogLevel parse_loglevel(const std::string &str){   
+            static map<string, fmtlog::fmtlogT::LogLevel> log_level_map {
+                {"DEBUG", fmtlog::DBG},
+                {"INFO", fmtlog::INF},
+                {"WARN", fmtlog::WRN},
+                {"ERROR", fmtlog::ERR},
+                {"OFF", fmtlog::OFF}
+            };
+            return log_level_map.at(str);
+        }
+};
 
 template< class B>
 inline void print_tsv(std::ostream &ost, B b){
