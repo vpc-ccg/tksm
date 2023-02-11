@@ -11,6 +11,8 @@
 #include "abundance.h"
 #include "sequencer.h"
 
+#include "umi.h"
+
 using std::vector;
 using std::string;
 using std::set;
@@ -94,7 +96,7 @@ int main(int argc, char**argv){
         fmt::print("Splicer\n");
     }
     else if(module == "umi"){
-        fmt::print("UMI\n");
+        return UMI_module{argc - 1, argv + 1}.run();
     }
     else if(module == "polya"){
         fmt::print("PolyA\n");
