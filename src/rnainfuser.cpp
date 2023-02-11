@@ -9,6 +9,8 @@
 //Import modules
 #include "kde.h"
 #include "abundance.h"
+#include "sequencer.h"
+
 using std::vector;
 using std::string;
 using std::set;
@@ -107,7 +109,17 @@ int main(int argc, char**argv){
         fmt::print("Fusion\n");
     }
     else if(module == "sequencer"){
-        fmt::print("Sequencer\n");
+        const char *path = "--badread-model-path=" INSTALL_PATH "/badread_models";
+        argc--;
+        argv = argv + 1;
+        fmt::print("{}\n", path);
+        char **argv_cpy = (char **)malloc((argc+2)*sizeof(char *));
+        argv_cpy[0] = argv[0];
+        for(int i=1; i<argc; i++){
+            argv_cpy[i + 1] = argv[i];
+        } 
+        argv_cpy[1] = (char *)path;
+        run_sequencer(argc + 1, argv_cpy);
     }
     else if(module == "kde"){
         run_kde(argc - 1, argv + 1);
