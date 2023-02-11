@@ -5,10 +5,10 @@
 #include "interval.h"
 #include "mdf.h"
 #include "util.h"
+#include "module.h"
+
+
 #include <random>
-
-
-
 #include "cxxopts/cxxopts.hpp"
 
 
@@ -75,28 +75,25 @@ class fmt2seq{
         }
 };
 
-class UMI_module{
+class UMI_module : public ri_module{
 
     cxxopts::ParseResult parse(int argc, char **argv){
 
-        options.add_options()
+        options.add_options("main")
             ("i,input", "input mdf file", cxxopts::value<string>())
             ("o,output", "output mdf file", cxxopts::value<string>())
             ("f,umi-fasta", "output umi fasta file", cxxopts::value<string>())
             ("5,format5", "5' UMI format", cxxopts::value<string>())
             ("3,format3", "3' UMI format", cxxopts::value<string>())
-            ("s,seed", "random seed", cxxopts::value<int>()->default_value("42"))
-            ("v,verbosity", fmt::format("Verbosity level to choosen from [{}]",LogLevels::log_choices()), cxxopts::value<string>()->default_value("INFO"))
-            ("h,help", "print help")
+            
             ;
         return  options.parse(argc, argv);
     }
     
-    cxxopts::Options options;
     cxxopts::ParseResult args;
     std::mt19937 rand_gen;
     public:
-    UMI_module( int argc, char **argv) : options("umi", "UMI tagging module"), args(parse(argc, argv)){
+    UMI_module( int argc, char **argv) : ri_module{"umi", "UMI tagging module"}, args(parse(argc, argv)){
 
     }
 
@@ -123,10 +120,11 @@ class UMI_module{
     int run(){
         fmtlog::setLogLevel(LogLevels::parse_loglevel(args["verbosity"].as<string>()));
         fmtlog::flushOn(fmtlog::DBG);
-        if(args.count("help") > 0){
-            std::cout << options.help() << std::endl;
+
+        if(help_or_version_is_used(args)){
             return 0;
         }
+
         if(validate_arguments()){
             return 1;
         }
