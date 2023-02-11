@@ -70,25 +70,20 @@ class SETTINGS_PY:
 
 ### START OF ERROR_MODEL_PY ###
 class ERROR_MODEL_PY:
+    error_model_names = {'random', 'nanopore2018', 'nanopore2020', 'pacbio2016'}
     class ErrorModel(object):
-        def __init__(self, model_type_or_filename, output=sys.stderr):
+        def __init__(self, model_path, model_name, output=sys.stderr):
             self.kmer_size = None
             self.alternatives = {}
             self.probabilities = {}
-            this_script_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
-
-            if model_type_or_filename == 'random':
+            if model_name == 'random':
                 print('\nUsing a random error model', file=output)
                 self.type = 'random'
                 self.kmer_size = 1
-            elif model_type_or_filename == 'nanopore2018':
-                self.load_from_file(str(this_script_dir / 'error_models' / 'nanopore2018.gz'), output)
-            elif model_type_or_filename == 'nanopore2020':
-                self.load_from_file(str(this_script_dir / 'error_models' / 'nanopore2020.gz'), output)
-            elif model_type_or_filename == 'pacbio2016':
-                self.load_from_file(str(this_script_dir / 'error_models' / 'pacbio2016.gz'), output)
+            elif model_name in ERROR_MODEL_PY.error_model_names:
+                self.load_from_file(f'{model_path}/{model_name}.error.gz', output)
             else:
-                self.load_from_file(model_type_or_filename, output)
+                self.load_from_file(model_name, output)
 
         def load_from_file(self, filename, output):
             print('\nLoading error model from {}'.format(filename), file=output)
@@ -408,26 +403,21 @@ class SIMULATE_PY:
 
 ### START OF QSCORE_MODEL.PY ###
 class QSCOREMODEL_PY:
+    qscore_model_names = {'random', 'ideal', 'nanopore2018', 'nanopore2020', 'pacbio2016'}
     class QScoreModel(object):
-
-        def __init__(self, model_type_or_filename, output=sys.stderr):
+        def __init__(self, model_path, model_name, output=sys.stderr):
             self.scores, self.probabilities = {}, {}
             self.kmer_size = 1
             self.type = None
-            this_script_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
 
-            if model_type_or_filename == 'random':
+            if model_name == 'random':
                 self.set_up_random_model(output)
-            elif model_type_or_filename == 'ideal':
+            elif model_name == 'ideal':
                 self.set_up_ideal_model(output)
-            elif model_type_or_filename == 'nanopore2018':
-                self.load_from_file(str(this_script_dir / 'qscore_models' / 'nanopore2018.gz'), output)
-            elif model_type_or_filename == 'nanopore2020':
-                self.load_from_file(str(this_script_dir / 'qscore_models' / 'nanopore2020.gz'), output)
-            elif model_type_or_filename == 'pacbio2016':
-                self.load_from_file(str(this_script_dir / 'qscore_models' / 'pacbio2016.gz'), output)
+            elif model_name in QSCOREMODEL_PY.qscore_model_names:
+                self.load_from_file(f'{model_path}/{model_name}.qscore.gz', output)
             else:
-                self.load_from_file(model_type_or_filename, output)
+                self.load_from_file(model_name, output)
 
             # These three cigars must be in the model, as they are the simplest 1-mer cigars and
             # without them the get_qscore method can fail.
@@ -752,6 +742,7 @@ class QUICKHIST_PY:
 
 ### START OF TAIL_NOISE_MODEL_PY ###
 class TAIL_NOISE_MODEL_PY:
+    tail_model_names = {'nanopore', 'pacbio', 'no-noise'}
     class KDE_noise_generator:
         @classmethod
         def from_data(cls, mapped, unmapped, lx, ly, transition_matrix, bw, threads=64):
@@ -805,17 +796,16 @@ class TAIL_NOISE_MODEL_PY:
             dc["begin"] = self.begin_W.tolist()
             json.dump(dc, file)
         @classmethod
-        def load(cls, model_type_or_filename):
-            this_script_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
-
-            if model_type_or_filename == 'nanopore':
-
-                dc = json.load(gzip.open(str(this_script_dir / 'tail_models' / 'nanopore.json.gz'),'rt'))
-            elif model_type_or_filename.lower() in ["none", "pacbio"]:
-                return TAIL_NOISE_MODEL_PY.Mock_noise_generator()       
-            else:
-
-                dc = json.load(gzip.open(model_type_or_filename,'rt'))
+        def load(cls, model_path, model_name):
+            if model_name in ["no_noise", "pacbio"]:
+                return TAIL_NOISE_MODEL_PY.Mock_noise_generator()
+            elif model_name in TAIL_NOISE_MODEL_PY.tail_model_names:
+                model_name = f'{model_path}/{model_name}.tail.gz'
+            dc = json.load(
+                gzip.open(model_name,'rt') 
+                if model_name.endswith(".gz")
+                else open(model_name,'r')
+            )
             return cls(dc["lx"], dc["ly"], dc["grid"], (dc["begin"], dc["trans"]), dc["ratio"], dc["bases"])
 
     class Mock_noise_generator:
@@ -934,18 +924,32 @@ def parse_args():
                         default=1,
                         help="Number of threads.",
                         )
-    parser.add_argument('--badread-identity',type=str,default='87.5,97.5,5',
-                          help='Sequencing identity distribution (mean, max and stdev, '
-                               'default: DEFAULT)')
-    parser.add_argument('--badread-error_model', type=str, default='nanopore2020',
-                          help='Can be "nanopore2018", "nanopore2020", "pacbio2016", "random" or '
-                               'a model filename')
-    parser.add_argument('--badread-qscore_model', type=str, default='nanopore2020',
-                          help='Can be "nanopore2018", "nanopore2020", "pacbio2016", "random", '
-                               '"ideal" or a model filename')
-    parser.add_argument('--badread-tail_noise_model', type=str, default='none',
-                          help='Can be "nanopore", "pacbio", "none" or a model filename')
-
+    parser.add_argument('--badread-model-path',
+                        type=str,
+                        default='.',
+                        help='Path to the directory containing the Badread models.'
+                        )
+    parser.add_argument('--badread-identity',
+                        type=str,default='87.5,97.5,5',
+                        help='Sequencing identity distribution (mean, max and stdev)')
+    parser.add_argument('--badread-error-model',
+                        type=str,
+                        default='nanopore2020',
+                        choices=ERROR_MODEL_PY.error_model_names,
+                        # help='Can be "nanopore2018", "nanopore2020", "pacbio2016", "random" or a model filename'
+                        )
+    parser.add_argument('--badread-qscore-model',
+                        type=str,
+                        default='nanopore2020',
+                        choices=QSCOREMODEL_PY.qscore_model_names,
+                        # help='Can be "nanopore2018", "nanopore2020", "pacbio2016", "random", "ideal" or a model filename'
+                        )
+    parser.add_argument('--badread-tail-model',
+                        type=str,
+                        default='no_noise',
+                        choices=TAIL_NOISE_MODEL_PY.tail_model_names,
+                        # help='Can be "nanopore", "pacbio", "no_noise" or a model filename')
+                        )
     args = parser.parse_args()
 
     # Process arguments and check for errors
@@ -1138,9 +1142,9 @@ if __name__ == "__main__":
     target_outfiles = dict()
     if args.badread:
         identities = IDENTITIES_PY.Identities(args.badread_mean_identity, args.badread_identity_stdev, args.badread_max_identity, sys.stderr)
-        error_model = ERROR_MODEL_PY.ErrorModel(args.badread_error_model, sys.stderr)
-        qscore_model = QSCOREMODEL_PY.QScoreModel(args.badread_qscore_model, sys.stderr)
-        tail_model = TAIL_NOISE_MODEL_PY.KDE_noise_generator.load(args.badread_tail_noise_model)
+        error_model = ERROR_MODEL_PY.ErrorModel(args.badread_model_path, args.badread_error_model, sys.stderr)
+        qscore_model = QSCOREMODEL_PY.QScoreModel(args.badread_model_path, args.badread_error_model, sys.stderr)
+        tail_model = TAIL_NOISE_MODEL_PY.KDE_noise_generator.load(args.badread_model_path, args.badread_tail_model)
 
         output_file, output_file_formatter = get_output_file(args.badread)
         target_outfiles['badread'] = output_file
