@@ -1,5 +1,3 @@
-
-
 INSTALL_PREFIX ?= /usr
 CXXFLAGS += -DINSTALL_PATH=\"${INSTALL_PREFIX}/bin\"
 
@@ -11,19 +9,18 @@ LDFLAGS += $(shell python3-config --ldflags --embed)
 CXXFLAGS += $(shell python3-config --cflags --embed)
 
 GIT_VERSION:=$(shell git describe --dirty --always --tags)
-#GIT_VERSION:=""
 ifneq ($(GIT_VERSION),"")
 	CXXFLAGS += -DVERSION=\"${GIT_VERSION}\"
 endif
 
-SRCD=src
-OBJD=obj
-TSTD=test
-TSTB=test/binaries
-BUILDD=build
+SRCD = src
+OBJD = obj
+TSTD = test
+TSTB = test/binaries
+BUILDD = build
 PCH_LIB = libs.h
 PCH_HEADERS = tree.h graph.h interval.h reverse_complement.h cigar.h extern/IITree.h extern/cxxopts.h kde.h
-SOURCE_FILES =  pcr.cpp  sequencer.cpp splicer.cpp polyA.cpp truncate.cpp umi.cpp single-cell-barcoder.cpp kde.cpp rnainfuser.cpp
+SOURCE_FILES = pcr.cpp sequencer.cpp splicer.cpp polyA.cpp truncate.cpp umi.cpp single-cell-barcoder.cpp kde.cpp rnainfuser.cpp
 
 SOURCE_PATH = $(SOURCE_FILES:%.cpp=${SRCD}/%.cpp)
 EXEC_FILES = $(SOURCE_FILES:%.cpp=${BUILDD}/%)
@@ -33,6 +30,8 @@ HEADER_PATH = $(PCH_HEADERS:%.h=${SRCD}/%.h)
 PY_FILES = py/truncate_kde.py py/transcript_abundance.py py/sequence.py
 PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
 
+
+.PRECIOUS: $(PY_HEADERS)
 
 all: $(EXEC_FILES) install.sh
 
