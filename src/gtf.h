@@ -2,235 +2,240 @@
 #ifndef GTF_H
 #define GTF_H
 
-#include <vector>
-#include <string>
 #include <fstream>
 #include <map>
+#include <string>
+#include <vector>
 
-#include "util.h"
-#include "interval.h"
 #include "graph.h"
+#include "interval.h"
+#include "util.h"
 
-inline graph<gene, double> build_gene_graph( std::string path_to_gtf, const std::map<gene, int> &gene2count,bool coding_only = true){
-
+inline graph<gene, double>
+build_gene_graph(std::string path_to_gtf, const std::map<gene, int> &gene2count, bool coding_only = true) {
     graph<gene, double> gene_graph;
 
     std::ifstream file(path_to_gtf);
 
     std::string str;
-    while( std::getline(file, str)){
-        if(str[0] == '#'){
+    while (std::getline(file, str)) {
+        if (str[0] == '#') {
             continue;
         }
         std::vector<std::string> fields = rsplit(str, "\t");
 
-        if(fields[2] != "gene"){
+        if (fields[2] != "gene") {
             continue;
         }
-        std::string chr{ fields[0]};
+        std::string chr{fields[0]};
         int s = stoi(std::string{fields[3]});
-        int e =  stoi(std::string{fields[4]});
+        int e = stoi(std::string{fields[4]});
 
-        std::string st{ fields[6]};
+        std::string st{fields[6]};
 
         std::string info_str{fields[8]};
         std::vector<std::string> info = rsplit(info_str, ";");
-        strip_for_each(info , " ");
+        strip_for_each(info, " ");
 
-        std::string gene_id = ""; 
+        std::string gene_id   = "";
         std::string gene_name = "";
-        std::string biotype = "";
-        int count = 0;
-        for( auto iter = info.begin(); iter != info.end(); ++iter){
-            if((*iter).size() <= 1){ continue;}
+        std::string biotype   = "";
+        int count             = 0;
+        for (auto iter = info.begin(); iter != info.end(); ++iter) {
+            if ((*iter).size() <= 1) {
+                continue;
+            }
             std::string f{*iter};
 
-            std::vector<std::string> fs = rsplit(f , " ");
+            std::vector<std::string> fs = rsplit(f, " ");
             strip_for_each(fs, "\"");
-        
-            if(fs[0] == "gene_id"){
+
+            if (fs[0] == "gene_id") {
                 gene_id = fs[1];
-                ++ count;
+                ++count;
             }
-            if(fs[0] == "gene_name"){
+            if (fs[0] == "gene_name") {
                 gene_name = fs[1];
-                ++ count;
+                ++count;
             }
-            if(fs[0] == "gene_biotype"){
+            if (fs[0] == "gene_biotype") {
                 biotype = fs[1];
 
-                ++ count;
+                ++count;
             }
         }
-        if( coding_only && biotype != "protein_coding"){
+        if (coding_only && biotype != "protein_coding") {
             continue;
         }
         gene g{chr, s, e, st, gene_id, gene_name};
-        if( gene2count.find(g) != gene2count.end()){
+        if (gene2count.find(g) != gene2count.end()) {
             gene_graph.add(g);
         }
     }
     return gene_graph;
 }
 
-
-
-inline auto read_gtf_exons( std::string path_to_gtf, bool coding_only = true){
-
+inline auto
+read_gtf_exons(std::string path_to_gtf, bool coding_only = true) {
     std::vector<exon> annots;
     std::ifstream file(path_to_gtf);
     std::string str;
 
     std::vector<gene *> gptrs;
-    gene* current_gene;
+    gene *current_gene;
 
     std::map<std::string, gene> t2g;
 
-    while( std::getline(file, str)){
-        if(str[0] == '#'){
+    while (std::getline(file, str)) {
+        if (str[0] == '#') {
             continue;
         }
         std::vector<std::string> fields = rsplit(str, "\t");
-        std::string type = fields[2];
-        std::string chr{ fields[0]};
-        int s = stoi(std::string{fields[3]}) - 1; // GTF is 1 based
-        int e =  stoi(std::string{fields[4]}); // 1 based but inclusive so we add 1 to make it exclusive - 1 + 1
-        std::string st{ fields[6]};
-        
-        if( type == "gene"){
+        std::string type                = fields[2];
+        std::string chr{fields[0]};
+        int s = stoi(std::string{fields[3]}) - 1;  // GTF is 1 based
+        int e = stoi(std::string{fields[4]});      // 1 based but inclusive so we add 1 to make it exclusive - 1 + 1
+        std::string st{fields[6]};
+
+        if (type == "gene") {
             std::string info_str{fields[8]};
             std::vector<std::string> info = rsplit(info_str, ";");
             strip_for_each(info, " \n\t");
 
-            std::string gene_id = ""; 
+            std::string gene_id   = "";
             std::string gene_name = "";
-            std::string biotype = "";
-            int count = 0;
-            for( auto iter = info.begin(); iter != info.end(); ++iter){
-                if((*iter).size() <= 1){ continue;}
+            std::string biotype   = "";
+            int count             = 0;
+            for (auto iter = info.begin(); iter != info.end(); ++iter) {
+                if ((*iter).size() <= 1) {
+                    continue;
+                }
                 std::string f{*iter};
-                std::vector<std::string> fs = rsplit(f , " ");
+                std::vector<std::string> fs = rsplit(f, " ");
                 strip_for_each(fs, "\"");
-                if(fs[0] == "gene_id"){
+                if (fs[0] == "gene_id") {
                     gene_id = fs[1];
-                    ++ count;
+                    ++count;
                 }
-                if(fs[0] == "gene_name"){
+                if (fs[0] == "gene_name") {
                     gene_name = fs[1];
-                    ++ count;
+                    ++count;
                 }
-                if(fs[0] == "gene_biotype"){
+                if (fs[0] == "gene_biotype") {
                     biotype = fs[1];
-                    ++ count;
+                    ++count;
                 }
             }
-            if( coding_only && (biotype != "protein_coding")){
+            if (coding_only && (biotype != "protein_coding")) {
                 continue;
             }
-            gptrs.push_back(new gene(chr,s,e,st,gene_id,gene_name));
+            gptrs.push_back(new gene(chr, s, e, st, gene_id, gene_name));
             current_gene = gptrs.back();
         }
-        else if( type == "transcript"){
+        else if (type == "transcript") {
             std::string info_str{fields[8]};
             std::vector<std::string> info = rsplit(info_str, ";");
             strip_for_each(info, " \n\t");
 
             std::string transcript_id = "";
-            std::string biotype = "";
-            int count = 0;
-            for( auto iter = info.begin(); iter != info.end(); ++iter){
-                if((*iter).size() <= 1){ continue;}
-                std::string f{*iter};
-                std::vector<std::string> fs = rsplit(f , " ");
-                strip_for_each( fs, "\"");
-                if(fs[0] == "transcript_id"){
-                    transcript_id = fs[1];
-                    ++ count;
+            std::string biotype       = "";
+            int count                 = 0;
+            for (auto iter = info.begin(); iter != info.end(); ++iter) {
+                if ((*iter).size() <= 1) {
+                    continue;
                 }
-                if(fs[0] == "transcript_biotype"){
+                std::string f{*iter};
+                std::vector<std::string> fs = rsplit(f, " ");
+                strip_for_each(fs, "\"");
+                if (fs[0] == "transcript_id") {
+                    transcript_id = fs[1];
+                    ++count;
+                }
+                if (fs[0] == "transcript_biotype") {
                     biotype = fs[1];
-                    ++ count;
+                    ++count;
                 }
             }
-            if( coding_only && (biotype != "protein_coding")){
+            if (coding_only && (biotype != "protein_coding")) {
                 continue;
             }
-            //current_transcript = std::make_shared<transcript>(chr,s,e,st,transcript_id,current_gene);
-            t2g[transcript_id.substr(0,15)] = *current_gene;
+            // current_transcript = std::make_shared<transcript>(chr,s,e,st,transcript_id,current_gene);
+            t2g[transcript_id.substr(0, 15)] = *current_gene;
         }
-        else if( type == "exon"){
+        else if (type == "exon") {
             std::string info_str{fields[8]};
 
             std::vector<std::string> info = rsplit(info_str, ";");
             strip_for_each(info, " \n\t");
 
-            std::string biotype = "";
+            std::string biotype  = "";
             std::string tbiotype = "";
 
-            std::string exon_id = ""; 
-            std::string transcript_id = ""; 
-            int count = 0;
-            for( auto iter = info.begin(); iter != info.end(); ++iter){
-                if((*iter).size() <= 1){ continue;}
+            std::string exon_id       = "";
+            std::string transcript_id = "";
+            int count                 = 0;
+            for (auto iter = info.begin(); iter != info.end(); ++iter) {
+                if ((*iter).size() <= 1) {
+                    continue;
+                }
                 std::string f{*iter};
-                std::vector<std::string> fs = rsplit(f , " ");
-                strip_for_each( fs, "\"");
+                std::vector<std::string> fs = rsplit(f, " ");
+                strip_for_each(fs, "\"");
 
-
-                if(fs[0] == "exon_id"){
+                if (fs[0] == "exon_id") {
                     exon_id = fs[1];
-                    ++ count;
+                    ++count;
                 }
 
-                if(fs[0] == "transcript_id"){
+                if (fs[0] == "transcript_id") {
                     transcript_id = fs[1];
-                    ++ count;
+                    ++count;
                 }
-                if(fs[0] == "gene_biotype"){
+                if (fs[0] == "gene_biotype") {
                     biotype = fs[1];
-                    ++ count;
-                }if(fs[0] == "transcript_biotype"){
+                    ++count;
+                }
+                if (fs[0] == "transcript_biotype") {
                     tbiotype = fs[1];
-                    ++ count;
+                    ++count;
                 }
             }
-            if (coding_only && ( (biotype!="protein_coding") || (tbiotype!="protein_coding"))) {
+            if (coding_only && ((biotype != "protein_coding") || (tbiotype != "protein_coding"))) {
                 continue;
             }
-            annots.emplace_back(chr,s,e,st,exon_id, transcript_id, current_gene);
+            annots.emplace_back(chr, s, e, st, exon_id, transcript_id, current_gene);
         }
     }
 
-    return make_tuple(annots,gptrs,t2g);
+    return make_tuple(annots, gptrs, t2g);
 }
 
-
-inline auto read_gtf_transcripts(const std::string &path2gtf, int default_depth=1){
-
-    std::map< std::string, molecule_descriptor> isoforms;
-    std::ifstream gtfile( path2gtf);
+inline auto
+read_gtf_transcripts(const std::string &path2gtf, int default_depth = 1) {
+    std::map<std::string, molecule_descriptor> isoforms;
+    std::ifstream gtfile(path2gtf);
     std::string buffer;
 
-    gtf *current_gene = nullptr;
+    gtf *current_gene       = nullptr;
     gtf *current_transcript = nullptr;
 
-    while(std::getline(gtfile, buffer)){
-        if(buffer[0] == '#'){
+    while (std::getline(gtfile, buffer)) {
+        if (buffer[0] == '#') {
             continue;
         }
         gtf *entry = new gtf(buffer);
 
-        switch(entry->type){
+        switch (entry->type) {
             case gtf::entry_type::gene:
                 delete current_gene;
                 current_gene = entry;
                 break;
-            case gtf::entry_type::transcript:
-            {
+            case gtf::entry_type::transcript: {
                 delete current_transcript;
                 current_transcript = entry;
-                auto iter = isoforms.emplace(current_transcript->info["transcript_id"],
-                        molecule_descriptor{ current_transcript->info["transcript_id"], !entry->plus_strand});
+                auto iter          = isoforms.emplace(
+                    current_transcript->info["transcript_id"],
+                    molecule_descriptor{current_transcript->info["transcript_id"], !entry->plus_strand});
                 iter.first->second.depth(default_depth);
                 break;
             }
@@ -242,46 +247,8 @@ inline auto read_gtf_transcripts(const std::string &path2gtf, int default_depth=
                 break;
         }
     }
-    
+
     return isoforms;
 }
-
-/*
-inline auto flatten_gtf( std::vector<exon> &exons, double min_overlap = 0.90){
-//Ensure sorted
-//
-    std::sort(exons.begin(),exons.end());
-    std::vector<exon> processed;
-    std::map<std::string, std::string> mergeindex;
-
-    if(exons.empty()){
-        throw std::runtime_error("Empty GTF file!!\n");
-    }
-    
-    exon merger(exons.front());
-    int cnt = 0;
-    int dupcount = 0;
-    for(auto iter = std::next(std::begin(exons)); iter != std::end(exons); ++iter){
-        if( merger.reciprocal(*iter) > min_overlap &&
-                merger.gene_ref == iter->gene_ref){ //Also check strands and genes
-
-            if(mergeindex.find(iter->exon_id) != mergeindex.end()){
-                ++dupcount;
-            }
-            else{
-                merger = exon(merger, *iter);//, std::string{"E"} + std::to_string(cnt) ); //Write smarter iding
-                mergeindex[iter->exon_id] = merger.exon_id;
-            }
-        }
-        else{
-            processed.push_back(merger);
-            merger = exon(*iter);
-            cnt += 1;
-        }
-    }
-
-    return make_pair(processed, mergeindex);
-}
-*/
 
 #endif

@@ -1,0 +1,22 @@
+---
+Language:        Cpp
+BasedOnStyle: Google
+AccessModifierOffset: 0
+AlignConsecutiveAssignments: true
+AlwaysBreakAfterReturnType: TopLevel
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterEnum: false
+  AfterClass: false
+  AfterStruct: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterControlStatement: false
+  BeforeElse: true
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+IndentWidth: 4
+AccessModifierOffset: -4
+PenaltyReturnTypeOnItsOwnLine: 200
+PointerAlignment: Left
+ColumnLimit: 120

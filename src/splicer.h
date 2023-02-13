@@ -1,127 +1,144 @@
 #ifndef _SPLICER_H_
 #define _SPLICER_H_
+#include <random>
 #include <string>
 #include <vector>
+
+#include "cxxopts/cxxopts.hpp"
+#include "gtf.h"
 #include "interval.h"
 #include "mdf.h"
-#include "util.h"
 #include "module.h"
-
-#include "gtf.h"
-
-#include <random>
-#include "cxxopts/cxxopts.hpp"
+#include "util.h"
 
 using std::string;
 using std::vector;
 
-
-class splicer_module : public tksm_module{
-
-    cxxopts::ParseResult parse(int argc, char **argv){
-
+class splicer_module : public tksm_module {
+    cxxopts::ParseResult parse(int argc, char** argv) {
+        // clang-format off
         options.add_options("main")
-            ("g,gtf", "Path to gtf annotation file", cxxopts::value<string>())
-            ("a,abundance", "Path to tab separated abundance table (formatted as transcript_id\\tpm\\cell-barcode)", cxxopts::value<string>())
-            ("use-whole-id", "Do not trim the transcript version", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
-            ("molecule-count", "Number of molecules to simulate", cxxopts::value<int>())
-            ("o,output", "Output path", cxxopts::value<string>())
-            ("non-coding", "Process non-coding genes/transcripts as well", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
-            ("default-depth", "Default depth for transcripts that are not in expression table", cxxopts::value<int>()->default_value("0"))
-            ;
-        return  options.parse(argc, argv);
+        (
+            "g,gtf",
+            "Path to gtf annotation file",
+            cxxopts::value<string>()
+        )(
+            "a,abundance",
+            "Path to tab separated abundance table (formatted as transcript_id\\tpm\\cell-barcode)",
+            cxxopts::value<string>()
+        )(
+            "use-whole-id",
+            "Do not trim the transcript version",
+            cxxopts::value<bool>()->default_value("false")->implicit_value("true")
+        )(
+            "molecule-count",
+            "Number of molecules to simulate",
+            cxxopts::value<int>()
+        )(
+            "o,output",
+            "Output path",
+            cxxopts::value<string>()
+        )(
+            "non-coding",
+            "Process non-coding genes/transcripts as well",
+            cxxopts::value<bool>()->default_value("false")->implicit_value("true")
+        )(
+            "default-depth",
+            "Default depth for transcripts that are not in expression table",
+            cxxopts::value<int>()->default_value("0")
+        );
+        // clang-format on
+        return options.parse(argc, argv);
     }
-    
+
     cxxopts::ParseResult args;
     std::mt19937 rand_gen;
-    public:
-    splicer_module( int argc, char **argv) : tksm_module{"splicer", "RNA Splicing module"}, args(parse(argc, argv)){
 
-    }
+public:
+    splicer_module(int argc, char** argv) : tksm_module{"splicer", "RNA Splicing module"}, args(parse(argc, argv)) {}
 
-    int  validate_arguments(){
+    int validate_arguments() {
         std::vector<string> mandatory = {"gtf", "abundance", "output", "molecule-count"};
-        int missing_parameters = 0;
-        for( string &param : mandatory){
-            if(args.count(param) == 0){
+        int missing_parameters        = 0;
+        for (string& param : mandatory) {
+            if (args.count(param) == 0) {
                 std::cerr << param << " is required!\n";
                 ++missing_parameters;
             }
         }
 
-        if(missing_parameters  > 0){
+        if (missing_parameters > 0) {
             std::cerr << options.help() << std::endl;
             return 1;
         }
         return 0;
     }
-    int run(){
+    int run() {
         fmtlog::setLogLevel(LogLevels::parse_loglevel(args["verbosity"].as<string>()));
         fmtlog::flushOn(fmtlog::DBG);
 
-        if(help_or_version_is_used(args)){
+        if (help_or_version_is_used(args)) {
             return 0;
         }
 
-        if(validate_arguments()){
+        if (validate_arguments()) {
             return 1;
         }
         describe_program();
 
-        int seed = args["seed"].as<int>();;
+        int seed = args["seed"].as<int>();
+        ;
         rand_gen.seed(seed);
 
-
-        std::string gtf_file = args["gtf"].as<string>();
-        std::string abundance_file = args["abundance"].as<string>();
-        std::string output_file = args["output"].as<string>();
-        int molecule_count = args["molecule-count"].as<int>();
+        std::string gtf_file               = args["gtf"].as<string>();
+        std::string abundance_file         = args["abundance"].as<string>();
+        std::string output_file            = args["output"].as<string>();
+        int molecule_count                 = args["molecule-count"].as<int>();
         [[maybe_unused]] bool use_whole_id = args["use-whole-id"].as<bool>();
-        [[maybe_unused]] bool non_coding = args["non-coding"].as<bool>();
-        int default_depth = args["default-depth"].as<int>();
+        [[maybe_unused]] bool non_coding   = args["non-coding"].as<bool>();
+        int default_depth                  = args["default-depth"].as<int>();
 
         std::uniform_real_distribution<> dist(0, 1);
         std::ofstream outfile{output_file};
 
         logi("Reading GTF file {}", gtf_file);
         auto isoforms = read_gtf_transcripts(gtf_file, default_depth);
-        
+
         std::ifstream abundance_file_stream{abundance_file};
         std::string buffer;
 
-        string tid = "BEG";
-        double tpm = 0;
+        string tid     = "BEG";
+        double tpm     = 0;
         string comment = "";
         logi("Reading abundance file {} and printing simulated molecules to {}!", abundance_file, output_file);
-        while(std::getline(abundance_file_stream, buffer)){
+        while (std::getline(abundance_file_stream, buffer)) {
             std::istringstream(buffer) >> tid >> tpm >> comment;
             format_annot_id(tid, !args["use-whole-id"].as<bool>());
             auto md_ptr = isoforms.find(tid);
-            if(md_ptr == isoforms.end()){
+            if (md_ptr == isoforms.end()) {
                 logw("Isoform {} is not found in the input GTF {}!", tid, gtf_file);
                 continue;
             }
             molecule_descriptor molecule = isoforms[tid];
             comment.append(";");
-            comment = "CB=" + comment;
-            double count = tpm*molecule_count/1'000'000;
+            comment      = "CB=" + comment;
+            double count = tpm * molecule_count / 1'000'000;
             double carry = count - int(count);
 
-            if( dist(rand_gen) < carry){
+            if (dist(rand_gen) < carry) {
                 count++;
             }
-            if( int(count) == 0){
+            if (int(count) == 0) {
                 continue;
             }
-            molecule.comment(comment)->depth(count); //rounded down to int
+            molecule.comment(comment)->depth(count);  // rounded down to int
 
             outfile << molecule;
-
         }
-        return 0;   
+        return 0;
     }
 
-    void describe_program(){  
+    void describe_program() {
         logi("Splicer module");
         logi("Input GTF file: {}", args["gtf"].as<string>());
         logi("Input abundance file: {}", args["abundance"].as<string>());
