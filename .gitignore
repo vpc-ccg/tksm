@@ -2,7 +2,7 @@
 *.o
 *.pch
 main
-data/*
+data
 build/*
 py_headers/*
 test/binaries/*
