@@ -5,6 +5,10 @@
 #include <string>
 #include <ostream>
 #include <map>
+#include <array>
+#include <sstream>
+#include <random>
+
 
 #define FMT_HEADER_ONLY
 #include <fmt/core.h>
@@ -14,6 +18,67 @@ using std::map;
 using std::string;
 using std::vector;
 using std::ostream;
+
+
+class num2seq{
+    public:
+        std::array<char,4> table  {{'A','T','C','G'}};
+        uint64_t max;
+        num2seq(uint64_t max):max(max){
+
+        }
+        string operator [] (uint64_t num) const{
+            std::stringstream st;
+            int back = 0;
+            for(uint64_t mask = 3; mask < max; mask <<=2){
+                st << table[ (num & mask) >> back];
+                back+=2;
+            }
+            return st.str();
+        }
+};
+
+class fmt2seq{
+    public:
+        std::array<char,4> table  {{'A','T','C','G'}};
+        std::array<string, 128> lookup;
+        string fmt;
+        fmt2seq(const string &fmt): fmt(fmt){
+#define set_l(A,B) lookup[A[0]]=B
+#define set_sl(A,B) set_l(#A,#B)
+            set_sl(A,A);
+            set_sl(G,G);
+            set_sl(T,T);
+            set_sl(C,C);
+            set_sl(U,U);
+            set_sl(R,GA);
+            set_sl(Y,TC);
+            set_sl(K,GT);
+            set_sl(M,AC);
+            set_sl(S,GC);
+            set_sl(W,AT);
+            set_sl(B,GTC);
+            set_sl(D,GAT);
+            set_sl(H,ACT);
+            set_sl(V,GCA);
+            set_sl(N,AGCT);
+#undef set_l
+#undef set_sl
+
+        }
+        template< class RANDGEN>
+        string operator [] (RANDGEN &gen) const{
+            std::stringstream st;
+
+            for( char c : fmt){
+                string buffer;
+
+                std::sample(lookup[c].begin(),lookup[c].end(),std::back_inserter(buffer),1,gen);
+                st << buffer;
+            }
+            return st.str();
+        }
+};
 
 class LogLevels{
     public:

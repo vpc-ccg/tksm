@@ -13,6 +13,8 @@
 
 #include "umi.h"
 #include "polyA.h"
+#include "splicer.h"
+
 using std::vector;
 using std::string;
 using std::set;
@@ -93,7 +95,7 @@ int main(int argc, char**argv){
         run_abundance(argc - 1, argv + 1);
     }
     else if(module == "splicer"){
-        fmt::print("Splicer\n");
+        return splicer_module{argc - 1, argv + 1}.run();
     }
     else if(module == "umi"){
         return UMI_module{argc - 1, argv + 1}.run();

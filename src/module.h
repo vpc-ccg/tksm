@@ -20,7 +20,7 @@ class ri_module {
     string program_name;
     string program_description;
     cxxopts::Options options;
-    virtual cxxopts::ParseResult parse(int argc, char** argv) = 0;
+
     virtual int validate_arguments() = 0;
 public:
     ri_module(string program_name, string program_description):
