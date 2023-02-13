@@ -10,8 +10,8 @@ LDFLAGS += -lz -lpthread
 LDFLAGS += $(shell python3-config --ldflags --embed)
 CXXFLAGS += $(shell python3-config --cflags --embed)
 
-#GIT_VERSION:=$(shell git describe --dirty --always --tags)
-GIT_VERSION:=""
+GIT_VERSION:=$(shell git describe --dirty --always --tags)
+#GIT_VERSION:=""
 ifneq ($(GIT_VERSION),"")
 	CXXFLAGS += -DVERSION=\"${GIT_VERSION}\"
 endif
@@ -23,7 +23,7 @@ TSTB=test/binaries
 BUILDD=build
 PCH_LIB = libs.h
 PCH_HEADERS = tree.h graph.h interval.h reverse_complement.h cigar.h extern/IITree.h extern/cxxopts.h kde.h
-SOURCE_FILES =  pcr.cpp  sequencer.cpp splicer.cpp polyA.cpp truncate.cpp umi.cpp single-cell-barcoder.cpp kde.cpp
+SOURCE_FILES =  pcr.cpp  sequencer.cpp splicer.cpp polyA.cpp truncate.cpp umi.cpp single-cell-barcoder.cpp kde.cpp rnainfuser.cpp
 
 SOURCE_PATH = $(SOURCE_FILES:%.cpp=${SRCD}/%.cpp)
 EXEC_FILES = $(SOURCE_FILES:%.cpp=${BUILDD}/%)
@@ -70,7 +70,7 @@ all:
 
 .PHONY: clean
 
-install.sh:
+install.sh: ${EXEC_FILES} Makefile
 	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
 	@echo cp ${BUILDD}/* ${INSTALL_PREFIX}/bin >> $@
 	@echo cp py/badread_models ${INSTALL_PREFIX}/bin -r >> $@
