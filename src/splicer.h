@@ -76,8 +76,8 @@ class splicer_module : public tksm_module{
         std::string abundance_file = args["abundance"].as<string>();
         std::string output_file = args["output"].as<string>();
         int molecule_count = args["molecule-count"].as<int>();
-        bool use_whole_id = args["use-whole-id"].as<bool>();
-        bool non_coding = args["non-coding"].as<bool>();
+        [[maybe_unused]] bool use_whole_id = args["use-whole-id"].as<bool>();
+        [[maybe_unused]] bool non_coding = args["non-coding"].as<bool>();
         int default_depth = args["default-depth"].as<int>();
 
         std::uniform_real_distribution<> dist(0, 1);

@@ -1,80 +1,46 @@
+
+
 INSTALL_PREFIX ?= /usr
 CXXFLAGS += -DINSTALL_PATH=\"${INSTALL_PREFIX}/bin\"
-
-CXX ?= g++
-OPT ?= -O2
-CXXFLAGS += ${OPT} -Wall -std=c++20 -Iextern/include -Ipy_header
-LDFLAGS += -lz -lpthread 
-LDFLAGS += $(shell python3-config --ldflags --embed)
-CXXFLAGS += $(shell python3-config --cflags --embed)
 
 GIT_VERSION:=$(shell git describe --dirty --always --tags)
 ifneq ($(GIT_VERSION),"")
 	CXXFLAGS += -DVERSION=\"${GIT_VERSION}\"
 endif
-
-SRCD = src
-OBJD = obj
-TSTD = test
-TSTB = test/binaries
-BUILDD = build
-PCH_LIB = libs.h
-PCH_HEADERS = tree.h graph.h interval.h reverse_complement.h cigar.h extern/IITree.h extern/cxxopts.h kde.h
-SOURCE_FILES = tksm.cpp
-
-SOURCE_PATH = $(SOURCE_FILES:%.cpp=${SRCD}/%.cpp)
-EXEC_FILES = $(SOURCE_FILES:%.cpp=${BUILDD}/%)
-OBJECTS = $(SOURCE_FILES:%.cpp=${OBJD}/%.o)
-PCH_OUT = $(PCH_LIB:%.h=${OBJD}/%.pch)
-HEADER_PATH = $(PCH_HEADERS:%.h=${SRCD}/%.h)
-PY_FILES = py/truncate_kde.py py/transcript_abundance.py py/sequence.py
-PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
+CXX?=g++
 
 
-.PRECIOUS: $(PY_HEADERS)
+CXX_OPT ?= -O2
+CXX_DBG ?=
+CXX_STD ?=c++20
+CXXFLAGS += -std=$(CXX_STD) -Wall -Werror $(CXX_OPT) $(CXX_DBG) 
 
-all: $(EXEC_FILES) install.sh
+PY_CXXFLAGS = $(shell python3-config --cflags --embed)
+PY_LDFLAGS = $(shell python3-config --ldflags --embed)
 
-$(BUILDD)/%:$(SRCD)/%.cpp $(PY_HEADERS) 
-	@mkdir -p ${BUILDD}
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(PCH_OUT): $(PCH_LIB) $(PCH_HEADERS)
-	$(CXX) $(CXXFLAGS) -o $@ $<
+SRC_PATH = src
+BUILD_PATH = build
+PY_HEADER_PATH = py_header
+EXTERN_HEADER_PATH = extern/include
+BIN_PATH = bin
 
-${OBJD}/%.o:$(SRCD)/%.cpp 
-	@mkdir -p ${OBJD}
-	$(CXX) $(CXXFLAGS) -o $@ $<
+MAIN = $(SRC_PATH)/tksm.cpp
+EXEC = $(BIN_PATH)/tksm
 
-${TSTB}/%:${TSTD}/%.cpp
-	@mkdir -p ${TSTB}
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-py_header/%.h: py/%.py
-	@mkdir -p py_header
-	@xxd -i $< > $@
+$(EXEC): $(MAIN)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS)
 
-reverse_complement_test: ${TSTB}/reverse_complement_test
-	./${TSTB}/reverse_complement_test
 
-check: reverse_complement_test
-	
-all:
-	@echo ${SOURCE_PATH}
-	@echo ${OBJECTS}
-	@echo ${PCH_LIB}
-	@echo ${PCH_OUT}
-	@echo ${HEADER_PATH}
-	@echo ${EXEC_FILES}
-
-.PHONY: clean
 
 install.sh: ${EXEC_FILES} Makefile
 	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
 	@echo cp ${BUILDD}/* ${INSTALL_PREFIX}/bin >> $@
 	@echo cp py/badread_models ${INSTALL_PREFIX}/bin -r >> $@
 	chmod +x $@
+
+.PHONY: clean
 clean:
-	@rm -f ${BUILDD}/*
-	@rm -f ${OBJD}/*.o
-	@rm -f ${PY_HEADERS}
+	rm -rf ${OBJD} ${BUILDD} ${TSTB} ${PY_HEADER_PATH} ${BIN_PATH} install.sh
