@@ -25,7 +25,7 @@ vector<string> modules = {
     "abundance",
     "splicer",
     "umi",
-    "polya",
+    "polyA",
     "single-cell-barcoder",
     "truncate",
     "fusion",
@@ -98,7 +98,7 @@ int main(int argc, char**argv){
     else if(module == "umi"){
         return UMI_module{argc - 1, argv + 1}.run();
     }
-    else if(module == "polya"){
+    else if(module == "polyA"){
         return PolyA_module{argc - 1, argv + 1}.run();
     }
     else if(module == "single-cell-barcoder"){
