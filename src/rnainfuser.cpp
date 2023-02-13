@@ -6,7 +6,7 @@
 #include <string>
 #include <set>
 
-//Import modules
+//Import kisims
 #include "kde.h"
 #include "abundance.h"
 #include "sequencer.h"
@@ -23,7 +23,7 @@ using std::set;
 #define VERSION "0.0.0"
 #endif
 
-vector<string> modules = {
+vector<string> kisims = {
     "abundance",
     "splicer",
     "umi",
@@ -49,8 +49,8 @@ vector<string> info = {
 void help(char **argv, auto file){
     fmt::print(file, "Usage: {} <module> [options]", argv[0]);
     fmt::print("\nAvailable modules: \n");
-    for (auto module : modules){
-        fmt::print("\t{}\t\t{}\n", module, "description");
+    for (auto kisim : kisims){
+        fmt::print("\t{}\t\t{}\n", kisim, "description");
     }
 
     fmt::print("\nAvailable utilities: \n");
@@ -67,11 +67,11 @@ int main(int argc, char**argv){
         return 1;
     }
     
-    set<string> all_modules = set<string>(modules.begin(), modules.end());
-    all_modules.insert(utility.begin(), utility.end());
-    all_modules.insert(info.begin(), info.end());
+    set<string> all_kisims = set<string>(kisims.begin(), kisims.end());
+    all_kisims.insert(utility.begin(), utility.end());
+    all_kisims.insert(info.begin(), info.end());
 
-    if (all_modules.find(argv[1]) == all_modules.end()){
+    if (all_kisims.find(argv[1]) == all_kisims.end()){
         //check if --help is called
         for(int i = 1; i < argc; i++){
             if (string(argv[i]) == "--help"){
@@ -81,38 +81,38 @@ int main(int argc, char**argv){
         }
     }
     
-    string module = argv[1];
+    string kisim = argv[1];
     
-    if(module == "version"){
+    if(kisim == "version"){
         fmt::print("Version: {}\n", VERSION);
         return 0;
     }
-    else if(module == "help"){
+    else if(kisim == "help"){
         help(argv, stdout);
         return 0;
     }
-    else if(module == "abundance"){
+    else if(kisim == "abundance"){
         run_abundance(argc - 1, argv + 1);
     }
-    else if(module == "splicer"){
+    else if(kisim == "splicer"){
         return splicer_module{argc - 1, argv + 1}.run();
     }
-    else if(module == "umi"){
+    else if(kisim == "umi"){
         return UMI_module{argc - 1, argv + 1}.run();
     }
-    else if(module == "polyA"){
+    else if(kisim == "polyA"){
         return PolyA_module{argc - 1, argv + 1}.run();
     }
-    else if(module == "single-cell-barcoder"){
+    else if(kisim == "single-cell-barcoder"){
         fmt::print("Single cell barcoder\n");
     }
-    else if(module == "truncate"){
+    else if(kisim == "truncate"){
         fmt::print("Truncate\n");
     }
-    else if(module == "fusion"){
+    else if(kisim == "fusion"){
         fmt::print("Fusion\n");
     }
-    else if(module == "sequencer"){
+    else if(kisim == "sequencer"){
 
         //Inject default badread model path into argv
         //If one provided by user, it will override this
@@ -129,20 +129,20 @@ int main(int argc, char**argv){
         argv_cpy[1] = (char *)path_cmd;
         run_sequencer(argc + 1, argv_cpy);
     }
-    else if(module == "kde"){
+    else if(kisim == "kde"){
         run_kde(argc - 1, argv + 1);
     }
-    else if(module == "head"){
+    else if(kisim == "head"){
         fmt::print("Head\n");
     }
-    else if(module == "model-errors"){
+    else if(kisim == "model-errors"){
         fmt::print("Model errors\n");
     }
-    else if(module == "model-qscores"){
+    else if(kisim == "model-qscores"){
         fmt::print("Model qscores\n");
     }
     else{
-        fmt::print(stderr, "Unknown module: {}\n", module);
+        fmt::print(stderr, "Unknown kisim: {}\n", kisim);
         return 1;
     }
 
