@@ -16,3 +16,4 @@ simulator
 *.mdf
 *__pycache__*
 install.sh
+.vscode
