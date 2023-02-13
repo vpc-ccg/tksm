@@ -10,10 +10,11 @@
 #include "kde.h"
 #include "abundance.h"
 #include "sequencer.h"
-
+#include "single-cell-barcoder.h"
 #include "umi.h"
 #include "polyA.h"
 #include "splicer.h"
+#include "truncate.h"
 
 using std::vector;
 using std::string;
@@ -104,10 +105,10 @@ int main(int argc, char**argv){
         return PolyA_module{argc - 1, argv + 1}.run();
     }
     else if(kisim == "single-cell-barcoder"){
-        fmt::print("Single cell barcoder\n");
+        return SingleCellBarcoder_module{argc - 1, argv + 1}.run();
     }
     else if(kisim == "truncate"){
-        fmt::print("Truncate\n");
+        return Truncate_module{argc - 1, argv + 1}.run();
     }
     else if(kisim == "fusion"){
         fmt::print("Fusion\n");
