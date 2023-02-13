@@ -15,6 +15,7 @@
 #include "polyA.h"
 #include "splicer.h"
 #include "truncate.h"
+#include "head.h"
 
 using std::vector;
 using std::string;
@@ -128,13 +129,13 @@ int main(int argc, char**argv){
             argv_cpy[i + 1] = argv[i];
         } 
         argv_cpy[1] = (char *)path_cmd;
-        run_sequencer(argc + 1, argv_cpy);
+        return run_sequencer(argc + 1, argv_cpy);
     }
     else if(kisim == "kde"){
-        run_kde(argc - 1, argv + 1);
+        return run_kde(argc - 1, argv + 1);
     }
     else if(kisim == "head"){
-        fmt::print("Head\n");
+        return Head_module{argc - 1, argv + 1}.run();
     }
     else if(kisim == "model-errors"){
         fmt::print("Model errors\n");
