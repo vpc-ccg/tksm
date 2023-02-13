@@ -22,8 +22,8 @@ class UMI_module : public ri_module{
             ("i,input", "input mdf file", cxxopts::value<string>())
             ("o,output", "output mdf file", cxxopts::value<string>())
             ("f,umi-fasta", "output umi fasta file", cxxopts::value<string>())
-            ("5,format5", "5' UMI format", cxxopts::value<string>())
-            ("3,format3", "3' UMI format", cxxopts::value<string>())
+            ("5,format5", "5' UMI format", cxxopts::value<string>()->default_value(""))
+            ("3,format3", "3' UMI format", cxxopts::value<string>()->default_value(""))
             
             ;
         return  options.parse(argc, argv);
@@ -41,17 +41,19 @@ class UMI_module : public ri_module{
         int missing_parameters = 0;
         for( string &param : mandatory){
             if(args.count(param) == 0){
-                std::cerr << param << " is required!\n";
+                loge("{} is required!", param);
                 ++missing_parameters;
             }
         }
 
-        if(args.count("format5") + args.count("format3") < 1){
-            missing_parameters++;
-            std::cerr << "format5 and/or format3 is required!\n";
+
+        if( args["format5"].as<string>().empty() && args["format3"].as<string>().empty()){
+            loge( "At least one of the UMI formats must be provided");
+            ++missing_parameters;
         }
+
         if(missing_parameters  > 0){
-            std::cerr << options.help() << std::endl;
+            fmt::print(stderr, "{}\n", options.help());
             return 1;
         }
         return 0;
