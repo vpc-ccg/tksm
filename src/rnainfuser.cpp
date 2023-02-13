@@ -16,6 +16,7 @@
 #include "splicer.h"
 #include "truncate.h"
 #include "head.h"
+#include "fusion.h"
 
 using std::vector;
 using std::string;
@@ -112,7 +113,7 @@ int main(int argc, char**argv){
         return Truncate_module{argc - 1, argv + 1}.run();
     }
     else if(kisim == "fusion"){
-        fmt::print("Fusion\n");
+        return Fusion_module{argc - 1, argv + 1}.run();
     }
     else if(kisim == "sequencer"){
 
