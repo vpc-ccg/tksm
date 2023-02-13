@@ -5,10 +5,10 @@
 #include "util.h"
 
 
-class ri_module {
+class tksm_module {
     //Pure abstract class for the modules
     //The modules are the classes that will be used to
-    //implement the different functionalities of the RNAInfuser
+    //implement the different functionalities of the tksm
     //Each module will have private functions to parse the parameters
     //using the cxxopts library and a function to validate the given parameters
     //modules will be constructed using argc and argv from the main function
@@ -23,7 +23,7 @@ class ri_module {
 
     virtual int validate_arguments() = 0;
 public:
-    ri_module(string program_name, string program_description):
+    tksm_module(string program_name, string program_description):
         program_name(program_name),
         program_description(program_description),
         options{program_name,program_description}

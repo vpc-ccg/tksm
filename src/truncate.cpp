@@ -653,7 +653,7 @@ int main_print_mtx(int argc, char **argv){
 }
 
 int main(int argc, char **argv){
-    cxxopts::Options options("RNAInfuser Truncate", "Truncate module of RNAInfuser");
+    cxxopts::Options options("tksm Truncate", "Truncate module of tksm");
     std::cout << approx_trigamma(2) << "\n";
     options.add_options()
         ("i,input", "Molecule description file", cxxopts::value<string>())

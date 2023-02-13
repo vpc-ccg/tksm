@@ -7,10 +7,10 @@
 #include "util.h"
 
 #ifndef POLYA_REFERENCE_NAME
-#define POLYA_REFERENCE_NAME "ri_polyA_reference"
+#define POLYA_REFERENCE_NAME "tksm_polyA_reference"
 #endif
 
-class PolyA_module : public ri_module{
+class PolyA_module : public tksm_module{
      //copy of the UMI_module from src/umi.h
     
     private:
@@ -102,7 +102,7 @@ class PolyA_module : public ri_module{
     }
     public:
         PolyA_module( int argc, char **argv ):
-            ri_module( "polyA module", "Adds polyA tails to molecules with given size distribution" ),
+            tksm_module( "polyA module", "Adds polyA tails to molecules with given size distribution" ),
             args( parse( argc, argv ) )
     {}
 

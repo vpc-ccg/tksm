@@ -46,7 +46,7 @@ int add_polyA_vec(vector<molecule_descriptor> &copies, Distribution &dist, int m
 
 int main(int argc, char **argv){
 
-    cxxopts::Options options("RNAInfuser polyA", "PolyA module of RNAInfuser");
+    cxxopts::Options options("tksm polyA", "PolyA module of tksm");
 
     options.add_options()
         ("i,input",  "input mdf file", cxxopts::value<string>())

@@ -19,7 +19,7 @@ std::mt19937 rand_gen{std::random_device{}()};
 
 int main(int argc, char **argv){
 
-    cxxopts::Options options("RNAInfuser Single-Cell barcoder", "Single-Cell barcoder module");
+    cxxopts::Options options("tksm Single-Cell barcoder", "Single-Cell barcoder module");
 
     options.add_options()
         ("i,input",  "input mdf file", cxxopts::value<string>())

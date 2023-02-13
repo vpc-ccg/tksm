@@ -11,7 +11,7 @@
 #include <random>
 #include "cxxopts/cxxopts.hpp"
 
-class Head_module : public ri_module{
+class Head_module : public tksm_module{
 
     cxxopts::ParseResult parse(int argc, char **argv){
         options.add_options("main")
@@ -23,7 +23,7 @@ class Head_module : public ri_module{
     cxxopts::ParseResult args;
     std::mt19937 rand_gen;
     public:
-    Head_module( int argc, char **argv) : ri_module{"head", "Head module"}, args(parse(argc, argv)){
+    Head_module( int argc, char **argv) : tksm_module{"head", "Head module"}, args(parse(argc, argv)){
     }
 
     int  validate_arguments(){

@@ -11,7 +11,7 @@
 #include <random>
 #include "cxxopts/cxxopts.hpp"
 
-class Fusion_module : public ri_module{
+class Fusion_module : public tksm_module{
 
     cxxopts::ParseResult parse(int argc, char **argv){
         options.add_options("main")
@@ -24,7 +24,7 @@ class Fusion_module : public ri_module{
     cxxopts::ParseResult args;
     std::mt19937 rand_gen;
     public:
-    Fusion_module( int argc, char **argv) : ri_module{"fusion", "Fusion module"}, args(parse(argc, argv)){
+    Fusion_module( int argc, char **argv) : tksm_module{"fusion", "Fusion module"}, args(parse(argc, argv)){
     }
 
     int  validate_arguments(){

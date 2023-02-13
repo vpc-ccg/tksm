@@ -11,10 +11,9 @@
 #include <random>
 #include "cxxopts/cxxopts.hpp"
 
-
 void add_UMIs(std::vector<pcr_copy> &copies, ostream &umifile, const std::string &format, const std::string &format_back ="");
 
-class UMI_module : public ri_module{
+class UMI_module : public tksm_module{
 
     cxxopts::ParseResult parse(int argc, char **argv){
 
@@ -24,7 +23,7 @@ class UMI_module : public ri_module{
             ("f,umi-fasta", "output umi fasta file", cxxopts::value<string>())
             ("5,format5", "5' UMI format", cxxopts::value<string>()->default_value(""))
             ("3,format3", "3' UMI format", cxxopts::value<string>()->default_value(""))
-            
+            ("contig-prefix", "Prefix of the umi contigs in the mdf and umi-fasta", cxxopts::value<string>()->default_value("tksm_umi_ctg"))
             ;
         return  options.parse(argc, argv);
     }
@@ -32,7 +31,7 @@ class UMI_module : public ri_module{
     cxxopts::ParseResult args;
     std::mt19937 rand_gen;
     public:
-    UMI_module( int argc, char **argv) : ri_module{"umi", "UMI tagging module"}, args(parse(argc, argv)){
+    UMI_module( int argc, char **argv) : tksm_module{"umi", "UMI tagging module"}, args(parse(argc, argv)){
 
     }
 
@@ -98,6 +97,8 @@ class UMI_module : public ri_module{
         fmt2seq make_seq5(format5);
         fmt2seq make_seq3(format3);
 
+        string umi_ctg_prefix = args["contig-prefix"].as<string>();
+
 
         string outfile_name = args["output"].as<string>();
         logi("Adding UMIs and printing to: {}", outfile_name);
@@ -111,7 +112,7 @@ class UMI_module : public ri_module{
             molecule_descriptor md = streamer();
             string umi_seq5 = make_seq5[rand_gen];
             string umi_seq3 = make_seq3[rand_gen];
-            string umi_ctg_name = fmt::format("RI_umi_ctg_{}",index);
+            string umi_ctg_name = fmt::format("{}_{}",umi_ctg_prefix ,index);
 
             umifile << fmt::format(">{}\n", umi_ctg_name);
             umifile << umi_seq5 << umi_seq3 << "\n";

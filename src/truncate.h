@@ -233,7 +233,7 @@ class custom_distribution2D{
 };
 
 
-class Truncate_module : public ri_module{
+class Truncate_module : public tksm_module{
 
     cxxopts::ParseResult parse(int argc, char **argv){
         options.add_options("main")
@@ -249,7 +249,7 @@ class Truncate_module : public ri_module{
     cxxopts::ParseResult args;
     std::mt19937 rand_gen;
     public:
-    Truncate_module( int argc, char **argv) : ri_module{"truncate", "Truncate module"}, args(parse(argc, argv)){
+    Truncate_module( int argc, char **argv) : tksm_module{"truncate", "Truncate module"}, args(parse(argc, argv)){
     }
 
     int  validate_arguments(){

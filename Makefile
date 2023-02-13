@@ -20,7 +20,7 @@ TSTB = test/binaries
 BUILDD = build
 PCH_LIB = libs.h
 PCH_HEADERS = tree.h graph.h interval.h reverse_complement.h cigar.h extern/IITree.h extern/cxxopts.h kde.h
-SOURCE_FILES = pcr.cpp sequencer.cpp splicer.cpp polyA.cpp truncate.cpp umi.cpp single-cell-barcoder.cpp kde.cpp rnainfuser.cpp
+SOURCE_FILES = tksm.cpp
 
 SOURCE_PATH = $(SOURCE_FILES:%.cpp=${SRCD}/%.cpp)
 EXEC_FILES = $(SOURCE_FILES:%.cpp=${BUILDD}/%)

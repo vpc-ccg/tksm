@@ -99,7 +99,7 @@ class PCRRunner{
 };
 int main(int argc, char **argv){
 
-    cxxopts::Options options("RNAInfuser PCR module", "PCR PCR PCR PTR");
+    cxxopts::Options options("tksm PCR module", "PCR PCR PCR PTR");
     
     map<string, tuple<double, double>> pcr_presets {
         { "Taq-setting1", {2*std::pow(0.1,4),0.88}},

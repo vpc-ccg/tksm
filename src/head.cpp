@@ -19,7 +19,7 @@ std::mt19937 rand_gen{std::random_device{}()};
 
 int main(int argc, char **argv){
 
-    cxxopts::Options options("RNAInfuser head module", "head");
+    cxxopts::Options options("tksm head module", "head");
 
     options.add_options()
         ("n,count", "Number of molecule description", cxxopts::value<int>()->default_value("10"))

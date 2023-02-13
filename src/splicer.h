@@ -16,7 +16,7 @@ using std::string;
 using std::vector;
 
 
-class splicer_module : public ri_module{
+class splicer_module : public tksm_module{
 
     cxxopts::ParseResult parse(int argc, char **argv){
 
@@ -35,7 +35,7 @@ class splicer_module : public ri_module{
     cxxopts::ParseResult args;
     std::mt19937 rand_gen;
     public:
-    splicer_module( int argc, char **argv) : ri_module{"splicer", "RNA Splicing module"}, args(parse(argc, argv)){
+    splicer_module( int argc, char **argv) : tksm_module{"splicer", "RNA Splicing module"}, args(parse(argc, argv)){
 
     }
 

@@ -48,7 +48,7 @@ void describe_program(const cxxopts::ParseResult &args){
 
 int main(int argc, char **argv){
 
-    cxxopts::Options options("RNAInfuser Splicer", "Splicer module of RNAInfuser");
+    cxxopts::Options options("tksm Splicer", "Splicer module of tksm");
 
     options.add_options()
         ("g,gtf",  "Path to gtf annotation file", cxxopts::value<string>())

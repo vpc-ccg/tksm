@@ -845,7 +845,7 @@ auto simulate_given_fusions( const string &path,
 
 int main(int argc, char **argv){
 
-    cxxopts::Options options("RNAInfuser Fusion", "Fusion module of RNAInfuser");
+    cxxopts::Options options("tksm Fusion", "Fusion module of tksm");
 
     options.add_options()
         //("p,paf",  "Path to whole genome mappings in paf format", cxxopts::value<string>())
