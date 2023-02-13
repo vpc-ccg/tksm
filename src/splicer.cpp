@@ -36,65 +36,6 @@ using std::map;
 std::mt19937 rand_gen{std::random_device{}()};
 
 
-vector<string> read_vec(ifstream &file, size_t count){
-
-    vector<string> vec;
-    string buffer;
-
-    for(size_t i = 0; i < count; ++i){
-        std::getline(file, buffer);
-        vec.push_back(buffer);
-    }
-    return vec;
-}
-
-class SparseMatrix{
-    map<pair<int,int>, int> mtx;
-    vector<string> features;
-    vector<string> barcodes;
-    public:
-    SparseMatrix(const string &matrix_path)
-//features{read_vec(feature_path)}, barcodes{read_vec(barcode_path)}
-    {
-        ifstream file(matrix_path);
-        string buffer;
-        std::getline(file, buffer);
-        int feat_count, barcode_count, entry_count;
-        string comment;
-        std::stringstream(buffer) >> feat_count >> barcode_count >> entry_count >> comment;
-
-        features = read_vec(file, feat_count);
-        barcodes = read_vec(file, barcode_count);
-        while(std::getline(file, buffer)){
-            int row_id, col_id, count;
-            sscanf(buffer.c_str(), "%d\t%d\t%d", &row_id, &col_id, &count);
-            mtx[std::make_pair(row_id, col_id)] = count;
-        }
-    }
-
-    friend ostream& operator<< (ostream &ost, const SparseMatrix &sparse){
-
-        for(const string &bc: sparse.barcodes){
-            ost << "\t" << bc ;
-        }
-        ost << "\n";
-        for(size_t feat_index = 0; feat_index < sparse.features.size(); ++feat_index){
-            ost << sparse.features[feat_index] << "\t";
-            for(size_t bar_index = 0; bar_index < sparse.barcodes.size(); ++bar_index){
-                auto ptr = sparse.mtx.find(std::make_pair(feat_index, bar_index));
-                if(ptr != sparse.mtx.end()){
-                    ost << ptr->second << "\t";
-                }
-                else{
-                    ost << 0 << "\t";
-                }
-            }
-            ost << "\n";
-        }
-        return ost;
-    }
-};
-
 void describe_program(const cxxopts::ParseResult &args){
     logi("Running Splicer Module:");
     logi("gtf annotation: {}", args["gtf"].as<string>());
@@ -123,7 +64,7 @@ int main(int argc, char **argv){
     ;
     auto args = options.parse(argc, argv);
 
-    fmtlog::setLogLevel(parse_loglevel(args["verbosity"].as<string>()));
+    fmtlog::setLogLevel(LogLevels::parse_loglevel(args["verbosity"].as<string>()));
 
     if(args.count("help") > 0){
         std::cout << options.help() << std::endl;
@@ -158,7 +99,7 @@ int main(int argc, char **argv){
     auto isoforms = read_gtf_transcripts(path_to_gtf, args["default-depth"].as<int>());
 
 
-    ifstream table_file(args["abundance"].as<string>());
+    std::ifstream table_file(args["abundance"].as<string>());
     ofstream outfile( out_path);
     if(!table_file){
         loge("Cannot open {}! Terminating!", args["abundance"].as<string>());

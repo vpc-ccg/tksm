@@ -12,7 +12,7 @@
 #include "sequencer.h"
 
 #include "umi.h"
-
+#include "polyA.h"
 using std::vector;
 using std::string;
 using std::set;
@@ -99,7 +99,7 @@ int main(int argc, char**argv){
         return UMI_module{argc - 1, argv + 1}.run();
     }
     else if(module == "polya"){
-        return Polya_module{argc - 1, argv + 1}.run();
+        return PolyA_module{argc - 1, argv + 1}.run();
     }
     else if(module == "single-cell-barcoder"){
         fmt::print("Single cell barcoder\n");

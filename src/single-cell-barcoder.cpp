@@ -16,7 +16,7 @@
 using std::string;
 
 std::mt19937 rand_gen{std::random_device{}()};
-
+/*
 class num2seq{
     public:
         std::array<char,4> table  {{'A','T','C','G'}};
@@ -75,7 +75,7 @@ class fmt2seq{
             return st.str();
         }
 };
-
+*/
 void add_UMIs(vector<molecule_descriptor> &copies, ostream &umifile, const string &format, const string &format_back){
 
     fmt2seq make_seq(format);

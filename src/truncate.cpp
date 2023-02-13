@@ -31,7 +31,7 @@
 #include "mdf.h"
 #include "paf.h"
 
-#define FMT_HEADER_ONLY 1
+
 #include <fmt/format.h>
 
 
@@ -610,7 +610,7 @@ class custom_distribution2D{
             }
             ost << "\n";
 
-            for(int j = 0; j < dist.y_axis_index.size(); ++j){
+            for(size_t j = 0; j < dist.y_axis_index.size(); ++j){
                 ost << dist.y_axis_index[j] << "\t";
                 const custom_distribution<RealType, IndexType> &d1 =dist.distillery[j];
                 for(double v : d1.cdf()){
@@ -710,7 +710,7 @@ int main(int argc, char **argv){
 
 
     string path_to_gtf   {args["gtf"].as<string>()};
-    ifstream gtfile( path_to_gtf);
+    std::ifstream gtfile( path_to_gtf);
 
     string buffer;
     map<string, vector<string>> gene2transcripts;
