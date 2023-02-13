@@ -15,3 +15,4 @@ simulator
 *.bai
 *.mdf
 *__pycache__*
+install.sh
