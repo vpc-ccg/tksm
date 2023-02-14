@@ -30,7 +30,7 @@ EXEC = $(BIN_PATH)/tksm
 PY_FILES = $(wildcard py/*.py)
 PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
 
-$(EXEC): $(MAIN) $(PY_HEADERS)
+$(EXEC): $(MAIN) $(PY_HEADERS) install.sh
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS)
 
@@ -40,7 +40,7 @@ py_header/%.h: py/%.py
 
 install.sh: ${EXEC_FILES} Makefile
 	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
-	@echo cp ${BUILDD}/* ${INSTALL_PREFIX}/bin >> $@
+	@echo cp ${BIN_PATH}/* ${INSTALL_PREFIX}/bin >> $@
 	@echo cp py/badread_models ${INSTALL_PREFIX}/bin -r >> $@
 	chmod +x $@
 
