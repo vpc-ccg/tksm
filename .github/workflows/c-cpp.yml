@@ -13,6 +13,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        python-version: 3.10
+        mamba-version: "*"
+        channels: conda-forge,defaults
+        channel-priority: true
+        activate-environment: anaconda-client-env
+        environment-file: env.yaml
     - name: make
       run: make
     - name: make check
