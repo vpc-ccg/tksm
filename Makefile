@@ -14,6 +14,8 @@ CXX_OPT ?= -O2
 CXX_DBG ?=
 CXX_STD ?=c++20
 CXXFLAGS += -std=$(CXX_STD) -Wall -Werror $(CXX_OPT) $(CXX_DBG) 
+LDFLAGS += -lz -lpthread -lstdc++fs 
+
 
 PY_CXXFLAGS = $(shell python3-config --cflags --embed)
 PY_LDFLAGS = $(shell python3-config --ldflags --embed)
@@ -47,3 +49,17 @@ install.sh: ${EXEC_FILES} Makefile
 .PHONY: clean
 clean:
 	rm -rf ${OBJD} ${BUILDD} ${TSTB} ${PY_HEADER_PATH} ${BIN_PATH} install.sh
+
+# Testing 
+#
+
+TSTD = test
+TSTB = ${TSTD}/build
+${TSTB}/%:${TSTD}/%.cpp
+	@mkdir -p ${TSTB}
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
+
+reverse_complement_test: ${TSTB}/reverse_complement_test
+	./${TSTB}/reverse_complement_test
+
+check: reverse_complement_test
