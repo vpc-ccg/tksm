@@ -27,13 +27,16 @@ BIN_PATH = bin
 
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
+PY_FILES = $(wildcard py/*.py)
+PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
 
-
-$(EXEC): $(MAIN)
+$(EXEC): $(MAIN) $(PY_HEADERS)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS)
 
-
+py_header/%.h: py/%.py
+	@mkdir -p py_header
+	@xxd -i $< > $@
 
 install.sh: ${EXEC_FILES} Makefile
 	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
