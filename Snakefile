@@ -5,7 +5,7 @@ if len(config)==0:
 
 outpath = config['outpath']
 preproc_d = f'{outpath}/preprocess'
-RI_d = f'{outpath}/RI'
+TS_d = f'{outpath}/TS'
 time_d = f'{outpath}/time'
 DEBUG=True
 
@@ -16,40 +16,40 @@ if DEBUG:
         return X
 
 def exprmnt_sample(exprmnt):
-    return config['RI_experiments'][exprmnt]['sample']
+    return config['TS_experiments'][exprmnt]['sample']
 
 def component_idx(prefix):
     return len(prefix.split('.'))
 
-def fastas_for_RI_sequence(wc):
+def fastas_for_TS_sequence(wc):
     fastas = list()
     sample = exprmnt_sample(wc.exprmnt)
     fastas.append(config['refs'][get_sample_ref(sample)]['DNA'])
-    for idx, component in enumerate(config['RI_experiments'][wc.exprmnt]['pipeline']):
+    for idx, component in enumerate(config['TS_experiments'][wc.exprmnt]['pipeline']):
         component = list(component.keys())[0]
         if component in ['plA', 'SCB', 'UMI']:
             prefix = '.'.join(
                 [
                     list(c.keys())[0]
-                    for c in config['RI_experiments'][wc.exprmnt]['pipeline'][:idx+1]
+                    for c in config['TS_experiments'][wc.exprmnt]['pipeline'][:idx+1]
                 ]
             )
             fastas.append(
-                f'{RI_d}/{wc.exprmnt}/{prefix}.fasta',
+                f'{TS_d}/{wc.exprmnt}/{prefix}.fasta',
             )
     return fastas
 
 def experiment_prefix(exprmnt):
     prefix = list()
-    for component in config['RI_experiments'][exprmnt]['pipeline']:
+    for component in config['TS_experiments'][exprmnt]['pipeline']:
         prefix.append(list(component)[0])
     return '.'.join(prefix)
 
 def get_sample_ref(name):
     if name in config['samples']:
         return config['samples'][name]['ref']
-    elif name in config['RI_experiments']:
-        return get_sample_ref(config['RI_experiments'][name]['sample'])
+    elif name in config['TS_experiments']:
+        return get_sample_ref(config['TS_experiments'][name]['sample'])
     else:
         print(f'Invalid experiment/sample name! {name}')
         1/0
@@ -58,9 +58,9 @@ def get_sample_fastqs(name):
     if name in config['samples']:
         sample = name
         return config['samples'][sample]['fastq']
-    elif name in config['RI_experiments']:
+    elif name in config['TS_experiments']:
         exprmnt = name
-        return [f'{RI_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq']
+        return [f'{TS_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq']
     else:
         print(f'Invalid experiment/sample name! {name}')
         1/0
@@ -68,8 +68,8 @@ def get_sample_fastqs(name):
 rule all:
     input:
         [
-            f'{RI_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq'
-            for exprmnt in config['RI_experiments']
+            f'{TS_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq'
+            for exprmnt in config['TS_experiments']
         ],
        
 
@@ -83,20 +83,20 @@ rule make_binary:
 
 rule sequence:
     input:
-        binary = config['exec']['RI_sequencer'],
+        binary = config['exec']['tksm'],
         badread = config['exec']['badread'],
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
-        fastas = fastas_for_RI_sequence,
+        mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
+        fastas = fastas_for_TS_sequence,
     output:
-        fastq = f'{RI_d}/{{exprmnt}}/{{prefix}}.Seq.fastq',
+        fastq = f'{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq',
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.Seq.benchmark'
     params:
-        other = lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Seq'],
+        other = lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Seq'],
     threads:
         32
     shell:
-        '{input.binary}'
+        '{input.binary} sequencer'
         ' -i {input.mdf}'
         ' --references {input.fastas}'
         ' -o {output.fastq}'
@@ -112,22 +112,22 @@ rule mirror:
         "cat {input} > {output}"
 
 
-rule trunc:
+rule truncate:
     input:
-        binary = config['exec']['RI_truncate'],
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+        binary = config['exec']['tksm'],
+        mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
         x = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.X_idxs.npy',
         y = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.Y_idxs.npy',
         g = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.grid.npy',
         gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
-        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.Trc.mdf'),
+        mdf = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.Trc.mdf'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.Trc.benchmark'
     params:
-        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Trc'],
+        lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Trc'],
     shell:
-        '{input.binary}'
+        '{input.binary} truncate'
         ' -i {input.mdf}'
         ' --kde={input.g},{input.x},{input.y}'
         ' --gtf={input.gtf}'
@@ -136,51 +136,51 @@ rule trunc:
 
 rule pcr:
     input:
-        binary = config['exec']['RI_pcr'],
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+        binary = config['exec']['tksm'],
+        mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.PCR.mdf'),
+        mdf = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.PCR.mdf'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.PCR.benchmark'
     params:
-        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['PCR'],
+        lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['PCR'],
     shell:
-        '{input.binary}'
+        '{input.binary} pcr'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
         ' {params}'
 
 rule umi:
     input:
-        binary = config['exec']['RI_umi'],
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+        binary = config['exec']['tksm'],
+        mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.mdf'),
-        fasta = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.UMI.fasta'),
+        mdf = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.UMI.mdf'),
+        fasta = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.UMI.fasta'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.UMI.benchmark'
     params:
-        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['UMI'],
+        lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['UMI'],
     shell:
-        '{input.binary}'
+        '{input.binary} umi'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
         ' -f {output.fasta}'
         ' {params}'
 
-rule single_cell:
+rule single_cell_barcoder:
     input:
-        binary = config['exec']['RI_sc_barcoder'],
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+        binary = config['exec']['tksm'],
+        mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.mdf'),
-        fasta = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.SCB.fasta'),
+        mdf = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.SCB.mdf'),
+        fasta = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.SCB.fasta'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.SCB.benchmark'
     params:
-        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['SCB'],
+        lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['SCB'],
     shell:
-        '{input.binary}'
+        '{input.binary} single-cell-barcoder'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
         ' -f {output.fasta}'
@@ -188,17 +188,17 @@ rule single_cell:
 
 rule polyA:
     input:
-        binary = config['exec']['RI_polyA'],
-        mdf = f'{RI_d}/{{exprmnt}}/{{prefix}}.mdf',
+        binary = config['exec']['tksm'],
+        mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
     output:
-        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.mdf'),
-        fasta = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.plA.fasta'),
+        mdf = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.plA.mdf'),
+        fasta = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.plA.fasta'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.plA.benchmark'
     params:
-        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['plA'],
+        lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['plA'],
     shell:
-        '{input.binary}'
+        '{input.binary} polyA'
         ' -i {input.mdf}'
         ' -o {output.mdf}'
         ' -f {output.fasta}'
@@ -206,17 +206,17 @@ rule polyA:
 
 rule splicer:
     input:
-        binary = config['exec']['RI_splicer'],
-        tsv = f'{RI_d}/{{exprmnt}}/{{prefix}}.tsv',
+        binary = config['exec']['tksm'],
+        tsv = f'{TS_d}/{{exprmnt}}/{{prefix}}.tsv',
         gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
-        mdf = pipe(f'{RI_d}/{{exprmnt}}/{{prefix}}.Spc.mdf'),
+        mdf = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.Spc.mdf'),
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.Spc.benchmark'
     params:
-        lambda wc: config['RI_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Spc'],
+        lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Spc'],
     shell:
-        '{input.binary}'
+        '{input.binary} splicer'
         ' -a {input.tsv}'
         ' -g {input.gtf}'
         ' -o {output.mdf}'
@@ -227,7 +227,7 @@ rule expression:
         script = config['exec']['transcript_abundance'],
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
     output:
-        tsv = f'{RI_d}/{{exprmnt}}/Xpr.tsv',
+        tsv = f'{TS_d}/{{exprmnt}}/Xpr.tsv',
     benchmark:
         f'{time_d}/{{exprmnt}}/Xpr.benchmark'
     shell:
@@ -239,7 +239,7 @@ rule expression_sc:
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
         lr_matches = lambda wc: f'{preproc_d}/scTagger/{exprmnt_sample(wc.exprmnt)}/{exprmnt_sample(wc.exprmnt)}.lr_matches.tsv.gz'
     output:
-        tsv = f'{RI_d}/{{exprmnt}}/Xpr_sc.tsv',
+        tsv = f'{TS_d}/{{exprmnt}}/Xpr_sc.tsv',
     benchmark:
         f'{time_d}/{{exprmnt}}/Xpr_sc.benchmark'
     shell:
