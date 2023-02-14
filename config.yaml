@@ -1,5 +1,5 @@
 outpath:
-    /groups/hachgrp/projects/dev-RNAInFuser/analysis/RI-experiments
+    /groups/hachgrp/projects/dev-RNAInFuser/analysis/TS-experiments
 
 ### Pipeline modules
 # Xpr : expression  --> Must be first module only
@@ -12,7 +12,7 @@ outpath:
 # UMI : umi
 # Trc : truncate
 # Seq : sequence --> Must be last module
-RI_experiments:
+TS_experiments:
     e1:
         sample : "N1_chr21"
         pipeline:
@@ -49,26 +49,8 @@ RI_experiments:
     #             '--other-br="--tail_noise_model=nanopore"'
 
 exec:
-    RI_splicer:
-        build/splicer
-    RI_polyA:
-        build/polyA
-    RI_pcr:
-        build/pcr
-    RI_sc_barcoder:
-        build/single-cell-barcoder
-    RI_umi:
-        build/umi
-    RI_truncate:
-        build/truncate
-    RI_sequencer:
-        py/sequence.py
-    badread:
-        /groups/hachgrp/projects/dev-simulation/code/Badread/badread-runner.py
-    transcript_abundance:
-        py/transcript_abundance.py
-    truncate_kde:
-        py/truncate_kde.py
+    tksm:
+        bin/tksm
 
 refs:
     Homo_sapiens:

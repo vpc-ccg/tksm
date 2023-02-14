@@ -2,7 +2,6 @@
 
 import json
 import os
-import pathlib
 import re
 import math
 import statistics
@@ -1056,7 +1055,7 @@ class TAIL_NOISE_MODEL_PY:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Sequencer module of RNAInFuser. Generates FASTQ file from MDF (molecule description file) and reference FASTA files.",
+        description="Sequencer module of tksm. Generates FASTQ file from MDF (molecule description file) and reference FASTA files.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("-i", "--input", type=str, required=True, help="MDF file.")
@@ -1075,7 +1074,9 @@ def parse_args():
         help="Badread reads output file. Default: no output.",
     )
     parser.add_argument(
-        "--perfect", type=str, help="Perfect reads output file. Default: no output."
+        "--perfect", 
+        type=str,
+        help="Perfect reads output file. Default: no output."
     )
     parser.add_argument(
         "--skip-qual-compute",
