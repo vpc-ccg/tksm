@@ -18,13 +18,31 @@ class UMI_module : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
-            ("i,input", "input mdf file", cxxopts::value<string>())
-            ("o,output", "output mdf file", cxxopts::value<string>())
-            ("f,umi-fasta", "output umi fasta file", cxxopts::value<string>())
-            ("5,format5", "5' UMI format", cxxopts::value<string>()->default_value(""))
-            ("3,format3", "3' UMI format", cxxopts::value<string>()->default_value(""))
-            ("contig-prefix", "Prefix of the umi contigs in the mdf and umi-fasta", cxxopts::value<string>()->default_value("tksm_umi_ctg"))
-            ;
+            (
+                "i,input",
+                "input mdf file",
+                cxxopts::value<string>()
+            )(
+                "o,output",
+                "output mdf file",
+                cxxopts::value<string>()
+            )(
+                "f,umi-fasta",
+                "output umi fasta file",
+                cxxopts::value<string>()
+            )(
+                "5,format5",
+                "5' UMI format",
+                cxxopts::value<string>()->default_value("")
+            )(
+                "3,format3",
+                "3' UMI format",
+                cxxopts::value<string>()->default_value("")
+            )(
+                "contig-prefix",
+                "Prefix of the umi contigs in the mdf and umi-fasta",
+                cxxopts::value<string>()->default_value("tksm_umi_ctg")
+            );
         // clang-format on
         return options.parse(argc, argv);
     }

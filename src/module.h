@@ -29,11 +29,21 @@ public:
           options{program_name, program_description} {
         // clang-format off
         options.add_options("utility")
-            ("h,help", "Print help")
-            ("version", "Print version")
-            ("s,seed", "random seed", cxxopts::value<int>()->default_value("42"))
-            ("v,verbosity", fmt::format("Verbosity level to choosen from [{}]",LogLevels::log_choices()), cxxopts::value<string>()->default_value("INFO"))
-        ;
+            (
+                "h,help",
+                "Print help"
+            )(
+                "version",
+                "Print version"
+            )(
+                "s,seed",
+                "random seed",
+                cxxopts::value<int>()->default_value("42")
+            )(
+                "v,verbosity",
+                fmt::format("Verbosity level to choosen from [{}]",LogLevels::log_choices()),
+                cxxopts::value<string>()->default_value("INFO")
+            );
         // clang-format on
     };
     int help_or_version_is_used(cxxopts::ParseResult &args) {

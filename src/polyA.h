@@ -16,16 +16,43 @@ private:
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options()
-            ("i,input", "Input file", cxxopts::value<std::string>())
-            ("o,output", "Output file", cxxopts::value<std::string>())
-            ("f,polya-reference", "Output polyA reference file", cxxopts::value<std::string>())   
-            ("gamma", "Use Gamma distribution [α,β]", cxxopts::value<vector<double>>())
-            ("poisson", "Use Poisson distribution [λ]", cxxopts::value<vector<double>>())
-            ("weibull", "Use Weibull distribution [α,β]", cxxopts::value<vector<double>>())
-            ("normal", "Use Normal distribution [μ,σ]", cxxopts::value<vector<double>>())
-            ("min-length", "Minimum length of polyA", cxxopts::value<int>()->default_value("0"))
-            ("max-length", "Maximum length of polyA", cxxopts::value<int>()->default_value("5000"))
-        ;
+            (
+                "i,input",
+                "Input file",
+                cxxopts::value<std::string>()
+            )(
+                "o,output",
+                "Output file",
+                cxxopts::value<std::string>()
+            )(
+                "f,polya-reference",
+                "Output polyA reference file",
+                cxxopts::value<std::string>()
+            )(
+                "gamma",
+                "Use Gamma distribution [α,β]",
+                cxxopts::value<vector<double>>()
+            )(
+                "poisson",
+                "Use Poisson distribution [λ]",
+                cxxopts::value<vector<double>>()
+            )(
+                "weibull",
+                "Use Weibull distribution [α,β]",
+                cxxopts::value<vector<double>>()
+            )(
+                "normal",
+                "Use Normal distribution [μ,σ]",
+                cxxopts::value<vector<double>>()
+            )(
+                "min-length",
+                "Minimum length of polyA",
+                cxxopts::value<int>()->default_value("0")
+            )(
+                "max-length",
+                "Maximum length of polyA",
+                cxxopts::value<int>()->default_value("5000")
+            );
         // clang-format on
         auto result = options.parse(argc, argv);
         return result;

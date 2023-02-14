@@ -14,9 +14,15 @@ class Fusion_module : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
-            ("i,input", "input mdf file", cxxopts::value<string>())
-            ("o,output", "output mdf file", cxxopts::value<string>())
-            ;
+            (
+                "i,input",
+                "input mdf file",
+                cxxopts::value<string>()
+            )(
+                "o,output",
+                "output mdf file",
+                cxxopts::value<string>()
+            );
         // clang-format on
 
         return options.parse(argc, argv);
