@@ -1,6 +1,4 @@
 #include "umi.h"
-
-#include <iostream>
 #include <iterator>
 #include <string>
 #include <fstream>
@@ -28,7 +26,7 @@ int main(int argc, char **argv){
     auto args = options.parse(argc, argv);
 
     if(args.count("help") > 0){
-        std::cout << options.help() << std::endl;
+        fmt::print("{}\n", options.help());
         return 0;
     }
     std::vector<string> mandatory = {};
@@ -36,7 +34,7 @@ int main(int argc, char **argv){
     int missing_parameters = 0;
     for( string &param : mandatory){
         if(args.count(param) == 0){
-            std::cerr << param << " is required!\n";
+            report_missing_parameter(param);
             ++missing_parameters;
         }
     }
@@ -46,10 +44,13 @@ int main(int argc, char **argv){
         return 1;
     }
 
-    auto streamer = stream_mdf(std::cin, true);
+    auto streamer = stream_mdf(stdin, true);
 
 
     for( int i = 0; i < args["count"].as<int>() && streamer; ++i){
+//        std::stringstream iss;
+//        iss << streamer();
+//        fmt::print("{}\n", iss.str());
         std::cout << streamer();
     }
     return 0;

@@ -48,7 +48,7 @@ class UMI_module : public tksm_module {
     }
 
     cxxopts::ParseResult args;
-    std::mt19937 rand_gen;
+
 
 public:
     UMI_module(int argc, char **argv) : tksm_module{"umi", "UMI tagging module"}, args(parse(argc, argv)) {}
@@ -75,21 +75,13 @@ public:
         return 0;
     }
     int run() {
-        fmtlog::setLogLevel(LogLevels::parse_loglevel(args["verbosity"].as<string>()));
-        fmtlog::flushOn(fmtlog::DBG);
-
-        if (help_or_version_is_used(args)) {
+        if (process_utility_arguments(args)) {
             return 0;
         }
-
         if (validate_arguments()) {
             return 1;
         }
         describe_program();
-
-        int seed = args["seed"].as<int>();
-        ;
-        rand_gen.seed(seed);
 
         string format5 = args["format5"].as<string>();
         string format3 = args["format3"].as<string>();

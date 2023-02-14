@@ -58,13 +58,8 @@ private:
         return result;
     }
     cxxopts::ParseResult args;
-    std::mt19937 rand_gen;
 
     int validate_arguments() {
-        if (args.count("help")) {
-            std::cout << options.help() << std::endl;
-            exit(0);
-        }
         if (!args.count("input")) {
             loge("Error: input file not specified");
             exit(1);
@@ -148,10 +143,7 @@ public:
     }
 
     int run() {
-        fmtlog::setLogLevel(LogLevels::parse_loglevel(args["verbosity"].as<string>()));
-        fmtlog::setFlushDelay(1e8);
-
-        if (help_or_version_is_used(args)) {
+        if (process_utility_arguments(args)) {
             return 0;
         }
 
@@ -159,10 +151,6 @@ public:
             return 1;
         }
         describe_program();
-
-        int seed = args["seed"].as<int>();
-        ;
-        rand_gen.seed(seed);
 
         int min_length = args["min-length"].as<int>();
         int max_length = args["max-length"].as<int>();

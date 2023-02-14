@@ -22,7 +22,7 @@
 #include <cstring>
 #include <utility>
 
-#define FMT_HEADER_ONLY
+
 #include <fmt/core.h>
 #define FMTLOG_HEADER_ONLY
 #include <fmtlog/fmtlog.h>

@@ -31,10 +31,8 @@ public:
 
     int validate_arguments() { return 0; }
     int run() {
-        fmtlog::setLogLevel(LogLevels::parse_loglevel(args["verbosity"].as<string>()));
-        fmtlog::flushOn(fmtlog::DBG);
 
-        if (help_or_version_is_used(args)) {
+        if(process_utility_arguments(args)){
             return 0;
         }
 

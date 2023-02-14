@@ -14,7 +14,7 @@ CXX_OPT ?= -O2
 CXX_DBG ?=
 CXX_STD ?=c++20
 CXXFLAGS += -std=$(CXX_STD) -Wall -Werror $(CXX_OPT) $(CXX_DBG) 
-LDFLAGS += -lz -lpthread -lstdc++fs 
+LDFLAGS += -lz -lpthread -lstdc++fs  -lfmt
 
 
 PY_CXXFLAGS = $(shell python3-config --cflags --embed)
@@ -34,7 +34,11 @@ PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
 
 $(EXEC): $(MAIN) $(PY_HEADERS) install.sh
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS) $(LDFLAGS)
+
+$(BIN_PATH)/%: $(SRC_PATH)/%.cpp $(PY_HEADERS) 
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS) $(LDFLAGS)
 
 py_header/%.h: py/%.py
 	@mkdir -p py_header

@@ -14,7 +14,7 @@
 #include "tree.h"
 #include "gtf.h"
 #include "mdf.h"
-#define FMT_HEADER_ONLY 1
+
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 #include <fmt/format.h>

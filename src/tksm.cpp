@@ -51,6 +51,8 @@ help(char **argv, auto file) {
 
 int
 main(int argc, char **argv) {
+    std::ios_base::sync_with_stdio(false);
+    std::cin.tie(0);
     if (argc == 1) {
         help(argv, stderr);
         return 1;

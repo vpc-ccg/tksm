@@ -15,6 +15,8 @@
 #include "cigar.h"
 #include "util.h"
 
+#include <fmt/ostream.h>
+
 using std::string;
 using std::vector;
 class interval {

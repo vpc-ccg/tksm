@@ -8,8 +8,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <algorithm>
 
-#define FMT_HEADER_ONLY
 #include <fmt/core.h>
 #define FMTLOG_HEADER_ONLY
 #include <fmtlog/fmtlog.h>
@@ -117,6 +117,11 @@ public:
     }
 };
 
+void report_missing_parameter(const std::string &param_name) {
+    fmt::print(stderr, "Missing parameter: {}\n", param_name);
+}
+
+
 template <class B>
 inline void
 print_tsv(std::ostream &ost, B b) {
@@ -152,7 +157,6 @@ splitSV(std::string_view strv, std::string_view delims = " ") {
 
     while (first < strv.size()) {
         const auto second = strv.find_first_of(delims, first);
-        // std::cout << first << ", " << second << '\n';
         if (first != second) {
             output.emplace_back(strv.substr(first, second - first));
         }

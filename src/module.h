@@ -19,6 +19,7 @@ protected:
     string program_name;
     string program_description;
     cxxopts::Options options;
+    std::mt19937 rand_gen;
 
     virtual int validate_arguments() = 0;
 
@@ -43,9 +44,33 @@ public:
                 "v,verbosity",
                 fmt::format("Verbosity level to choosen from [{}]",LogLevels::log_choices()),
                 cxxopts::value<string>()->default_value("INFO")
+            )(
+                "log-file",
+                "Log file to write the logs (or stderr/stdout)",
+                cxxopts::value<string>()->default_value("stderr")
             );
         // clang-format on
     };
+    int process_utility_arguments(cxxopts::ParseResult &args) {
+        int seed = args["seed"].as<int>();
+        rand_gen.seed(seed);
+
+        string verbosity = args["verbosity"].as<string>();
+        fmtlog::setLogLevel(LogLevels::parse_loglevel(verbosity));
+
+        string log_file = args["log-file"].as<string>();
+        if (log_file == "stderr") {
+            fmtlog::setLogFile(stderr, false);
+        }
+        else if (log_file == "stdout") {
+            fmtlog::setLogFile(stdout, false);
+        }
+        else {
+            fmtlog::setLogFile(log_file.c_str(), true);
+        }
+
+        return help_or_version_is_used(args);
+    }
     int help_or_version_is_used(cxxopts::ParseResult &args) {
         // Used fmt to print
         if (args.count("help") > 0) {
