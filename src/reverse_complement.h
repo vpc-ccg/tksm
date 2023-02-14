@@ -3,6 +3,7 @@
 
 #include <array>
 #include <string>
+#include <algorithm>
 
 namespace reverse_complement {
 template <char C>
