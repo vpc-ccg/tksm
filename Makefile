@@ -54,9 +54,27 @@ install.sh: ${EXEC_FILES} Makefile
 clean:
 	rm -rf ${OBJD} ${BUILDD} ${TSTB} ${PY_HEADER_PATH} ${BIN_PATH} install.sh
 
+compile_flags.txt: compile_flags.txt.pre
+	@cat $< | grep -v -- "-flto-partition=none" | sort | uniq > $@
+	rm $<
+
+compile_flags.txt.pre: Makefile
+	@echo -stdlib=libc++ > $@
+	@echo -xc++ >> $@
+	@echo -std=$(CXX_STD) >> $@
+	@echo -Wall >> $@
+	@echo -Werror >> $@
+	@echo -I$(PY_HEADER_PATH) >> $@
+	@echo -I$(EXTERN_HEADER_PATH) >> $@
+	@echo $(CXXFLAGS) | sed 's/isystem /I/g' | sed -e "s/\s/\n/g" >> $@
+	@echo $(LDFLAGS)  | sed 's/isystem /I/g' | sed -e "s/\s/\n/g" >> $@
+	@echo $(PY_CXXFLAGS) | sed 's/isystem /I/g'  | sed -e "s/\s/\n/g" >> $@
+	@echo $(PY_LDFLAGS)  | sed 's/isystem /I/g' | sed -e "s/\s/\n/g" >> $@
+	@echo -fexperimental-library >> $@
+
+
 # Testing 
 #
-
 TSTD = test
 TSTB = ${TSTD}/build
 ${TSTB}/%:${TSTD}/%.cpp

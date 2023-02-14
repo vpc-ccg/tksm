@@ -1,6 +1,0 @@
--stdlib=libc++
--std=c++20
--xc++
--Wall
--I../extern/include/
--fexperimental-library
