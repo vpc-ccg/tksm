@@ -14,8 +14,11 @@ class Head_module : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
-            ("n,count", "Number of items to be printed", cxxopts::value<int>()->default_value("10"))
-            ;
+            (
+                "n,count",
+                "Number of items to be printed",
+                cxxopts::value<int>()->default_value("10")
+            );
         // clang-format on
         return options.parse(argc, argv);
     }

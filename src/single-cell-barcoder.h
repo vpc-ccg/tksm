@@ -14,11 +14,23 @@ class SingleCellBarcoder_module : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
-            ("i,input", "input mdf file", cxxopts::value<string>())
-            ("o,output", "output mdf file", cxxopts::value<string>())
-            ("f,barcode-fasta", "output barcode fasta file", cxxopts::value<string>())
-            ("keep-meta-barcodes", "Keep the barcodes in the mdf metadata", cxxopts::value<bool>())            
-            ;
+            (
+                "i,input",
+                "input mdf file",
+                cxxopts::value<string>()
+            )(
+                "o,output",
+                "output mdf file",
+                cxxopts::value<string>()
+            )(
+                "f,barcode-fasta",
+                "output barcode fasta file",
+                cxxopts::value<string>()
+            )(
+                "keep-meta-barcodes",
+                "Keep the barcodes in the mdf metadata",
+                cxxopts::value<bool>()
+            );
         // clang-format on
         return options.parse(argc, argv);
     }
