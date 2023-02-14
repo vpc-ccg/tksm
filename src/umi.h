@@ -1,18 +1,14 @@
 #ifndef _UMI_H_
 #define _UMI_H_
+#include <cxxopts.hpp>
 #include <random>
 #include <string>
 #include <vector>
 
-#include "cxxopts/cxxopts.hpp"
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
 #include "util.h"
-
-void
-add_UMIs(std::vector<pcr_copy> &copies, ostream &umifile, const std::string &format,
-         const std::string &format_back = "");
 
 class UMI_module : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
@@ -48,7 +44,6 @@ class UMI_module : public tksm_module {
     }
 
     cxxopts::ParseResult args;
-
 
 public:
     UMI_module(int argc, char **argv) : tksm_module{"umi", "UMI tagging module"}, args(parse(argc, argv)) {}

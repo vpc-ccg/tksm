@@ -39,6 +39,6 @@
 #include "util.h"
 #include "gtf.h"
 #include "fasta.h"
-#include "extern/cxxopts.hpp"
+#include <cxxopts.hpp>
 #include "extern/IITree.h"
 #endif

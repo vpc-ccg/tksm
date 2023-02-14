@@ -9,7 +9,7 @@
 
 // Import kisims
 #include "abundance.h"
-#include "fusion.h"
+// #include "fusion.h"
 #include "head.h"
 #include "kde.h"
 #include "polyA.h"
@@ -101,7 +101,8 @@ main(int argc, char **argv) {
         return Truncate_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "fusion") {
-        return Fusion_module{argc - 1, argv + 1}.run();
+        fmt::print("Fusion\n");
+        return 1;
     }
     else if (kisim == "sequencer") {
         // Inject default badread model path into argv

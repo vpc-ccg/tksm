@@ -1,7 +1,7 @@
 #ifndef _MODULE_H_
 #define _MODULE_H_
 
-#include <cxxopts/cxxopts.hpp>
+#include <cxxopts.hpp>
 
 #include "util.h"
 

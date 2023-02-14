@@ -10,7 +10,7 @@
 #include "graph.h"
 #include "interval.h"
 #include "util.h"
-
+/*
 inline graph<gene, double>
 build_gene_graph(std::string path_to_gtf, const std::map<gene, int> &gene2count, bool coding_only = true) {
     graph<gene, double> gene_graph;
@@ -209,7 +209,7 @@ read_gtf_exons(std::string path_to_gtf, bool coding_only = true) {
 
     return make_tuple(annots, gptrs, t2g);
 }
-
+*/
 inline auto
 read_gtf_transcripts(const std::string &path2gtf, int default_depth = 1) {
     std::map<std::string, molecule_descriptor> isoforms;

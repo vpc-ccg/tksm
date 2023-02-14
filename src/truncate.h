@@ -1,10 +1,10 @@
 #ifndef _TRUNCATE_H_
 #define _TRUNCATE_H_
 
+#include <cxxopts.hpp>
 #include <npy/npy.hpp>
 #include <random>
 
-#include "cxxopts/cxxopts.hpp"
 #include "interval.h"
 
 inline void

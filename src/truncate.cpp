@@ -24,7 +24,7 @@
 
 #include <npy/npy.hpp>
 #include <cgranges/IITree.h>
-#include <cxxopts/cxxopts.hpp>
+#include <cxxopts.hpp>
 #include "interval.h"
 #include "tree.h"
 #include "gtf.h"

@@ -243,7 +243,7 @@ struct gtf : public ginterval {
         }
     }
 };
-
+/*
 struct gene : public ginterval {
     string gene_id;
     string gene_name;
@@ -326,7 +326,7 @@ struct exon : public ginterval {
     }
     bool operator==(const exon &other) const { return exon_id == other.exon_id; }
 };
-
+*/
 inline std::ostream &
 operator<<(std::ostream &ost, const interval &ex) {
     ost << ex.start << "-" << ex.end;
@@ -343,7 +343,7 @@ operator<<(std::ostream &ost, const ginterval &ex) {
     ost << ex.chr << ":" << ex.start << "-" << ex.end;
     return ost;
 }
-
+/*
 inline std::ostream &
 operator<<(std::ostream &ost, const exon &ex) {
     ost << dynamic_cast<const ginterval &>(ex) << " " << ex.strand << " " << ex.exon_id;
@@ -357,7 +357,7 @@ operator<<(std::ostream &ost, const gene &ex) {
     ost << (ginterval)ex << " " << ex.gene_name;
     return ost;
 }
-
+*/
 struct segment {
     ginterval tmplt;
     interval query;
@@ -514,7 +514,7 @@ struct mapping {
         }
     }
 };
-
+/*
 class isoform {
 public:
     vector<exon> segments;
@@ -546,6 +546,7 @@ public:
         return *this;
     }
 };
+*/
 
 struct molecule_descriptor {
     string _id;
@@ -560,13 +561,14 @@ public:
     molecule_descriptor() {}
 
     molecule_descriptor(const string &id, bool reversed) : _id(id), _reversed(reversed), _depth(1) {}
+    /*
     molecule_descriptor(const isoform &iso)
         : _id(iso.transcript_id), _reversed(!iso.segments.back().plus_strand), _depth(iso.depth) {
         for (const exon &e : iso.segments) {
             _segments.push_back(e);
         }
     }
-
+*/
     auto get_id() const { return _id; }
 
     auto get_depth() const { return _depth; }
@@ -681,6 +683,8 @@ public:
     }
 };
 
+
+/*
 // pcr copy structure that tracks pcr errors introduced
 struct pcr_copy {
     string id;
@@ -741,5 +745,5 @@ struct pcr_molecule {
         paired.insert(paired.end(), second.paired.begin(), second.paired.end());
     }
 };
-
+*/
 #endif

@@ -1,10 +1,10 @@
 #ifndef _SPLICER_H_
 #define _SPLICER_H_
+#include <cxxopts.hpp>
 #include <random>
 #include <string>
 #include <vector>
 
-#include "cxxopts/cxxopts.hpp"
 #include "gtf.h"
 #include "interval.h"
 #include "mdf.h"

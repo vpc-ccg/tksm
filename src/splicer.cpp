@@ -11,7 +11,7 @@
 #include <climits>
 
 #include <cgranges/IITree.h>
-#include <cxxopts/cxxopts.hpp>
+#include <cxxopts.hpp>
 
 #include "interval.h"
 #include "tree.h"

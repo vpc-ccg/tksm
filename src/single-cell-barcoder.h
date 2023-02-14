@@ -1,10 +1,10 @@
 #ifndef _SINGLE_CELL_BARCODER_H_
 #define _SINGLE_CELL_BARCODER_H_
+#include <cxxopts.hpp>
 #include <random>
 #include <string>
 #include <vector>
 
-#include "cxxopts/cxxopts.hpp"
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"

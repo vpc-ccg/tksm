@@ -124,11 +124,11 @@ parse_mdf(istream &ist, bool unroll = false) {
     }
     return mdfs;
 }
-
+/*
 inline void
 print_mdf(ostream &ost, const pcr_copy &molecule) {
     // For now use the depth of first pcr_copy
-    print_tsv(ost, "+" + molecule.id, molecule.depth /*depth*/, molecule.comment);
+    print_tsv(ost, "+" + molecule.id, molecule.depth, molecule.comment);
 
     const vector<std::pair<int, char>> &errors = molecule.errors_so_far;
     int size_so_far                            = 0;
@@ -149,7 +149,7 @@ print_mdf(ostream &ost, const pcr_copy &molecule) {
     }
 }
 
-/*
+
 inline void print_mdf(ostream &ost, const string &id, const pcr_molecule &molecule, const vector< vector<std::pair<int,
 char>>> &errors_per_segment){
 
@@ -180,12 +180,12 @@ char>>> &errors_per_segment){
         }
     }
 }
-*/
+
 inline void
 print_all_mdf(ostream &ost, const vector<pcr_copy> &molecules) {
     for (const pcr_copy &molecule : molecules) {
         // For now use the depth of first pcr_copy
-        print_tsv(ost, "+" + molecule.id, molecule.depth /*depth*/, molecule.comment);
+        print_tsv(ost, "+" + molecule.id, molecule.depth , molecule.comment);
 
         int size_so_far = 0;
         for (const ginterval &ival : molecule.segments) {
@@ -207,6 +207,6 @@ print_all_mdf(ostream &ost, const vector<pcr_copy> &molecules) {
         }
     }
 }
-
+*/
 #endif
 

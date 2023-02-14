@@ -12,7 +12,7 @@
 #include "tree.h"
 #include "interval.h"
 #include "reverse_complement.h"
-#include <cxxopts/cxxopts.hpp>
+#include <cxxopts.hpp>
 #include <tuple>
 #include "mdf.h"
 

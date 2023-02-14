@@ -1,10 +1,10 @@
 #ifndef HEAD_H
 #define HEAD_H
+#include <cxxopts.hpp>
 #include <random>
 #include <string>
 #include <vector>
 
-#include "cxxopts/cxxopts.hpp"
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
@@ -31,8 +31,7 @@ public:
 
     int validate_arguments() { return 0; }
     int run() {
-
-        if(process_utility_arguments(args)){
+        if (process_utility_arguments(args)) {
             return 0;
         }
 
