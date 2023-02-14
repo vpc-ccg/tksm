@@ -1,5 +1,5 @@
 outpath:
-    /groups/hachgrp/projects/dev-RNAInFuser/analysis/TS-experiments
+    /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
 
 ### Pipeline modules
 # Xpr : expression  --> Must be first module only
