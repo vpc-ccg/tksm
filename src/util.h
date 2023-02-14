@@ -117,7 +117,8 @@ public:
     }
 };
 
-void report_missing_parameter(const std::string &param_name) {
+inline void
+report_missing_parameter(const std::string &param_name) {
     fmt::print(stderr, "Missing parameter: {}\n", param_name);
 }
 
