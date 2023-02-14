@@ -13,10 +13,24 @@
 #include <fmt/core.h>
 #define FMTLOG_HEADER_ONLY
 #include <fmtlog/fmtlog.h>
+
+
+
 using std::map;
 using std::ostream;
 using std::string;
 using std::vector;
+
+
+static const string ASCII_ART = R"(
+ _______  ___   _  _______  __   __    
+|       ||   | | ||       ||  |_|  |   
+|_     _||   |_| ||  _____||       |   
+  |   |  |      _|| |_____ |       |   
+  |   |  |     |_ |_____  ||       |   
+  |   |  |    _  | _____| || ||_|| |   
+  |___|  |___| |_||_______||_|   |_|
+)";
 
 class num2seq {
 public:

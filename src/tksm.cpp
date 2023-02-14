@@ -36,6 +36,7 @@ vector<string> info = {"version", "help"};
 
 void
 help(char **argv, auto file) {
+    fmt::print(file, "{}\n", ASCII_ART);
     fmt::print(file, "Usage: {} <module> [options]", argv[0]);
     fmt::print("\nAvailable modules: \n");
     for (auto kisim : kisims) {
