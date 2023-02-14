@@ -17,24 +17,24 @@ min_version('6.0')
 if len(config)==0:
     configfile: 'Benchmark_config.yaml'
 
-module RI_smk:
+module TS_smk:
     snakefile: 'Snakefile'
     config: config
 
 outpath   = config['outpath']
 preproc_d = f'{outpath}/preprocess'
-RI_d      = f'{outpath}/RI'
+TS_d      = f'{outpath}/TS'
 NS_d = f'{outpath}/NS'
 time_d = f'{outpath}/time'
 plots_d   = f'{outpath}/plots'
 
-use rule * from RI_smk as RI_*
+use rule * from TS_smk as TS_*
 
-use rule minimap_cdna from RI_smk as RI_minimap_cdna with:
+use rule minimap_cdna from TS_smk as TS_minimap_cdna with:
     input:
         reads = lambda wc: get_sample_fastqs(wc.sample),
         ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
-use rule scTagger_lr_seg from RI_smk as RI_scTagger_lr_seg with:
+use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
     input:
         reads = lambda wc: get_sample_fastqs(wc.sample),
 
@@ -66,8 +66,8 @@ def run_longest_polys(seq):
 def get_sample_ref(name):
     if name in config['samples']:
         return config['samples'][name]['ref']
-    elif name in config['RI_experiments']:
-        return get_sample_ref(config['RI_experiments'][name]['sample'])
+    elif name in config['TS_experiments']:
+        return get_sample_ref(config['TS_experiments'][name]['sample'])
     elif name in config['NS_experiments']:
         return get_sample_ref(config['NS_experiments'][name]['sample'])
     else:
@@ -78,9 +78,9 @@ def get_sample_fastqs(name):
     if name in config['samples']:
         sample = name
         return config['samples'][sample]['fastq']
-    elif name in config['RI_experiments']:
+    elif name in config['TS_experiments']:
         exprmnt = name
-        return [f'{RI_d}/{exprmnt}/{RI_smk.experiment_prefix(exprmnt)}.fastq']
+        return [f'{TS_d}/{exprmnt}/{TS_smk.experiment_prefix(exprmnt)}.fastq']
     elif name in config['NS_experiments']:
         exprmnt = name
         return [f'{NS_d}/{exprmnt}/simulation_aligned_reads.fasta']
@@ -394,7 +394,6 @@ rule tpm_plot:
     output:
         png = f'{plots_d}/tpm_plot/{{samples}}.png',        
     run:
-
         frames = dict()
         real = pd.read_csv(input.tsvs[0], sep="\t", header=0)
         real_keys = set(real['target_id'])
@@ -402,9 +401,8 @@ rule tpm_plot:
 
         samples = wildcards.samples.split('.')
         fl = len(samples)-1
-        fig,axs = plt.subplots(fl,1,sharex=True,sharey=True,figsize=(12,12*fl))
-        for i, (k,v) in enumerate(zip(samples[1:], input.tsvs[1:])):
-            ax = axs[i]
+        fig,axs = plt.subplots(fl,1,sharex=True,sharey=True,figsize=(12,12*fl), squeeze=False)
+        for k, v, ax in zip(samples[1:], input.tsvs[1:], axs.flatten()):
             frame = pd.read_csv(v, sep="\t", header=0)
             keys = real_keys.intersection(set(frame['target_id']))
             frame.set_index('target_id',inplace=True)

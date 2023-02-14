@@ -1,8 +1,8 @@
 outpath:
-    /groups/hachgrp/projects/dev-RNAInFuser/analysis/RI-experiments/paper2
+    /groups/hachgrp/projects/dev-RNAInFuser/analysis/TS-experiments
 
-RI_experiments:
-    RI_1:
+TS_experiments:
+    TS_1:
         sample : 'MCF7-sgnex'
         pipeline:
             - Xpr:
@@ -17,7 +17,7 @@ RI_experiments:
                 '--only-single-isoform'
             - Seq:
                 '--other-br="--tail_noise_model=nanopore"'
-    RI_1_chr21:
+    TS_1_chr21:
         sample : 'MCF7-sgnex_chr21'
         pipeline:
             - Xpr:
@@ -32,25 +32,25 @@ RI_experiments:
                 '--only-single-isoform'
             - Seq:
                 '--other-br="--tail_noise_model=nanopore"'
-    RI_2:
+    TS_2_chr21:
         sample : 'N1_chr21'
         pipeline:
             - Xpr_sc:
                 ''
             - Spc:
-                '--molecule-count 1000000'
+                '--molecule-count 100000'
             - plA:
                 '--normal=40,10 --min-length=5 --expand-isoforms'
             - SCB:
                 ''
             - UMI:
-                '--format5 10'
+                '--format5 10 -3 0'
             - PCR:
-                '--cycles 5 -x Taq-setting1'
+                '--cycles 3 -x Taq-setting1'
             - Trc:
                 '--only-single-isoform'
             - Seq:
-                '--other-br="--tail_noise_model=nanopore"'
+                '--skip-qual-compute --badread-model-path py/badread_models'
 NS_experiments:
     NS_1:
         sample : 'MCF7-sgnex'
@@ -62,34 +62,18 @@ NS_experiments:
             '-n 50000 --seed 42'
 
 plots:
+    # - {
+    #     rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition, polyA,tpm_plot],
+    #     data: [MCF7-sgnex_chr21, TS_1_chr21, NS_1_chr21],
+    # }
     - {
         rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition, polyA,tpm_plot],
-        data: [MCF7-sgnex_chr21, RI_1_chr21, NS_1_chr21],
+        data: [N1_chr21, TS_2_chr21],
     }
     
 exec:
-    RI_splicer:
-        build/splicer
-    RI_polyA:
-        build/polyA
-    RI_pcr:
-        build/pcr
-    RI_sc_barcoder:
-        build/single-cell-barcoder
-    RI_umi:
-        build/umi
-    RI_truncate:
-        build/truncate
-    RI_sequencer:
-        build/sequencer
-    badread:
-        /groups/hachgrp/projects/dev-simulation/code/Badread/badread-runner.py
-    transcript_abundance:
-        py/transcript_abundance.py
-    truncate_kde:
-        py/truncate_kde.py
-    tNS_simulate:
-        read_analysis.py
+    tksm:
+        bin/tksm
     tNS_analyze:
         simulator.py
 

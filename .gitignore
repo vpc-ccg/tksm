@@ -19,3 +19,5 @@ install.sh
 .vscode
 py_header
 bin
+*.pyc
+test/build
