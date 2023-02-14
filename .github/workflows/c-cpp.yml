@@ -7,13 +7,27 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-    - name: make
-      run: make
-    - name: make check
-      run: make check
+  mambaforge:
+      name: Ex10 (${{ matrix.os }}, Mambaforge)
+      runs-on: ${{ matrix.os }}-latest
+      strategy:
+        fail-fast: false
+        matrix:
+          os: ["ubuntu", "macos"]
+          include:
+            - os: ubuntu
+              environment-file: env.yaml
+              miniforge-variant: Mambaforge
+              miniforge-version: 4.9.2-4
+            - os: macos
+              environment-file: env.yaml
+              miniforge-variant: Mambaforge-pypy3
+      steps:
+          - uses: actions/checkout@v2
+          - uses: conda-incubator/setup-miniconda@v2
+            with:
+              condarc-file: ${{ matrix.condarc-file }}
+              environment-file: ${{ matrix.environment-file }}
+              miniforge-variant: ${{ matrix.miniforge-variant }}
+              miniforge-version: ${{ matrix.miniforge-version }}
+              use-mamba: true
