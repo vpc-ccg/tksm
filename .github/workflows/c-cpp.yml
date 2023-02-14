@@ -31,3 +31,7 @@ jobs:
               miniforge-variant: ${{ matrix.miniforge-variant }}
               miniforge-version: ${{ matrix.miniforge-version }}
               use-mamba: true
+              run: |
+                make
+                make check
+
