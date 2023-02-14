@@ -376,14 +376,16 @@ rule polyA:
         plt.title('Poly(A,T) length distribution')
         plt.savefig(output[0],dpi=300)
 
-rule expression:
+rule abundance:
     input:
-        script = config['exec']['transcript_abundance'],
+        binary = config['exec']['tksm'],
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
     output:
         tsv = f'{plots_d}/expression_stats/{{sample}}.expression_stats.tsv',
     shell:
-       'python {input.script} -p {input.paf} -o {output.tsv}' 
+        '{input.binary} abundance'
+        ' -p {input.paf}'
+        ' -o {output.tsv}' 
 
 rule tpm_plot:
     input:

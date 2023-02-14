@@ -84,7 +84,6 @@ rule make_binary:
 rule sequence:
     input:
         binary = config['exec']['tksm'],
-        badread = config['exec']['badread'],
         mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
         fastas = fastas_for_TS_sequence,
     output:
@@ -222,20 +221,22 @@ rule splicer:
         ' -o {output.mdf}'
         ' {params}'
 
-rule expression:
+rule abundance:
     input:
-        script = config['exec']['transcript_abundance'],
+        binary = config['exec']['tksm'],
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
     output:
         tsv = f'{TS_d}/{{exprmnt}}/Xpr.tsv',
     benchmark:
         f'{time_d}/{{exprmnt}}/Xpr.benchmark'
     shell:
-       'python {input.script} -p {input.paf} -o {output.tsv}' 
+        '{input.binary} abundance'
+        ' -p {input.paf}'
+        ' -o {output.tsv}' 
 
-rule expression_sc:
+rule abundance_sc:
     input:
-        script = config['exec']['transcript_abundance'],
+        binary = config['exec']['tksm'],
         paf = lambda wc: f'{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf',
         lr_matches = lambda wc: f'{preproc_d}/scTagger/{exprmnt_sample(wc.exprmnt)}/{exprmnt_sample(wc.exprmnt)}.lr_matches.tsv.gz'
     output:
@@ -243,11 +244,14 @@ rule expression_sc:
     benchmark:
         f'{time_d}/{{exprmnt}}/Xpr_sc.benchmark'
     shell:
-       'python {input.script} -p {input.paf} -m {input.lr_matches} -o {output.tsv}' 
+        '{input.binary} abundance'
+        ' -p {input.paf}'
+        ' -m {input.lr_matches}'
+        ' -o {output.tsv}' 
 
 rule truncate_kde:
     input:
-        script = config['exec']['truncate_kde'],
+        binary = config['exec']['tksm'],
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf'
     output:
         x = f'{preproc_d}/truncate_kde/{{sample}}.X_idxs.npy',
@@ -260,7 +264,10 @@ rule truncate_kde:
     threads:
         32
     shell:
-       'python {input.script} -i {input.paf} -o {params.out_prefix} --threads {threads}' 
+        '{input.binary} abundance'
+        ' -p {input.paf}'
+        ' -o {params.out_prefix}'
+        ' --threads {threads}'
 
 rule minimap_cdna:
     input:
@@ -273,7 +280,13 @@ rule minimap_cdna:
     threads:
         32
     shell:
-        'minimap2 -t {threads} -x map-ont -c --eqx -p0 -o {output.paf} {input.ref} {input.reads}'
+        'minimap2'
+        ' -t {threads}'
+        ' -x map-ont'
+        ' -c --eqx -p0'
+        ' -o {output.paf}'
+        ' {input.ref}'
+        ' {input.reads}'
 
 rule scTagger_match:
     input:
@@ -283,12 +296,14 @@ rule scTagger_match:
         lr_tsv=f'{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz',
     benchmark:
         f'{time_d}/{{sample}}/scTagger_match.benchmark'
-    threads: 32
-    resources:
-        mem='64G',
-        time=60 * 5 - 1,
+    threads:
+        32
     shell:
-        'scTagger.py match_trie -lr {input.lr_tsv} -sr {input.wl_tsv} -o {output.lr_tsv} -t {threads}'
+        'scTagger.py match_trie'
+        ' -lr {input.lr_tsv}'
+        ' -sr {input.wl_tsv}'
+        ' -o {output.lr_tsv}'
+        ' -t {threads}'
 
 rule scTagger_extract_bc:
     input:
@@ -299,7 +314,10 @@ rule scTagger_extract_bc:
     benchmark:
         f'{time_d}/{{sample}}/scTagger_extract_bc.benchmark'
     shell:
-        'scTagger.py extract_sr_bc_from_lr -i {input.tsv} -wl {input.wl} -o {output.tsv}'
+        'scTagger.py extract_sr_bc_from_lr'
+        ' -i {input.tsv}'
+        ' -wl {input.wl}'
+        ' -o {output.tsv}'
 
 rule scTagger_lr_seg:
     input:
@@ -311,4 +329,7 @@ rule scTagger_lr_seg:
     benchmark:
         f'{time_d}/{{sample}}/scTagger_lr_seg.benchmark'
     shell:
-        'scTagger.py extract_lr_bc -r {input.reads} -o {output.tsv} -t {threads}'
+        'scTagger.py extract_lr_bc'
+        ' -r {input.reads}'
+        ' -o {output.tsv}'
+        ' -t {threads}'
