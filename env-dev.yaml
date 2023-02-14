@@ -1,0 +1,18 @@
+name: tksm
+channels:
+  - anaconda 
+  - conda-forge
+  - bioconda
+dependencies:
+  - snakemake
+  - python-edlib
+  - numpy
+  - matplotlib
+  - tqdm
+  - pandas
+  - scikit-learn
+  - sctagger=1.1
+  - minimap2
+  - cxx-compiler
+  - fmt=9.1.0
+  - cxxopts=3.1.0
