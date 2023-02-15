@@ -210,6 +210,22 @@ read_gtf_exons(std::string path_to_gtf, bool coding_only = true) {
     return make_tuple(annots, gptrs, t2g);
 }
 */
+
+inline auto
+read_gtf(const std::string &path2gtf) -> std::vector<gtf> {
+            std::ifstream gtfile(path2gtf);
+    std::string buffer;
+    std::vector<gtf> gtf_entries;
+
+    while (std::getline(gtfile, buffer)) {
+        if (buffer[0] == '#') {
+            continue;
+        }
+        gtf_entries.push_back(gtf{buffer});
+    }
+    return gtf_entries;
+}
+
 inline auto
 read_gtf_transcripts(const std::string &path2gtf, int default_depth = 1) {
     std::map<std::string, molecule_descriptor> isoforms;
