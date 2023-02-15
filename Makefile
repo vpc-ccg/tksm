@@ -1,5 +1,12 @@
 
 
+# Check lld exists
+
+LLD_EXISTS := $(shell command -v ld.lld 2> /dev/null)
+
+ifdef LLD_EXISTS
+	CXXFLAGS += -fuse-ld=lld
+endif
 
 SRC_PATH = src
 BUILD_PATH = build
@@ -19,9 +26,10 @@ CXX?=g++
 
 CXX_OPT ?= -O2
 CXX_DBG ?=
+LD_DBG ?=
 CXX_STD ?=c++20
 CXXFLAGS += -std=$(CXX_STD) -Wall -Werror $(CXX_OPT) $(CXX_DBG) 
-LDFLAGS += -lz -lpthread -lstdc++fs  -lfmt
+LDFLAGS += -lz -lpthread -lstdc++fs  -lfmt $(LD_DBG) 
 
 
 PY_CXXFLAGS = $(shell python3-config --cflags --embed)
