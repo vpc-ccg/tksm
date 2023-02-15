@@ -1,4 +1,3 @@
-
 #include <fmt/core.h>
 
 #include <set>
@@ -9,9 +8,9 @@
 
 // Import kisims
 #include "abundance.h"
-// #include "fusion.h"
 #include "head.h"
 #include "kde.h"
+#include "pcr.h"
 #include "polyA.h"
 #include "sequencer.h"
 #include "single-cell-barcoder.h"
@@ -27,12 +26,31 @@ using std::vector;
 #define VERSION "0.0.0"
 #endif
 
-vector<string> kisims = {"abundance", "splicer", "umi",      "polyA", "single-cell-barcoder",
-                         "truncate",  "fusion",  "sequencer"};
+// clang-format off
+vector<string> kisims = {
+    "abundance",
+    "splicer",
+    "umi",
+    "polyA",
+    "single-cell-barcoder",
+    "pcr",
+    "truncate",
+    "fusion",
+    "sequencer",
+};
 
-vector<string> utility = {"kde", "head", "model-errors", "model-qscores"};
+vector<string> utility = {
+    "kde",
+    "head",
+    "model-errors",
+    "model-qscores"
+};
 
-vector<string> info = {"version", "help"};
+vector<string> info = {
+    "version",
+    "help"
+};
+// clang-format on
 
 void
 help(char **argv, auto file) {
@@ -96,6 +114,9 @@ main(int argc, char **argv) {
     }
     else if (kisim == "single-cell-barcoder") {
         return SingleCellBarcoder_module{argc - 1, argv + 1}.run();
+    }
+    else if (kisim == "pcr") {
+        return PCR_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "truncate") {
         return Truncate_module{argc - 1, argv + 1}.run();
