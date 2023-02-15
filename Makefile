@@ -1,6 +1,13 @@
 
 
-INSTALL_PREFIX ?= /usr
+
+SRC_PATH = src
+BUILD_PATH = build
+PY_HEADER_PATH = py_header
+EXTERN_HEADER_PATH = extern/include
+BIN_PATH = ${BUILD_PATH}/bin
+
+INSTALL_PREFIX ?= ${BUILD_PATH}
 CXXFLAGS += -DINSTALL_PATH=\"${INSTALL_PREFIX}/bin\"
 
 GIT_VERSION:=$(shell git describe --dirty --always --tags)
@@ -20,15 +27,9 @@ LDFLAGS += -lz -lpthread -lstdc++fs  -lfmt
 PY_CXXFLAGS = $(shell python3-config --cflags --embed)
 PY_LDFLAGS = $(shell python3-config --ldflags --embed)
 
-
-SRC_PATH = src
-BUILD_PATH = build
-PY_HEADER_PATH = py_header
-EXTERN_HEADER_PATH = extern/include
-BIN_PATH = bin
-
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
+
 PY_FILES = $(wildcard py/*.py)
 PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
 
@@ -46,13 +47,13 @@ py_header/%.h: py/%.py
 
 install.sh: ${EXEC_FILES} Makefile
 	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
-	@echo cp ${BIN_PATH}/* ${INSTALL_PREFIX}/bin >> $@
+	@echo cp ${EXEC_FILES} ${INSTALL_PREFIX}/bin >> $@
 	@echo cp py/badread_models ${INSTALL_PREFIX}/bin -r >> $@
 	chmod +x $@
 
 .PHONY: clean
 clean:
-	rm -rf ${OBJD} ${BUILDD} ${TSTB} ${PY_HEADER_PATH} ${BIN_PATH} install.sh
+	rm -rf ${OBJD} ${BUILD_PATH} ${TSTB} ${PY_HEADER_PATH} ${BIN_PATH} install.sh
 
 compile_flags.txt: compile_flags.txt.pre
 	@cat $< | grep -v -- "-flto-partition=none" | sort | uniq > $@
