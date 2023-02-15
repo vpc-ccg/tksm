@@ -111,7 +111,7 @@ class PCR_module : public tksm_module {
             )(
                 "molecule-count",
                 "Number of molecules to generate",
-                cxxopts::value<int>()
+                cxxopts::value<size_t>()
             )(
                 "cycles",
                 "Number of PCR cycles to perform",
@@ -197,7 +197,7 @@ public:
         
         double error_rate = 0;
         double efficiency = 0;
-        int molecule_count = args["molecule-count"].as<int>();
+        size_t molecule_count = args["molecule-count"].as<size_t>();
         int cycles = args["cycles"].as<int>();
 
         if( args["preset"].count()){
@@ -216,9 +216,9 @@ public:
 
         vector<molecule_descriptor> molecules = parse_mdf(input);
 
-        if( molecules.size() > 2 * args["molecule-count"].as<size_t>()){
+        if( molecules.size() > 2 * molecule_count){
             std::shuffle(molecules.begin(), molecules.end(), rand_gen);
-            molecules.resize( 2 * args["molecule-count"].as<size_t>());
+            molecules.resize( 2 * molecule_count);
         }
         ofstream output (output_file);
         return PCR{cycles, efficiency, error_rate, tksm_module::rand_gen}.perform(molecules, molecule_count, output);
@@ -229,7 +229,7 @@ public:
         logi("Running PCR");
         logi("Input file: {}", args["input"].as<string>());
         logi("Output file: {}", args["output"].as<string>());
-        logi("Molecule count: {}", args["molecule-count"].as<int>());
+        logi("Molecule count: {}", args["molecule-count"].as<size_t>());
         logi("Cycles: {}", args["cycles"].as<int>());
         if (args.count("preset")) {
             logi("Used preset: {}", args["preset"].as<string>());
