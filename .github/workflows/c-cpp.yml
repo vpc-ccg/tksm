@@ -40,7 +40,7 @@ jobs:
           - uses: actions/cache@v2
             with:
               path: ${{ matrix.prefix }}
-              key: ${{ matrix.label }}-conda-${{ hashFiles( ${{ matrix.environment-file }}) }}-${{ env.DATE }}-${{ env.CACHE_NUMBER }}
+              key: ${{ matrix.label }}-conda-${{ hashFiles( '${{ matrix.environment-file }}') }}-${{ env.DATE }}-${{ env.CACHE_NUMBER }}
             id: cache
           - name: Update environment
             run: mamba env update -n my-env -f ${{ matrix.environment-file }}
