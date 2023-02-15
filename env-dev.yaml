@@ -1,4 +1,5 @@
 name: tksm
+quiet: true
 channels:
   - anaconda 
   - conda-forge
