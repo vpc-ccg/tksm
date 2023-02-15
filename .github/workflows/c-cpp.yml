@@ -19,9 +19,6 @@ jobs:
               environment-file: env-dev.yaml
               miniforge-variant: Mambaforge
               miniforge-version: 4.9.2-4
-            - os: macos
-              environment-file: env-dev.yaml
-              miniforge-variant: Mambaforge-pypy3
       steps:
           - uses: actions/checkout@v2
           - name: create env with miniforge
@@ -31,6 +28,7 @@ jobs:
               environment-file: ${{ matrix.environment-file }}
               miniforge-variant: ${{ matrix.miniforge-variant }}
               miniforge-version: ${{ matrix.miniforge-version }}
+              auto-activate-base: false
               activate-environment: tksm
               use-mamba: true
           - name: check solution
