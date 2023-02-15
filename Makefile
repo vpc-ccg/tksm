@@ -83,14 +83,14 @@ compile_flags.txt.pre: Makefile
 
 
 # Testing 
-#
 TSTD = test
 TSTB = ${TSTD}/build
-${TSTB}/%:${TSTD}/%.cpp
+TEST_SOURCES = $(wildcard ${TSTD}/*.cpp)
+TEST_BINARIES = $(TEST_SOURCES:${TSTD}/%.cpp=${TSTB}/%)
+
+$(TSTB)/%: $(TSTD)/%.cpp
 	@mkdir -p ${TSTB}
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-reverse_complement_test: ${TSTB}/reverse_complement_test
-	./${TSTB}/reverse_complement_test
-
-check: reverse_complement_test
+check: ${TEST_BINARIES}
+	for t in $^; do echo $$t && $$t; done

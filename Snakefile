@@ -264,7 +264,7 @@ rule truncate_kde:
     threads:
         32
     shell:
-        '{input.binary} abundance'
+        '{input.binary} truncate_kde'
         ' -p {input.paf}'
         ' -o {params.out_prefix}'
         ' --threads {threads}'
