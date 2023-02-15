@@ -10,6 +10,9 @@ jobs:
   mambaforge:
       name: Ex10 (${{ matrix.os }}, Mambaforge)
       runs-on: ${{ matrix.os }}-latest
+      defaults:
+        run:
+          shell: bash -l {0}
       strategy:
         fail-fast: false
         matrix:
