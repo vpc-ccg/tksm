@@ -13,7 +13,7 @@ jobs:
       strategy:
         fail-fast: false
         matrix:
-          os: ["ubuntu", "macos"]
+          os: ["ubuntu"]
           include:
             - os: ubuntu
               environment-file: env-dev.yaml
@@ -24,13 +24,18 @@ jobs:
               miniforge-variant: Mambaforge-pypy3
       steps:
           - uses: actions/checkout@v2
-          - uses: conda-incubator/setup-miniconda@v2
+          - name: create env with miniforge
+            uses: conda-incubator/setup-miniconda@v2
             with:
               condarc-file: ${{ matrix.condarc-file }}
               environment-file: ${{ matrix.environment-file }}
               miniforge-variant: ${{ matrix.miniforge-variant }}
               miniforge-version: ${{ matrix.miniforge-version }}
+              activate-environment: tksm
               use-mamba: true
+          - name: check solution
+            run: |
+              mamba env export
           - name: make
             run: make
           - name: make check
