@@ -28,12 +28,23 @@ jobs:
             uses: conda-incubator/setup-miniconda@v2
             with:
               condarc-file: ${{ matrix.condarc-file }}
-              environment-file: ${{ matrix.environment-file }}
               miniforge-variant: ${{ matrix.miniforge-variant }}
               miniforge-version: ${{ matrix.miniforge-version }}
               auto-activate-base: false
               activate-environment: tksm
               use-mamba: true
+              
+          - name: Set cache date
+            run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+            
+          - uses: actions/cache@v2
+            with:
+              path: ${{ matrix.prefix }}
+              key: ${{ matrix.label }}-conda-${{ hashFiles( ${{ matrix.environment-file }}) }}-${{ env.DATE }}-${{ env.CACHE_NUMBER }}
+            id: cache
+          - name: Update environment
+            run: mamba env update -n my-env -f ${{ matrix.environment-file }}
+            if: steps.cache.outputs.cache-hit != 'true'
           - name: check solution
             run: |
               mamba env export
