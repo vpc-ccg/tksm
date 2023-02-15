@@ -22,6 +22,7 @@ jobs:
               environment-file: env-dev.yaml
               miniforge-variant: Mambaforge
               miniforge-version: 4.9.2-4
+              prefix: /usr/share/miniconda3/envs/my-env
       steps:
           - uses: actions/checkout@v2
           - name: create env with miniforge
