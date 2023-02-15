@@ -33,7 +33,7 @@ jobs:
               miniforge-variant: ${{ matrix.miniforge-variant }}
               miniforge-version: ${{ matrix.miniforge-version }}
               auto-activate-base: false
-              activate-environment: ${{ matrix.env_name }}
+              activate-environment: ${{ matrix.env-name }}
               use-mamba: true
               
           - name: Set cache date
@@ -45,7 +45,7 @@ jobs:
               key: ${{ matrix.label }}-conda-${{ hashFiles( '${{ matrix.environment-file }}') }}-${{ env.DATE }}-${{ env.CACHE_NUMBER }}
             id: cache
           - name: Update environment
-            run: mamba env update -n ${{ matrix.env_name }} -f ${{ matrix.environment-file }}
+            run: mamba env update -n ${{ matrix.env-name }} -f ${{ matrix.environment-file }}
             if: steps.cache.outputs.cache-hit != 'true'
           - name: check solution
             run: |
