@@ -25,7 +25,7 @@ jobs:
               env-name: tksm
               prefix: /usr/share/miniconda3/envs/tksm
             - os: macos
-              environment-file: etc/example-empty-channels-environment.yml
+              environment-file: env-dev.yaml
               miniforge-variant: Mambaforge-pypy3
               env-name: tksm
               prefix: /usr/share/miniconda3/envs/tksm
