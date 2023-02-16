@@ -16,7 +16,7 @@ using std::ostream;
 using std::string;
 using std::vector;
 
-
+/*
 inline Generator<molecule_descriptor>
 stream_mdf(FILE *file, bool unroll = false){
     char id[1024];
@@ -60,6 +60,7 @@ stream_mdf(FILE *file, bool unroll = false){
         }
     }
 }
+*/
 inline Generator<molecule_descriptor>
 stream_mdf(istream &ist, bool unroll = false) {
     string buffer;
