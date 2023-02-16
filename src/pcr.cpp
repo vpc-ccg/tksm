@@ -1,35 +1,28 @@
+#include "pcr.h"
+#include "pimpl_impl.h"
 
-#include <string>
-#include <map>
-#include <vector>
-#include <random>
-#include <fstream>
-#include <numeric>
-#include <functional>
-#include <algorithm>
-
-#include "fasta.h"
-#include "tree.h"
-#include "interval.h"
-#include "reverse_complement.h"
 #include <cxxopts.hpp>
-#include <tuple>
+#include <fstream>
+#include <random>
+#include <string>
+#include <vector>
+
+#include "interval.h"
 #include "mdf.h"
+#include "module.h"
+#include "util.h"
 
-using std::string;
-using std::map;
-using std::vector;
-using std::tuple;
-
-using std::ostream;
-using std::ofstream;
 using std::ifstream;
+using std::map;
+using std::ofstream;
+using std::pair;
+using std::string;
+using std::vector;
 
 
-//Random number generator, seed is set in the main function
-std::mt19937 rand_gen{std::random_device{}()};
 
-class PCRRunner{
+
+class PCR{
     int     cycles;
     double  efficiency;
     double  error_rate;
@@ -37,11 +30,13 @@ class PCRRunner{
     std::uniform_int_distribution<> basedist {0,3};
     char bases[4] = {'A','C','T','G'};
 
+    std::mt19937 &rand_gen;
     public:
-    PCRRunner( int cycles, double efficiency, double error_rate) :
+    PCR( int cycles, double efficiency, double error_rate, std::mt19937 &rand_gen) :
         cycles{cycles},
         efficiency{efficiency},
-        error_rate{(4*error_rate)/3} //Our error definition is a base to be assigned to random base not changing to other bases so we are adjusting the probability
+        error_rate{(4*error_rate)/3}, //Our error definition is a base to be assigned to random base not changing to other bases so we are adjusting the probability
+        rand_gen{rand_gen}
     {}
 
     void do_pcr (ostream &ost, const molecule_descriptor& md, int step, const vector<int> &positions, vector<std::pair<int, char>> mutations, double drop_ratio) {
@@ -70,8 +65,7 @@ class PCRRunner{
             }
     } 
 
-
-    int run(const vector<molecule_descriptor> &molecules, ostream &ost, int number_of_target_reads){
+    int perform(const vector<molecule_descriptor> &molecules, int number_of_target_reads, ostream &ost){
 //Calculate number of molecules to be produced with pcr
         int64_t molecule_count = std::accumulate(molecules.begin(), molecules.end(), 0,
                 [] ( int64_t sum, const molecule_descriptor &cpy) -> int64_t{
@@ -97,92 +91,175 @@ class PCRRunner{
         return 0;
     }
 };
-int main(int argc, char **argv){
+class PCR_module::impl : public tksm_module {
+    cxxopts::ParseResult parse(int argc, char **argv) {
 
-    cxxopts::Options options("tksm PCR module", "PCR PCR PCR PTR");
-    
-    map<string, tuple<double, double>> pcr_presets {
-        { "Taq-setting1", {2*std::pow(0.1,4),0.88}},
-        { "Taq-setting2", {7.2*std::pow(0.1,5),0.36}},
-        { "Klenow", {1.3*std::pow(0.1,4),0.80}},
-        { "T7", {3.4*std::pow(0.1,5),0.90}},
-        { "T4", {3.0*std::pow(0.1,6),0.56}},
-        { "Vent", {4.5*std::pow(0.1,5),0.70}},
-    };
+        string preset_string = "presets (Cha, R. S., & Thilly, W. G. (1993). Specificity, efficiency, and fidelity of PCR. Genome Research, 3(3), S18-S29.)\n";
+        for(const auto &p: pcr_presets){
+            preset_string += ("- " + p.first + ": " + "efficiency: " + std::to_string(p.second.first) + ", error-rate: " + std::to_string(p.second.second) + "\n");
+        }
 
-    string preset_string = "presets (Cha, R. S., & Thilly, W. G. (1993). Specificity, efficiency, and fidelity of PCR. Genome Research, 3(3), S18-S29.)\n";
-    preset_string.reserve(500);
-    for(const auto &p : pcr_presets){
-        preset_string+= ("- " +p.first + ": " + "efficiency: " + std::to_string(std::get<1>(p.second)) +", error-rate:" + std::to_string(std::get<0>(p.second)) + "\n");
+        // clang-format off
+        options.add_options("main")
+            (
+                "i,input",
+                "input mdf file",
+                cxxopts::value<string>()
+            )(
+                "o,output",
+                "output mdf file",
+                cxxopts::value<string>()
+            )(
+                "molecule-count",
+                "Number of molecules to generate",
+                cxxopts::value<size_t>()
+            )(
+                "cycles",
+                "Number of PCR cycles to perform",
+                cxxopts::value<int>()
+            )(
+                "error-rate",
+                "Error rate for PCR",
+                cxxopts::value<double>()
+            )(
+                "efficiency",
+                "PCR efficiency",
+                cxxopts::value<double>()
+            )(
+                "x,preset",
+                preset_string,
+                cxxopts::value<string>()
+            )
+        ;
+        // clang-format on
+        return options.parse(argc, argv);
     }
 
-    options.add_options()
-        ("i,input", "Molecule description file", cxxopts::value<string>())
-        ("o,output", "Output path", cxxopts::value<string>())
-        ("molecule-count", "Number of molecules to simulate", cxxopts::value<size_t>()->default_value("100000"))
-        ("cycles", "Number of pcr cycles to simulate", cxxopts::value<int>()->default_value("6"))
-        ("efficiency", "Probability of a molecule being duplicated during each pcr cycle", cxxopts::value<double>()->default_value("0.75"))
-        ("error-rate", "Probability of substition errors for each base during each pcr cycle", cxxopts::value<double>()->default_value("0.000001"))
-        ("seed", "Random seed", cxxopts::value<int>()->default_value("42"))
-        ("h,help", "Help screen")
-        ("x,preset", preset_string, cxxopts::value<string>())
-    ;
+    map<string, pair<double, double>> pcr_presets{
+        {"Taq-setting1", {2 * std::pow(0.1, 4), 0.88}}, {"Taq-setting2", {7.2 * std::pow(0.1, 5), 0.36}},
+        {"Klenow", {1.3 * std::pow(0.1, 4), 0.80}},     {"T7", {3.4 * std::pow(0.1, 5), 0.90}},
+        {"T4", {3.0 * std::pow(0.1, 6), 0.56}},         {"Vent", {4.5 * std::pow(0.1, 5), 0.70}},
+    };
 
-    auto args = options.parse(argc, argv);
+    cxxopts::ParseResult args;
 
-    if(args.count("help") > 0){
-        std::cout << options.help() << std::endl;
+
+public:
+    impl (int argc, char **argv) : tksm_module{"PCR", "PCR amplification module"}, args(parse(argc, argv)) {}
+
+    int validate_arguments() {
+        std::vector<string> mandatory = {"input", "output", "molecule-count", "cycles"};
+        int missing_parameters        = 0;
+        for (string &param : mandatory) {
+            if (args.count(param) == 0) {
+                loge("{} is required!", param);
+                ++missing_parameters;
+            }
+        }
+        // Other parameter checks here
+
+
+
+        if (args["preset"].count() > 0) {
+            string preset = args["preset"].as<string>();
+            auto it       = pcr_presets.find(preset);
+            if (it == pcr_presets.end()) {
+                loge("Preset {} not found", preset);
+                ++missing_parameters;
+            }
+        }
+        else{
+            if (args["error-rate"].count() == 0) {
+                loge("Error rate is required!");
+                ++missing_parameters;
+            }
+            if (args["efficiency"].count() == 0) {
+                loge("Efficiency is required!");
+                ++missing_parameters;
+            }
+        }
+
+        if (missing_parameters > 0) {
+            fmt::print(stderr, "{}\n", options.help());
+            return 1;
+        }
+        return 0;
+    }
+    int run() {
+        if (process_utility_arguments(args)) {
+            return 0;
+        }
+        if (validate_arguments()) {
+            return 1;
+        }
+        describe_program();
+        string input_file = args["input"].as<string>();
+        string output_file = args["output"].as<string>();
+        
+        double error_rate = 0;
+        double efficiency = 0;
+        size_t molecule_count = args["molecule-count"].as<size_t>();
+        int cycles = args["cycles"].as<int>();
+
+        if( args["preset"].count()){
+            std::pair<double, double> preset = pcr_presets[args["preset"].as<string>()];
+            error_rate = preset.first;
+            efficiency = preset.second;
+        }
+        if( args["error-rate"].count()){
+            error_rate = args["error-rate"].as<double>();
+        }
+        if( args["efficiency"].count()){
+            efficiency = args["efficiency"].as<double>();
+        }
+
+        ifstream input(input_file);
+
+        vector<molecule_descriptor> molecules = parse_mdf(input);
+
+        if( molecules.size() > 2 * molecule_count){
+            std::shuffle(molecules.begin(), molecules.end(), rand_gen);
+            molecules.resize( 2 * molecule_count);
+        }
+        ofstream output (output_file);
+        return PCR{cycles, efficiency, error_rate, tksm_module::rand_gen}.perform(molecules, molecule_count, output);
         return 0;
     }
 
-    std::vector<string> mandatory =  {"input", "output"};
-    if(args.count("fastq") > 0 && args["fastq"].as<bool>()){
-        mandatory.push_back("references");
-    }
-    int missing_parameters = 0;
-    for( string &param : mandatory){
-        std::cout << param << "\n";
-        if(args.count(param) == 0){
-            std::cerr << param << " is required!\n";
-            ++missing_parameters;
+    void describe_program() {
+        logi("Running PCR");
+        logi("Input file: {}", args["input"].as<string>());
+        logi("Output file: {}", args["output"].as<string>());
+        logi("Molecule count: {}", args["molecule-count"].as<size_t>());
+        logi("Cycles: {}", args["cycles"].as<int>());
+        if (args.count("preset")) {
+            logi("Used preset: {}", args["preset"].as<string>());
+            std::pair<double, double> preset = pcr_presets[args["preset"].as<string>()];
+            
+            if(args.count("error-rate")){
+                logi("Error rate is overriden from {} to {}", preset.first, args["error-rate"].as<double>());
+            }
+            else{
+                logi("Error rate: {}", preset.first);
+            }
+            if(args.count("efficiency")){
+                logi("Efficiency is overridden from {} to {}", preset.second, args["efficiency"].as<double>());
+            }
+            else{
+                logi("Efficiency: {}", preset.second);
+            }
         }
-    }
-
-    if(missing_parameters  > 0){
-        std::cerr << options.help() << std::endl;
-        return 1;
-    }
-    
-    int cycles = args["cycles"].as<int>();
-    double pcr_efficiency = args["efficiency"].as<double>();
-    double error_rate = args["error-rate"].as<double>();
-    int number_of_target_reads = args["molecule-count"].as<size_t>();
-
-    if(args["preset"].count() > 0){
-        if (pcr_presets.find(args["preset"].as<string>()) == pcr_presets.end()){
-            std::cerr << "Preset doesn't exist!\n";
-            return -1;
+        else{
+            if(args.count("error-rate")){
+                logi("Error rate: {}", args["error-rate"].as<double>());
+            }
+            if(args.count("efficiency")){
+                logi("Efficiency: {}", args["efficiency"].as<double>());
+            }
         }
-        tuple<double, double> setting = pcr_presets[args["preset"].as<string>()];
-
-        error_rate = std::get<0>(setting);
-        pcr_efficiency = std::get<1>(setting);
+        fmtlog::poll(true);
     }
+};
 
-    int seed = args["seed"].as<int>();;
-    rand_gen.seed(seed);
-
-    ifstream md_file(args["input"].as<string>());
-    vector<molecule_descriptor> molecules = parse_mdf(md_file);
-
-    if( molecules.size() > 2 * args["molecule-count"].as<size_t>()){
-        std::shuffle(molecules.begin(), molecules.end(), rand_gen);
-        molecules.resize( 2 * args["molecule-count"].as<size_t>());
-    }
-
-
-    ofstream out_stream(args["output"].as<string>());
-    return PCRRunner{cycles, pcr_efficiency, error_rate}.run(molecules, out_stream, number_of_target_reads);
-}
-
+MODULE_IMPLEMENT_PIMPLE_CLASS(PCR_module);
 

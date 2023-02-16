@@ -104,7 +104,7 @@ main(int argc, char **argv) {
         run_abundance(argc - 1, argv + 1);
     }
     else if (kisim == "splicer") {
-        return splicer_module{argc - 1, argv + 1}.run();
+        return Splicer_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "umi") {
         return UMI_module{argc - 1, argv + 1}.run();

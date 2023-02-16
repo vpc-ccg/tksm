@@ -9,6 +9,8 @@
 #include "mdf.h"
 #include "module.h"
 #include "util.h"
+#include "gtf.h"
+
 
 class Fusion_module : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
