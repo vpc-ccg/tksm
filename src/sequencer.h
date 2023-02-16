@@ -45,7 +45,7 @@ public:
         else {
             logd("TKSM_MODELS was set to {}", std::string(env));
             logd("Appending {}", std::string(TKSM_MODELS_PATH));
-            string new_env = fmt::format("{}:{}", env, TKSM_MODELS_PATH);
+            string new_env = fmt::format("{}:{}", TKSM_MODELS_PATH, env);
             setenv("TKSM_MODELS", new_env.c_str(), 0);
         }
         return run_sequencer(argc, argv);
