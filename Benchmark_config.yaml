@@ -10,11 +10,11 @@ TS_experiments:
             - Spc:
                 '--molecule-count 1000000'
             - plA:
-                '--normal=40,10 --min-length=5 --expand-isoforms'
+                '--normal=40,10 --min-length=5'
             - PCR:
                 '--cycles 5 -x Taq-setting1'
             - Trc:
-                '--only-single-isoform'
+                ''
             - Seq:
                 '--other-br="--tail_noise_model=nanopore"'
     TS_1_chr21:
@@ -25,13 +25,13 @@ TS_experiments:
             - Spc:
                 '--molecule-count 5000'
             - plA:
-                '--normal=40,10 --min-length=5 --expand-isoforms'
+                '--normal=40,10 --min-length=5'
             - PCR:
-                '--cycles 5 -x Taq-setting1'
+                '--cycles 5 -x Taq-setting1 --molecule-count 100000'
             - Trc:
-                '--only-single-isoform'
+                ''
             - Seq:
-                '--other-br="--tail_noise_model=nanopore"'
+                '--skip-qual-compute --badread-model-path py/badread_models'
     TS_2_chr21:
         sample : 'N1_chr21'
         pipeline:
@@ -40,7 +40,7 @@ TS_experiments:
             - Spc:
                 '--molecule-count 100000'
             - plA:
-                '--normal=40,10 --min-length=5 --expand-isoforms'
+                '--normal=40,10 --min-length=5 --molecule-count 100000'
             - SCB:
                 ''
             - UMI:
@@ -48,9 +48,10 @@ TS_experiments:
             - PCR:
                 '--cycles 3 -x Taq-setting1'
             - Trc:
-                '--only-single-isoform'
+                ''
             - Seq:
                 '--skip-qual-compute --badread-model-path py/badread_models'
+
 NS_experiments:
     NS_1:
         sample : 'MCF7-sgnex'
@@ -62,18 +63,18 @@ NS_experiments:
             '-n 50000 --seed 42'
 
 plots:
-    # - {
-    #     rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition, polyA,tpm_plot],
-    #     data: [MCF7-sgnex_chr21, TS_1_chr21, NS_1_chr21],
-    # }
     - {
         rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition, polyA,tpm_plot],
-        data: [N1_chr21, TS_2_chr21],
+        data: [MCF7-sgnex_chr21, TS_1_chr21, NS_1_chr21],
     }
+    # - {
+    #     rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition, polyA,tpm_plot],
+    #     data: [N1_chr21, TS_2_chr21],
+    # }
     
 exec:
     tksm:
-        bin/tksm
+        build/bin/tksm
     tNS_analyze:
         simulator.py
 
