@@ -4,6 +4,6 @@
 
 #include "python_runner.h"
 
-MAKE_PYTHON_RUNNER(abundance, py_transcript_abundance_py);
+MAKE_PYTHON_RUNNER(inline, abundance, py_transcript_abundance_py);
 
 #endif

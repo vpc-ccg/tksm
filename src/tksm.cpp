@@ -126,20 +126,7 @@ main(int argc, char **argv) {
         return 1;
     }
     else if (kisim == "sequencer") {
-        // Inject default badread model path into argv
-        // If one provided by user, it will override this
-        // This is a hack to avoid environment variables
-        const char *path_cmd = "--badread-model-path=" INSTALL_PATH "/badread_models";
-        argc--;
-        argv = argv + 1;
-        fmt::print("{}\n", path_cmd);
-        char **argv_cpy = (char **)malloc((argc + 2) * sizeof(char *));
-        argv_cpy[0]     = argv[0];
-        for (int i = 1; i < argc; i++) {
-            argv_cpy[i + 1] = argv[i];
-        }
-        argv_cpy[1] = (char *)path_cmd;
-        return run_sequencer(argc + 1, argv_cpy);
+        return Sequencer_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "kde") {
         return run_kde(argc - 1, argv + 1);

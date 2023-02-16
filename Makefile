@@ -28,12 +28,12 @@ CXX_OPT ?= -O2
 CXX_DBG ?=
 LD_DBG ?=
 CXX_STD ?=c++20
-CXXFLAGS += -std=$(CXX_STD) -Wall -Werror $(CXX_OPT) $(CXX_DBG) 
-LDFLAGS += -lz -lpthread -lstdc++fs  -lfmt $(LD_DBG) 
+CXXFLAGS += -std=$(CXX_STD) -Wall  $(CXX_OPT) $(CXX_DBG) 
+LDFLAGS += -lz -lpthread -lfmt $(LD_DBG) 
 
 
-PY_CXXFLAGS = $(shell python3-config --cflags --embed)
-PY_LDFLAGS = $(shell python3-config --ldflags --embed)
+PY_CXXFLAGS = $(shell python3-config --cflags --embed | sed 's|-flto-partition=none||g')
+PY_LDFLAGS = $(shell python3-config --ldflags --embed | sed 's|-flto-partition=none||g')
 
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm

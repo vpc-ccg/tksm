@@ -14,8 +14,8 @@ GetWC(const char *c) {
 
     return wc;
 }
-#define MAKE_PYTHON_RUNNER(FUNC_NAME, ARRAY_NAME)                                  \
-    inline int run_##FUNC_NAME(int argc, char **argv_s) {                          \
+#define MAKE_PYTHON_RUNNER(SCOPE, FUNC_NAME, ARRAY_NAME)                                  \
+    SCOPE int run_##FUNC_NAME(int argc, char **argv_s) {                          \
         wchar_t **argv = new wchar_t *[argc];                                      \
         for (int i = 0; i < argc; i++) argv[i] = (wchar_t *)GetWC(argv_s[i]);      \
         wchar_t *program = Py_DecodeLocale("", NULL);                              \
