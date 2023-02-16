@@ -1,15 +1,7 @@
 #ifndef _UMI_H
 #define _UMI_H
-#include <memory>
+#include "pimpl.h"
 
-using std::unique_ptr;
+MODULE_DECLARE_PIMPLE_CLASS(UMI_module);
 
-class UMI_module{
-    class impl;
-    unique_ptr<impl> pimpl;
-    public:
-    UMI_module(int argc, char **argv);
-    ~UMI_module();
-    int run();
-};
 #endif

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "pimpl_impl.h"
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
@@ -151,7 +152,6 @@ public:
 };
 
 
+MODULE_IMPLEMENT_PIMPLE_CLASS(UMI_module)
 
-UMI_module::UMI_module(int argc, char **argv) : pimpl{std::make_unique<impl>(argc, argv)} {}
-UMI_module::~UMI_module() = default;
-int UMI_module::run() { return pimpl->run(); }
+
