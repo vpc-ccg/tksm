@@ -37,7 +37,7 @@ public:
         if (env == NULL) {
             if (string{""} == TKSM_MODELS_PATH) {
                 loge("TKSM_MODELS not set and TKSM_MODELS_PATH not defined in makefile");
-                return 1;
+                // Let the python runner handle the error
             }
             logd("TKSM_MODELS not set, setting to {}", std::string(TKSM_MODELS_PATH));
             setenv("TKSM_MODELS", TKSM_MODELS_PATH, 0);
@@ -48,16 +48,10 @@ public:
             string new_env = fmt::format("{}:{}", env, TKSM_MODELS_PATH);
             setenv("TKSM_MODELS", new_env.c_str(), 0);
         }
-        run_sequencer(argc, argv);
-        return 0;
+        return run_sequencer(argc, argv);
     }
-    void describe_program() {
-        // TODO we need to have a python call for this
-    }
-    int validate_arguments() {
-        // TODO we need to have a python call for this
-        return 0;
-    }
+    void describe_program() {}
+    int validate_arguments() { return 0; }
 };
 
 #endif
