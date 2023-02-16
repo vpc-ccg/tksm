@@ -86,11 +86,14 @@ rule sequence:
         binary = config['exec']['tksm'],
         mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
         fastas = fastas_for_TS_sequence,
+        qscore_model = lambda wc: f'{preproc_d}/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz',
+        error_model = lambda wc: f'{preproc_d}/badread/{exprmnt_sample(wc.exprmnt)}.error.gz',
     output:
         fastq = f'{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq',
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.Seq.benchmark'
     params:
+        model_path = f'{preproc_d}/badread',
         other = lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Seq'],
     threads:
         32
@@ -100,6 +103,7 @@ rule sequence:
         ' --references {input.fastas}'
         ' -o {output.fastq}'
         ' --threads {threads}'
+        ' --badread-model-path={params.model_path}'
         ' {params.other}'
 
 rule mirror:
@@ -118,7 +122,6 @@ rule truncate:
         x = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.X_idxs.npy',
         y = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.Y_idxs.npy',
         g = lambda wc: f'{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.grid.npy',
-        gtf = lambda wc: config['refs'][get_sample_ref(exprmnt_sample(wc.exprmnt))]['GTF'],
     output:
         mdf = pipe(f'{TS_d}/{{exprmnt}}/{{prefix}}.Trc.mdf'),
     benchmark:
@@ -129,7 +132,6 @@ rule truncate:
         '{input.binary} truncate'
         ' -i {input.mdf}'
         ' --kde={input.g},{input.x},{input.y}'
-        ' --gtf={input.gtf}'
         ' -o {output.mdf}'
         ' {params}'
 
@@ -264,8 +266,8 @@ rule truncate_kde:
     threads:
         32
     shell:
-        '{input.binary} truncate_kde'
-        ' -p {input.paf}'
+        '{input.binary} kde'
+        ' -i {input.paf}'
         ' -o {params.out_prefix}'
         ' --threads {threads}'
 
@@ -283,7 +285,7 @@ rule minimap_cdna:
         'minimap2'
         ' -t {threads}'
         ' -x map-ont'
-        ' -c --eqx -p0'
+        ' -c --eqx'
         ' -o {output.paf}'
         ' {input.ref}'
         ' {input.reads}'
@@ -333,3 +335,52 @@ rule scTagger_lr_seg:
         ' -r {input.reads}'
         ' -o {output.tsv}'
         ' -t {threads}'
+
+rule minimap_cdna_for_badread_models:
+    input:
+        reads = lambda wc: get_sample_fastqs(wc.sample),
+        ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
+    output:
+        paf = f'{preproc_d}/badread/{{sample}}.badread.cDNA.paf'
+    benchmark:
+        f'{time_d}/{{sample}}/minimap2_cdna.benchmark'
+    threads:
+        32
+    shell:
+        'minimap2'
+        ' -t {threads}'
+        ' -x map-ont'
+        ' -c'
+        ' -o {output.paf}'
+        ' {input.ref}'
+        ' {input.reads}'
+
+rule badread_error_model:
+    input:
+        reads = lambda wc: get_sample_fastqs(wc.sample),
+        ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
+        paf = f'{preproc_d}/badread/{{sample}}.badread.cDNA.paf'
+    output:
+        model = f'{preproc_d}/badread/{{sample}}.error.gz',
+    shell:
+        'badread error_model'
+        ' --reads {input.reads}'
+        ' --reference {input.ref}'
+        ' --alignment {input.paf}'
+        ' --max_alignments 100000'
+        ' > {output.model}'
+
+rule badread_qscore_model:
+    input:
+        reads = lambda wc: get_sample_fastqs(wc.sample),
+        ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
+        paf = f'{preproc_d}/badread/{{sample}}.badread.cDNA.paf'
+    output:
+        model = f'{preproc_d}/badread/{{sample}}.qscore.gz',
+    shell:
+        'badread qscore_model'
+        ' --reads {input.reads}'
+        ' --reference {input.ref}'
+        ' --alignment {input.paf}'
+        ' --max_alignments 100000'
+        ' > {output.model}'
