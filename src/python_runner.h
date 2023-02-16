@@ -6,7 +6,6 @@ extern "C" {
 #include <Python.h>
 }
 
-
 inline const wchar_t *
 GetWC(const char *c) {
     const size_t cSize = strlen(c) + 1;
@@ -16,7 +15,7 @@ GetWC(const char *c) {
     return wc;
 }
 #define MAKE_PYTHON_RUNNER(FUNC_NAME, ARRAY_NAME)                                  \
-    int run_##FUNC_NAME(int argc, char **argv_s) {                                 \
+    inline int run_##FUNC_NAME(int argc, char **argv_s) {                          \
         wchar_t **argv = new wchar_t *[argc];                                      \
         for (int i = 0; i < argc; i++) argv[i] = (wchar_t *)GetWC(argv_s[i]);      \
         wchar_t *program = Py_DecodeLocale("", NULL);                              \
