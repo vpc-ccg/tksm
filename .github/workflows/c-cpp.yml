@@ -16,12 +16,17 @@ jobs:
       strategy:
         fail-fast: false
         matrix:
-          os: ["ubuntu"]
+          os: ["ubuntu", "macos"]
           include:
             - os: ubuntu
               environment-file: env-dev.yaml
               miniforge-variant: Mambaforge
               miniforge-version: 4.9.2-4
+              env-name: tksm
+              prefix: /usr/share/miniconda3/envs/tksm
+            - os: macos
+              environment-file: etc/example-empty-channels-environment.yml
+              miniforge-variant: Mambaforge-pypy3
               env-name: tksm
               prefix: /usr/share/miniconda3/envs/tksm
       steps:
