@@ -10,6 +10,7 @@ endif
 
 SRC_PATH = src
 BUILD_PATH = build
+OBJ_PATH = ${BUILD_PATH}/obj
 PY_HEADER_PATH = py_header
 EXTERN_HEADER_PATH = extern/include
 BIN_PATH = ${BUILD_PATH}/bin
@@ -38,16 +39,27 @@ PY_LDFLAGS = $(shell python3-config --ldflags --embed | sed 's|-flto-partition=n
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
 
+SRC_FILES = tksm.cpp umi.cpp
+#Append SRC_PATH to SRC_FILES
+SRC_FILES := $(addprefix $(SRC_PATH)/,$(SRC_FILES))
+
+OBJECTS = $(SRC_FILES:$(SRC_PATH)/%.cpp=$(OBJ_PATH)/%.o)
+
+
 PY_FILES = $(wildcard py/*.py)
 PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
 
-$(EXEC): $(MAIN) $(PY_HEADERS) install.sh
+$(EXEC): $(OBJECTS) $(PY_HEADERS) install.sh
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $(OBJECTS) $(PY_LDFLAGS) $(LDFLAGS)
 
 $(BIN_PATH)/%: $(SRC_PATH)/%.cpp $(PY_HEADERS) 
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS) $(LDFLAGS)
+
+$(OBJ_PATH)/%.o: $(SRC_PATH)/%.cpp $(PY_HEADERS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(EXTERN_HEADER_PATH) -I$(PY_HEADER_PATH) -c -o $@ $<
 
 py_header/%.h: py/%.py
 	@mkdir -p py_header
@@ -61,7 +73,7 @@ install.sh: ${EXEC_FILES} Makefile
 
 .PHONY: clean
 clean:
-	rm -rf ${OBJD} ${BUILD_PATH} ${TSTB} ${PY_HEADER_PATH} ${BIN_PATH} install.sh
+	rm -rf ${OBJ_PATH} ${BUILD_PATH} ${TSTB} ${PY_HEADER_PATH} ${BIN_PATH} install.sh
 
 compile_flags.txt: compile_flags.txt.pre
 	@cat $< | grep -v -- "-flto-partition=none" | sort | uniq > $@
