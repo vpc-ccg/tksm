@@ -1,9 +1,8 @@
 #ifndef _ABUNDANCE_H
 #define _ABUNDANCE_H
-#include <transcript_abundance.h>
 
-#include "python_runner.h"
+#include "pimpl.h"
 
-MAKE_PYTHON_RUNNER(inline, abundance, py_transcript_abundance_py);
+MODULE_DECLARE_PIMPLE_CLASS(Abundance_module);
 
 #endif

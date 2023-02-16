@@ -101,7 +101,7 @@ main(int argc, char **argv) {
         return 0;
     }
     else if (kisim == "abundance") {
-        run_abundance(argc - 1, argv + 1);
+        return Abundance_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "splicer") {
         return Splicer_module{argc - 1, argv + 1}.run();
@@ -129,7 +129,7 @@ main(int argc, char **argv) {
         return Sequencer_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "kde") {
-        return run_kde(argc - 1, argv + 1);
+        return KDE_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "head") {
         return Head_module{argc - 1, argv + 1}.run();
