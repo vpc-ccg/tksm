@@ -17,7 +17,7 @@ using std::string;
 #endif
 
 class Sequencer_module::impl : public tksm_module {
-    MAKE_PYTHON_RUNNER(static, sequencer, py_sequence_py);
+    MAKE_PYTHON_RUNNER(static, sequencer, py_sequence_py, NO_MODULES);
 
     int argc;
     char **argv;
