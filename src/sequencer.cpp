@@ -39,13 +39,13 @@ public:
                 // Let the python runner handle the error
             }
             logd("TKSM_MODELS not set, setting to {}", std::string(TKSM_MODELS_PATH));
-            setenv("TKSM_MODELS", TKSM_MODELS_PATH, 0);
+            setenv("TKSM_MODELS", TKSM_MODELS_PATH, 1);
         }
         else {
             logd("TKSM_MODELS was set to {}", std::string(env));
             logd("Appending {}", std::string(TKSM_MODELS_PATH));
             string new_env = fmt::format("{}:{}", TKSM_MODELS_PATH, env);
-            setenv("TKSM_MODELS", new_env.c_str(), 0);
+            setenv("TKSM_MODELS", new_env.c_str(), 1);
         }
         return run_sequencer(argc, argv);
     }

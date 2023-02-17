@@ -22,6 +22,10 @@ GIT_VERSION:=$(shell git describe --dirty --always --tags)
 ifneq ($(GIT_VERSION),"")
 	CXXFLAGS += -DVERSION=\"${GIT_VERSION}\"
 endif
+TKSM_MODELS_PATH:=${INSTALL_PREFIX}/bin/tksm_models
+ifneq ($(TKSM_MODELS_PATH),"")
+	CXXFLAGS += -DTKSM_MODELS_PATH=\"${TKSM_MODELS_PATH}\"
+endif
 CXX?=g++
 
 
@@ -72,10 +76,10 @@ py_header/%.h: py/%.py
 	@mkdir -p py_header
 	@xxd -i $< > $@
 
-install.sh: ${EXEC_FILES} Makefile
+install.sh: ${EXEC} Makefile
 	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
-	@echo cp ${EXEC_FILES} ${INSTALL_PREFIX}/bin >> $@
-	@echo cp py/badread_models ${INSTALL_PREFIX}/bin -r >> $@
+	@echo cp ${EXEC} ${INSTALL_PREFIX}/bin >> $@
+	@echo cp py/tksm_models ${INSTALL_PREFIX}/bin -r >> $@
 	chmod +x $@
 
 .PHONY: clean

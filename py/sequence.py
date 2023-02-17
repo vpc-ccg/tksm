@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from glob import glob
 import json
 import os
 import re
@@ -73,10 +74,12 @@ class SETTINGS_PY:
 
 ### START OF ERROR_MODEL_PY ###
 class ERROR_MODEL_PY:
-    error_model_names = {"random", "nanopore2018", "nanopore2020", "pacbio2016"}
+    error_model_names = {
+        "random": None,
+    }
 
     class ErrorModel(object):
-        def __init__(self, model_path, model_name, output=sys.stderr):
+        def __init__(self, model_name, output=sys.stderr):
             self.kmer_size = None
             self.alternatives = {}
             self.probabilities = {}
@@ -85,7 +88,10 @@ class ERROR_MODEL_PY:
                 self.type = "random"
                 self.kmer_size = 1
             elif model_name in ERROR_MODEL_PY.error_model_names:
-                self.load_from_file(f"{model_path}/{model_name}.error.gz", output)
+                self.load_from_file(
+                    ERROR_MODEL_PY.error_model_names[model_name],
+                    output
+                )
             else:
                 self.load_from_file(model_name, output)
 
@@ -458,15 +464,12 @@ class SIMULATE_PY:
 ### START OF QSCORE_MODEL.PY ###
 class QSCOREMODEL_PY:
     qscore_model_names = {
-        "random",
-        "ideal",
-        "nanopore2018",
-        "nanopore2020",
-        "pacbio2016",
+        "random" : None,
+        "ideal" : None,
     }
 
     class QScoreModel(object):
-        def __init__(self, model_path, model_name, output=sys.stderr):
+        def __init__(self, model_name, output=sys.stderr):
             self.scores, self.probabilities = {}, {}
             self.kmer_size = 1
             self.type = None
@@ -476,7 +479,10 @@ class QSCOREMODEL_PY:
             elif model_name == "ideal":
                 self.set_up_ideal_model(output)
             elif model_name in QSCOREMODEL_PY.qscore_model_names:
-                self.load_from_file(f"{model_path}/{model_name}.qscore.gz", output)
+                self.load_from_file(
+                    QSCOREMODEL_PY.qscore_model_names[model_name],
+                    output
+                )
             else:
                 self.load_from_file(model_name, output)
 
@@ -881,7 +887,9 @@ class QUICKHIST_PY:
 
 ### START OF TAIL_NOISE_MODEL_PY ###
 class TAIL_NOISE_MODEL_PY:
-    tail_model_names = {"nanopore", "pacbio", "no-noise"}
+    tail_model_names = {
+        "no-noise": None,
+    }
 
     class KDE_noise_generator:
         @classmethod
@@ -939,11 +947,11 @@ class TAIL_NOISE_MODEL_PY:
             json.dump(dc, file)
 
         @classmethod
-        def load(cls, model_path, model_name):
-            if model_name in ["no_noise", "pacbio"]:
+        def load(cls, model_name):
+            if model_name in ["no_noise"]:
                 return TAIL_NOISE_MODEL_PY.Mock_noise_generator()
             elif model_name in TAIL_NOISE_MODEL_PY.tail_model_names:
-                model_name = f"{model_path}/{model_name}.tail.gz"
+                model_name = TAIL_NOISE_MODEL_PY.tail_model_names[model_name]
             dc = json.load(
                 gzip.open(model_name, "rt")
                 if model_name.endswith(".gz")
@@ -1052,10 +1060,27 @@ class TAIL_NOISE_MODEL_PY:
 
 ### END OF TAIL_NOISE_MODEL_PY ###
 
+def set_tksm_models_dicts(env_var="TKSM_MODELS"):
+    var = os.getenv(env_var)
+    if var is None:
+        return
+    for model_dir in reversed(var.split(":")):
+        print(f"Loading models from {model_dir}")
+        for tool,kind,dictionary in [
+            ('badread','error', ERROR_MODEL_PY.error_model_names),
+            ('badread','qscore', QSCOREMODEL_PY.qscore_model_names),
+            ('badread','tail', TAIL_NOISE_MODEL_PY.tail_model_names),
+        ]:
+            for path in glob(f"{model_dir}/{tool}/*.{kind}.gz"):
+                name = os.path.basename(path)
+                name = name[:-len(f".{kind}.gz")]
+                dictionary[name] = path
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Sequencer module of tksm. Generates FASTQ file from MDF (molecule description file) and reference FASTA files.",
+        description="Sequencer module of tksm. Generates FASTQ/A file from MDF (molecule description file) and reference FASTA files. " + \
+                    "Note: tksm looks for sequencing model names in colon sperated paths in $TKSM_MODELS environment variable. " + \
+                    f"Current $TKSM_MODELS value: {os.getenv('TKSM_MODELS')}",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("-i", "--input", type=str, required=True, help="MDF file.")
@@ -1100,12 +1125,6 @@ def parse_args():
         help="Number of threads.",
     )
     parser.add_argument(
-        "--badread-model-path",
-        type=str,
-        default=".",
-        help="Path to the directory containing the Badread models.",
-    )
-    parser.add_argument(
         "--badread-identity",
         type=str,
         default="87.5,97.5,5",
@@ -1114,20 +1133,27 @@ def parse_args():
     parser.add_argument(
         "--badread-error-model",
         type=str,
-        default="nanopore2020",
-        choices=ERROR_MODEL_PY.error_model_names,
+        default= "nanopore2020"
+            if "nanopore2020" in ERROR_MODEL_PY.error_model_names
+            else "random",
+        help="Badread tail model name or file path. " + \
+            f"Available model names: [{', '.join(ERROR_MODEL_PY.error_model_names)}]",
     )
     parser.add_argument(
         "--badread-qscore-model",
         type=str,
-        default="nanopore2020",
-        choices=QSCOREMODEL_PY.qscore_model_names,
+        default= "nanopore2020"
+            if "nanopore2020" in QSCOREMODEL_PY.qscore_model_names
+            else "random",
+        help="Badread qscore model name or file path. " + \
+            f"Available model names: [{', '.join(QSCOREMODEL_PY.qscore_model_names)}]",
     )
     parser.add_argument(
         "--badread-tail-model",
         type=str,
-        default="no_noise",
-        choices=TAIL_NOISE_MODEL_PY.tail_model_names,
+        default= "no-noise",
+        help="Badread tail model name or file path. " + \
+            f"Available model names: [{', '.join(TAIL_NOISE_MODEL_PY.tail_model_names)}]",
     )
     args = parser.parse_args()
 
@@ -1161,7 +1187,6 @@ def parse_args():
         )
     if args.badread_identity_stdev < 0.0:
         sys.exit("Error: read identity stdev cannot be negative")
-
     if not args.badread and not args.perfect:
         parser.error("Must specify either --output or --perfect-reads.")
     return args
@@ -1323,6 +1348,7 @@ def mdf_to_seq(mdf, targets=dict()):
 
 
 if __name__ == "__main__":
+    set_tksm_models_dicts()
     args = parse_args()
     reference_seqs = get_reference_seqs(args.references)
 
@@ -1336,13 +1362,13 @@ if __name__ == "__main__":
             sys.stderr,
         )
         error_model = ERROR_MODEL_PY.ErrorModel(
-            args.badread_model_path, args.badread_error_model, sys.stderr
+            args.badread_error_model, sys.stderr
         )
         qscore_model = QSCOREMODEL_PY.QScoreModel(
-            args.badread_model_path, args.badread_error_model, sys.stderr
+            args.badread_error_model, sys.stderr
         )
         tail_model = TAIL_NOISE_MODEL_PY.KDE_noise_generator.load(
-            args.badread_model_path, args.badread_tail_model
+            args.badread_tail_model
         )
 
         output_file, output_file_formatter = get_output_file(args.badread)

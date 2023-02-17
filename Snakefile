@@ -93,7 +93,6 @@ rule sequence:
     benchmark:
         f'{time_d}/{{exprmnt}}/{{prefix}}.Seq.benchmark'
     params:
-        model_path = f'{preproc_d}/badread',
         other = lambda wc: config['TS_experiments'][wc.exprmnt]['pipeline'][component_idx(wc.prefix)]['Seq'],
     threads:
         32
@@ -103,7 +102,8 @@ rule sequence:
         ' --references {input.fastas}'
         ' -o {output.fastq}'
         ' --threads {threads}'
-        ' --badread-model-path={params.model_path}'
+        # ' --badread-error-model={input.error_model}'
+        # ' --badread-qscore-model={input.qscore_model}'
         ' {params.other}'
 
 rule mirror:
@@ -361,7 +361,7 @@ rule badread_error_model:
         ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
         paf = f'{preproc_d}/badread/{{sample}}.badread.cDNA.paf'
     output:
-        model = f'{preproc_d}/badread/{{sample}}.error.gz',
+        model = f'{preproc_d}/models/badread/{{sample}}.error.gz',
     shell:
         'badread error_model'
         ' --reads {input.reads}'
