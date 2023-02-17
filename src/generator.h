@@ -1,3 +1,6 @@
+#ifndef GENERATOR_H
+#define GENERATOR_H
+
 #include <coroutine>
 #include <exception>
 
@@ -66,3 +69,5 @@ private:
         }
     }
 };
+
+#endif  // GENERATOR_H

@@ -45,19 +45,26 @@ SRC_FILES := $(addprefix $(SRC_PATH)/,$(SRC_FILES))
 
 OBJECTS = $(SRC_FILES:$(SRC_PATH)/%.cpp=$(OBJ_PATH)/%.o)
 
+PCH_HEADER = $(SRC_PATH)/headers.h
+PCH_OBJECT = $(PCH_HEADER:$(SRC_PATH)/%.h=$(OBJ_PATH)/%.gch)
 
 PY_FILES = $(wildcard py/*.py)
 PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
 
-$(EXEC): $(OBJECTS) $(PY_HEADERS) install.sh
+$(EXEC): $(OBJECTS) $(PY_HEADERS) install.sh $(PCH_OBJECT)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $(OBJECTS) $(PY_LDFLAGS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $(OBJECTS) $(PY_LDFLAGS) $(LDFLAGS) -include $(PCH_OBJECT)
 
 $(BIN_PATH)/%: $(SRC_PATH)/%.cpp $(PY_HEADERS) 
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS) $(LDFLAGS)
 
-$(OBJ_PATH)/%.o: $(SRC_PATH)/%.cpp $(PY_HEADERS)
+$(OBJ_PATH)/%.o: $(SRC_PATH)/%.cpp $(PY_HEADERS) 
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(EXTERN_HEADER_PATH) -I$(PY_HEADER_PATH) -c -o $@ $< 
+
+# Compile PCH headers.h
+$(OBJ_PATH)/%.gch: $(SRC_PATH)/%.h
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(EXTERN_HEADER_PATH) -I$(PY_HEADER_PATH) -c -o $@ $<
 
