@@ -2,6 +2,8 @@
 #include "pimpl_impl.h"
 #include <fmt/format.h>
 #include <sequence.h>
+#include <tksm_badread.h>
+#include <truncate_kde.h>
 
 #include <cstdlib>
 #include <string>
@@ -17,7 +19,10 @@ using std::string;
 #endif
 
 class Sequencer_module::impl : public tksm_module {
-    MAKE_PYTHON_RUNNER(static, sequencer, py_sequence_py, NO_MODULES);
+    MAKE_PYTHON_RUNNER(static, sequencer, py_sequence_py, 
+            (module_map{ 
+             {"tksm_badread", reinterpret_cast<const char *>(py_tksm_badread_py)},
+             }));
 
     int argc;
     char **argv;

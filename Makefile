@@ -74,9 +74,10 @@ $(OBJ_PATH)/%.gch: $(SRC_PATH)/%.h
 
 py_header/%.h: py/%.py
 	@mkdir -p py_header
-	@xxd -i $< > $@
+	@echo "#pragma once" > $@
+	@xxd -i $< | sed 's|unsigned|inline\ unsigned|g' >> $@
 
-install.sh: ${EXEC} Makefile
+install.sh:  Makefile
 	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
 	@echo cp ${EXEC} ${INSTALL_PREFIX}/bin >> $@
 	@echo cp py/tksm_models ${INSTALL_PREFIX}/bin -r >> $@
