@@ -19,7 +19,7 @@ using std::string;
 #endif
 
 class Sequencer_module::impl : public tksm_module {
-    MAKE_PYTHON_RUNNER(static, sequencer, py_sequence_py, 
+    MAKE_PYTHON_RUNNER(static, run_sequencer, py_sequence_py, 
             (module_map{ 
              {"tksm_badread", reinterpret_cast<const char *>(py_tksm_badread_py)},
              }));

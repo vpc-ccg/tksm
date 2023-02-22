@@ -14,7 +14,7 @@ using std::string;
 
 
 class KDE_module::impl : public tksm_module {
-    MAKE_PYTHON_RUNNER(static, kde, py_truncate_kde_py, NO_MODULES);
+    MAKE_PYTHON_RUNNER(static, run_kde, py_truncate_kde_py, NO_MODULES);
 
     int argc;
     char **argv;

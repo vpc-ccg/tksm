@@ -17,7 +17,7 @@ using std::string;
 #endif
 
 class Abundance_module::impl : public tksm_module {
-    MAKE_PYTHON_RUNNER(static, abundance, py_transcript_abundance_py, NO_MODULES);
+    MAKE_PYTHON_RUNNER(static, run_abundance, py_transcript_abundance_py, NO_MODULES);
 
     int argc;
     char **argv;

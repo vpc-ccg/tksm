@@ -18,7 +18,7 @@ GetWC(const char *c) {
 using module_map = const std::map<std::string, const char *>;
 #define NO_MODULES module_map{}
 #define MAKE_PYTHON_RUNNER(SCOPE, FUNC_NAME, ARRAY_NAME, MODULE_MAP)                  \
-    SCOPE int run_##FUNC_NAME(int argc, char **argv_s) {                              \
+    SCOPE int FUNC_NAME(int argc, char **argv_s) {                              \
         wchar_t **argv = new wchar_t *[argc];                                         \
         for (int i = 0; i < argc; i++) argv[i] = (wchar_t *)GetWC(argv_s[i]);         \
         wchar_t *program = Py_DecodeLocale("", NULL);                                 \
