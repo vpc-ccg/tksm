@@ -49,13 +49,12 @@ class PCR{
             std::sample(positions.begin(), positions.end(), std::back_inserter(mutation_pos), (int)expected_mutation_count, rand_gen);
             
 
+            molecule_descriptor mdc{md};
             for(int pos : mutation_pos){ //TODO: We can make this a normal distribution    
                 mutations.push_back(std::make_pair(pos, bases[basedist(rand_gen)]));
+                mdc.add_error(mutations.back());
             }
 
-
-            molecule_descriptor mdc{md};
-            mdc.update_errors(mutations);
             mdc.id(mdc._id + "." + std::to_string(step));
             if ( z1dist(rand_gen) > drop_ratio){ // Molecule is captured by the sequencing
                 ost << mdc;
@@ -96,7 +95,7 @@ class PCR_module::impl : public tksm_module {
 
         string preset_string = "presets (Cha, R. S., & Thilly, W. G. (1993). Specificity, efficiency, and fidelity of PCR. Genome Research, 3(3), S18-S29.)\n";
         for(const auto &p: pcr_presets){
-            preset_string += ("- " + p.first + ": " + "efficiency: " + std::to_string(p.second.first) + ", error-rate: " + std::to_string(p.second.second) + "\n");
+            preset_string += ("- " + p.first + ": " + "error-rate: " + std::to_string(p.second.first) + ", efficiency-rate: " + std::to_string(p.second.second) + "\n");
         }
 
         // clang-format off

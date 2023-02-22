@@ -37,15 +37,6 @@ truncate(molecule_descriptor &md, int rand_val, int min_val = 100) {
         }
         segments.resize(i + 1);
     }
-
-    i = 0;
-    for (const auto &p : md.errors_so_far) {
-        if (p.first > rand_val) {
-            break;
-        }
-        ++i;
-    }
-    md.errors_so_far.resize(i);
 }
 /*
 template <class Distribution>

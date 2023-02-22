@@ -62,6 +62,8 @@ public:
         return static_cast<double>(overlap(other)) / larger_interval(*this, other);
     }
     bool contains(int pos) const { return pos > start && pos < end; }
+
+    int size() const { return end - start; }
 };
 
 class contig_str : public string {
@@ -169,6 +171,7 @@ public:
         return chr == other.chr && start == other.start && end == other.end && plus_strand == other.plus_strand;
     }
 };
+
 
 struct gtf : public ginterval {
     enum class entry_type {
@@ -343,6 +346,7 @@ operator<<(std::ostream &ost, const ginterval &ex) {
     ost << ex.chr << ":" << ex.start << "-" << ex.end;
     return ost;
 }
+
 /*
 inline std::ostream &
 operator<<(std::ostream &ost, const exon &ex) {
@@ -547,15 +551,70 @@ public:
     }
 };
 */
+struct base_mod{
+    int position;
+    char base;
+    base_mod(int position, char base) : position(position), base(base) {}
+    base_mod(const std::pair<int, char> &error) : position(error.first), base(error.second) {}
+    base_mod() : position(-1), base('N') {}
+};
+
+class einterval: public ginterval{
+    vector<base_mod> errors;
+public:
+    einterval() : ginterval() {}
+    einterval(const ginterval &gi) : ginterval(gi) {}
+    einterval(string chr, int start, int end, const string &strand) : ginterval(chr, start, end, strand) {}
+
+    void add_error(int position, char base){
+        errors.emplace_back(position, base);
+    }
+
+    void add_error(const std::pair<int, char> &error){
+        errors.emplace_back(error.first, error.second);
+    }
+    void add_error(const base_mod &error){
+        errors.emplace_back(error);
+    }
+
+    void add_errors(const vector<base_mod> &err){
+        errors.insert(errors.end(), err.begin(), err.end());
+    }
+    
+    void parse_and_add_errors(const string &error_string){
+        auto mutations = rsplit(error_string, ",");
+        for (string mutation : mutations) {
+            if (mutation == "") {
+                continue;
+            }
+            char target      = mutation[mutation.size() - 1];
+            int mutation_pos = stoi(mutation.substr(0, mutation.size() - 1));
+            add_error(mutation_pos, target);
+        }
+    }
+    
+    void sort_errors(){
+        std::sort(errors.begin(), errors.end(), [](const base_mod &a, const base_mod &b) { return a.position < b.position; });
+    }
+
+    auto error_str() const -> string {
+        string error_string = "";
+        for (auto &error : errors) {
+            error_string += std::to_string(error.position) + error.base + ",";
+        }
+        return error_string;
+    }
+
+};
 
 struct molecule_descriptor {
     string _id;
     bool _reversed;
     int _depth;
-    vector<ginterval> _segments;
+    vector<einterval> _segments;
 
     std::map<string, vector<string>> meta;
-    vector<std::pair<int, char>> errors_so_far;
+//    vector<std::pair<int, char>> errors_so_far;
 
 public:
     molecule_descriptor() {}
@@ -575,7 +634,7 @@ public:
 
     const auto &cget_segments() const { return _segments; }
     auto &get_segments() { return _segments; }
-    molecule_descriptor *assign_segments(const vector<ginterval> &segments) {
+    molecule_descriptor *assign_segments(const vector<einterval> &segments) {
         _segments = segments;
         return this;
     }
@@ -623,11 +682,11 @@ public:
         return this;
     }
 
-    molecule_descriptor *prepend_segment(const ginterval &i) {
+    molecule_descriptor *prepend_segment(const einterval &i) {
         _segments.insert(_segments.begin(), i);
-        for (std::pair<int, char> &errs : errors_so_far) {
-            errs = std::make_pair(errs.first + i.end - i.start, errs.second);
-        }
+        //for (std::pair<int, char> &errs : errors_so_far) {
+        //   errs = std::make_pair(errs.first + i.end - i.start, errs.second);
+        //}
         return this;
     }
 
@@ -635,9 +694,21 @@ public:
         _segments.push_back(i);
         return this;
     }
-
+/*
     molecule_descriptor *update_errors(const vector<std::pair<int, char>> &errors_so_far) {
         this->errors_so_far = errors_so_far;
+        return this;
+    }
+*/
+
+    molecule_descriptor *add_error(base_mod error) {
+        
+        auto iter = _segments.begin();
+        while(iter->size() < error.position){
+            error.position -= iter->size();
+            iter++;
+        }
+        iter->add_error(error);
         return this;
     }
 
@@ -662,22 +733,8 @@ public:
     friend std::ostream &operator<<(std::ostream &ost, const molecule_descriptor &md) {
         print_tsv(ost, "+" + md._id, md._depth, md.dump_comment());
 
-        const vector<std::pair<int, char>> &errors = md.errors_so_far;
-        int size_so_far                            = 0;
-        for (const ginterval &ival : md._segments) {
-            string error_str = "";
-
-            for (std::pair<int, char> error : errors) {
-                if (error.first > size_so_far && error.first < size_so_far + ival.end - ival.start) {
-                    error_str += (std::to_string(error.first - size_so_far) + error.second + ",");
-                }
-            }
-            if (error_str != "") {
-                error_str.pop_back();
-            }
-
-            print_tsv(ost, ival.chr, ival.start, ival.end, (ival.plus_strand ? "+" : "-"), error_str);
-            size_so_far += (ival.end - ival.start);
+        for (const einterval &ival : md._segments) {
+            print_tsv(ost, ival.chr, ival.start, ival.end, (ival.plus_strand ? "+" : "-"), ival.error_str());
         }
         return ost;
     }

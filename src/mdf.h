@@ -72,9 +72,9 @@ stream_mdf(istream &ist, bool unroll = false) {
         int depth{stoi(fields[1])};
         //        int exon_count{stoi(fields[2])};
         string comment{fields[2]};
-        vector<ginterval> segments;
+        vector<einterval> segments;
         vector<std::pair<int, char>> errors_so_far;
-        size_t size_so_far = 0;
+
         std::getline(ist, buffer);
         while (ist && buffer[0] != '+') {
             //        for(int i = 0; i< exon_count; ++i){
@@ -84,23 +84,16 @@ stream_mdf(istream &ist, bool unroll = false) {
             int start{stoi(fields[1])};
             int end{stoi(fields[2])};
             string strand{fields[3]};
+            string error_str;
             if (fields.size() > 4) {
-                auto mutations = rsplit(fields[4], ",");
-                for (string mutation : mutations) {
-                    if (mutation == "") {
-                        continue;
-                    }
-                    char target      = mutation[mutation.size() - 1];
-                    int mutation_pos = stoi(mutation.substr(0, mutation.size() - 1));
-                    errors_so_far.push_back(std::make_pair(size_so_far + mutation_pos, target));
-                }
+                error_str = fields[4];
             }
-            size_so_far += (end - start);
-            segments.emplace_back(chr, start, end, strand);
+
+            segments.emplace_back(chr, start, end, strand).parse_and_add_errors(error_str);
             std::getline(ist, buffer);
         }
         molecule_descriptor md{id, !segments[0].plus_strand};
-        md.depth(depth)->update_errors(errors_so_far)->assign_segments(segments)->comment(comment);
+        md.depth(depth)->assign_segments(segments)->comment(comment);
         if (unroll) {
             molecule_descriptor mdc = md;
             mdc.depth(1);
