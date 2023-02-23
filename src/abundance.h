@@ -3,6 +3,6 @@
 
 #include "pimpl.h"
 
-MODULE_DECLARE_PIMPLE_CLASS(Abundance_module);
+MODULE_DECLARE_PIMPL_CLASS(Abundance_module);
 
 #endif

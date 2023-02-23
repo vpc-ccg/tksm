@@ -1,5 +1,5 @@
 #include "pcr.h"
-#include "pimpl_impl.h"
+#include "pimpl.h"
 
 #include <cxxopts.hpp>
 #include <fstream>
@@ -84,12 +84,11 @@ class PCR{
             for(int cycle = 0; cycle < cycles; ++cycle){
                 do_pcr(ost, pcp, cycle, positions, vector<std::pair<int, char>>{}, drop_ratio);
             }
-
-
         }
         return 0;
     }
 };
+
 class PCR_module::impl : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
 
@@ -260,5 +259,5 @@ public:
     }
 };
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(PCR_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(PCR_module);
 

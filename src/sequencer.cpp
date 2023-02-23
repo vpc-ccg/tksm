@@ -9,7 +9,7 @@
 #include <string>
 
 #include "module.h"
-#include "pimpl_impl.h"
+#include "pimpl.h"
 #include "python_runner.h"
 #include "util.h"
 
@@ -56,4 +56,4 @@ public:
     int validate_arguments() { return 0; }
 };
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(Sequencer_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(Sequencer_module);

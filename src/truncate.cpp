@@ -7,7 +7,7 @@
 #include "interval.h"
 #include "module.h"
 #include "mdf.h"
-#include "pimpl_impl.h"
+#include "pimpl.h"
 
 inline void
 truncate(molecule_descriptor &md, int rand_val, int min_val = 100) {
@@ -334,4 +334,4 @@ public:
 };
 
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(Truncate_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(Truncate_module);

@@ -5,7 +5,7 @@
 
 #include "interval.h"
 #include "module.h"
-#include "pimpl_impl.h"
+#include "pimpl.h"
 #include "util.h"
 #include "mdf.h"
 
@@ -254,7 +254,8 @@ public:
         }
         fmtlog::poll(true);
     }
+
 };
 
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(PolyA_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(PolyA_module);

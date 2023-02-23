@@ -8,7 +8,7 @@
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
-#include "pimpl_impl.h"
+#include "pimpl.h"
 #include "util.h"
 
 class SingleCellBarcoder_module::impl : public tksm_module {
@@ -107,4 +107,4 @@ public:
     }
 };
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(SingleCellBarcoder_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(SingleCellBarcoder_module);

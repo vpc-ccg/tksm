@@ -2,6 +2,6 @@
 #define _KDE_H
 
 #include "pimpl.h"
-MODULE_DECLARE_PIMPLE_CLASS(KDE_module);
+MODULE_DECLARE_PIMPL_CLASS(KDE_module);
 
 #endif

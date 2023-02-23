@@ -2,6 +2,6 @@
 #define _SEQUENCER_H
 #include "pimpl.h"
 
-MODULE_DECLARE_PIMPLE_CLASS(Sequencer_module);
+MODULE_DECLARE_PIMPL_CLASS(Sequencer_module);
 
 #endif

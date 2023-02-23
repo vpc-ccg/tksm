@@ -18,6 +18,9 @@ using std::set;
 using std::string;
 using std::vector;
 
+
+
+
 class locus {
     string chr;
     int position;

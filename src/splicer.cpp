@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "pimpl_impl.h"
+#include "pimpl.h"
 #include "gtf.h"
 #include "interval.h"
 #include "mdf.h"
@@ -142,5 +142,4 @@ public:
     }
 };
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(Splicer_module);
-
+MODULE_IMPLEMENT_PIMPL_CLASS(Splicer_module);

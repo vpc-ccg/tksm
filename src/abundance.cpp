@@ -1,5 +1,5 @@
 #include "abundance.h"
-#include "pimpl_impl.h"
+#include "pimpl.h"
 #include <fmt/format.h>
 
 #include <transcript_abundance.h>
@@ -35,4 +35,4 @@ public:
     int validate_arguments() { return 0; }
 };
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(Abundance_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(Abundance_module);

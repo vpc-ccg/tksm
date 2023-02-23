@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "pimpl_impl.h"
+#include "pimpl.h"
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
@@ -152,6 +152,4 @@ public:
 };
 
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(UMI_module)
-
-
+MODULE_IMPLEMENT_PIMPL_CLASS(UMI_module)

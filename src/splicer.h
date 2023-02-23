@@ -2,6 +2,6 @@
 #define _SPLICER_H
 #include "pimpl.h"
 
-MODULE_DECLARE_PIMPLE_CLASS(Splicer_module);
+MODULE_DECLARE_PIMPL_CLASS(Splicer_module);
 
 #endif

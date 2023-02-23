@@ -3,6 +3,6 @@
 
 #include "pimpl.h"
 
-MODULE_DECLARE_PIMPLE_CLASS(PolyA_module);
+MODULE_DECLARE_PIMPL_CLASS(PolyA_module);
 
 #endif

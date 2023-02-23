@@ -1,5 +1,5 @@
 #include "kde.h"
-#include "pimpl_impl.h"
+#include "pimpl.h"
 #include <fmt/format.h>
 #include <truncate_kde.h>
 
@@ -34,4 +34,4 @@ public:
     int validate_arguments() { return 0; }
 };
 
-MODULE_IMPLEMENT_PIMPLE_CLASS(KDE_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(KDE_module);
