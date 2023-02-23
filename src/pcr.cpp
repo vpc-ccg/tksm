@@ -144,6 +144,7 @@ class PCR_module::impl : public tksm_module {
 
 public:
     impl (int argc, char **argv) : tksm_module{"PCR", "PCR amplification module"}, args(parse(argc, argv)) {}
+    ~impl() = default;
 
     int validate_arguments() {
         std::vector<string> mandatory = {"input", "output", "molecule-count", "cycles"};

@@ -40,6 +40,8 @@ class MODULE_module::impl : public tksm_module {
 public:
     impl(int argc, char **argv) : tksm_module{"<MODULE>", "<MODULE> description"}, args(parse(argc, argv)) {}
 
+    ~impl() = default;
+
     int validate_arguments() {
         std::vector<string> mandatory = {"input", "output"};
         int missing_parameters        = 0;

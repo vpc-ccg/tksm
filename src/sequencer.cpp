@@ -27,6 +27,7 @@ class Sequencer_module::impl : public tksm_module {
 
 public:
     impl(int argc, char **argv) : tksm_module("sequencer", "Sequencer Module"), argc(argc), argv(argv) {}
+    ~impl() = default;
     int run() {
         if (validate_arguments()) {
             return 1;

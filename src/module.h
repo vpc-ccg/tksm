@@ -51,6 +51,7 @@ public:
             );
         // clang-format on
     };
+    virtual ~tksm_module() = default;
     int process_utility_arguments(cxxopts::ParseResult &args) {
         int seed = args["seed"].as<int>();
         rand_gen.seed(seed);

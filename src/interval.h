@@ -672,30 +672,20 @@ public:
     }
    
     void truncate(int start, int end){
+        sort_errors();
         if (start > end) {
             std::swap(start, end);
         }
-        if (start < this->start) {
-            start = this->start;
-        }
-        if (end > this->end) {
-            end = this->end;
-        }
-        this->start = start;
-        this->end   = end;
+
         if(errors.size() == 0){
             return;
         }
-        for (auto &error : errors) {
-            if (error.position < start || error.position >= end) {
-                error.position = -1;
-            }
-        }
+
         errors.erase(
                 std::remove_if(
                     errors.begin(),
                     errors.end(),
-                    [](const base_mod &error) { return error.position == -1; }
+                    [start, end](const base_mod &error) { return error.position < start || error.position >= end; }
                 ),
                 errors.end()
             );

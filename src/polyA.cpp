@@ -134,6 +134,8 @@ public:
         : tksm_module("polyA module", "Adds polyA tails to molecules with given size distribution"),
           args(parse(argc, argv)) {}
 
+
+
     template <class Distribution>
     int add_polyA(molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len) {
         int poly_a_len = static_cast<int>(dist(rand_gen));
