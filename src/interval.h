@@ -687,7 +687,7 @@ public:
             return;
         }
         for (auto &error : errors) {
-            if (error.position < start || error.position > end) {
+            if (error.position < start || error.position >= end) {
                 error.position = -1;
             }
         }
