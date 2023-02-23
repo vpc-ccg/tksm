@@ -810,7 +810,7 @@ public:
     molecule_descriptor *add_error(base_mod error) {
         
         auto iter = _segments.begin();
-        while(iter->size() < error.position){
+        while(iter->size() <= error.position){
             error.position -= iter->size();
             iter++;
         }
