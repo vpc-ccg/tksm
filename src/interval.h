@@ -680,6 +680,9 @@ public:
         }
         this->start = start;
         this->end   = end;
+        if(errors.size() == 0){
+            return;
+        }
         for (auto &error : errors) {
             if (error.position < start || error.position > end) {
                 error.position = -1;
