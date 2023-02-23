@@ -644,6 +644,9 @@ struct base_mod{
     base_mod(int position, char base) : position(position), base(base) {}
     base_mod(const std::pair<int, char> &error) : position(error.first), base(error.second) {}
     base_mod() : position(-1), base('N') {}
+    operator string() const{
+        return std::to_string(position) + base;
+    }
 };
 
 class einterval: public ginterval{
@@ -715,11 +718,7 @@ public:
     }
 
     auto error_str() const -> string {
-        string error_string = "";
-        for (auto &error : errors) {
-            error_string += std::to_string(error.position) + error.base + ",";
-        }
-        return error_string;
+        return join_str(errors.begin(), errors.end(), ",");
     }
 
 };
