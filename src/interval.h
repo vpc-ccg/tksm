@@ -688,7 +688,15 @@ public:
                 error.position = -1;
             }
         }
-        errors.erase(std::remove_if(errors.begin(), errors.end(), [](const base_mod &error) { return error.position == -1; }));
+        errors.erase(
+                std::remove_if(
+                    errors.begin(),
+                    errors.end(),
+                    [](const base_mod &error) { return error.position == -1; }
+                ),
+                errors.end()
+            );
+
     }
     void parse_and_add_errors(const string &error_string){
         auto mutations = rsplit(error_string, ",");
