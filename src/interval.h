@@ -251,7 +251,7 @@ struct gtf : public ginterval {
         vector<string> fields = rsplit(gtf_line, "\t");
         type                  = type_from_string(fields[2]);
         chr                   = fields[0];
-        start                 = stoi(fields[3]);
+        start                 = stoi(fields[3]) - 1; // GTF is 1-based
         end                   = stoi(fields[4]);
         plus_strand           = (fields[6] == "+");
 
