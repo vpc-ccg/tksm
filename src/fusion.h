@@ -18,9 +18,6 @@ using std::set;
 using std::string;
 using std::vector;
 
-
-
-
 class locus {
     string chr;
     int position;
@@ -87,80 +84,52 @@ event_type_to_string(EventType type) -> string {
 }
 
 class chimeric_event : public ginterval {
+public:
     EventType event_type;
     double event_ratio;
     ginterval supplementary_interval;  // To be used for translocations
 
-    auto fuse_molecules(const molecule_descriptor &md1, const molecule_descriptor &md2) const -> molecule_descriptor {
-        switch (event_type) {
-            case EventType::DELETION:
-
-                break;
-            case EventType::INVERSION:
-
-                break;
-            case EventType::TRANSLOCATION:
-            case EventType::DUPLICATION:
-            case EventType::INSERTION:
-            case EventType::NONE:
-                throw std::runtime_error("Invalid event type " + event_type_to_string(event_type));
-        }
-        return {};
-    }
-
-public:
     // Event
     chimeric_event(EventType event_type) : ginterval{}, event_type{event_type}, event_ratio{0.5} {}
     chimeric_event(const string &chr, int start, int end, const string &orientation, EventType event_type)
         : ginterval{chr, start, end, orientation}, event_type{event_type}, event_ratio{0.5} {}
 
-    auto execute_event(const map<locus, vector<molecule_descriptor>> &molecules, auto &rand_gen) const
-        -> vector<molecule_descriptor> {
-        std::unordered_set<locus> keys;
-        for (auto &[key, md] : molecules) {
-            keys.insert(key);
+    auto fuse_transcripts(const transcript &t1, const transcript &t2) const -> transcript {
+        
+        
+        return t1;
+    }
+
+    auto execute_event(const map<locus, vector<transcript>> &molecules, auto &rand_gen) const -> vector<transcript> {
+        
+        set<locus> loci;
+        for (const auto &[loc, transcripts] : molecules) {
+            loci.insert(loc);
         }
+        auto it = loci.lower_bound(get_start());
+        if (it == loci.end()) {
+            throw std::runtime_error("Could not find start locus");
+        }
+        auto start_locus = *it;
+        it = loci.lower_bound(get_end());
+        if (it == loci.end()) {
+            throw std::runtime_error("Could not find end locus");
+        }
+        auto end_locus = *it;
 
-        assert(keys.size() == 2);
 
-        locus start = *keys.begin();
-        locus end   = *(std::next(keys.begin()));
-
-        // shuffle the molecules
-        std::shuffle(molecules.at(start).begin(), molecules.at(start).end(), rand_gen);
-        std::shuffle(molecules.at(end).begin(), molecules.at(end).end(), rand_gen);
-        auto random_position_picker = std::uniform_int_distribution<size_t>(0, molecules.at(end).size() - 1);
-
-        // Fix the order if needed considering the position and strands
+        auto start_molecules = molecules.at(start_locus);
+        auto end_molecules = molecules.at(end_locus);
 
         std::uniform_real_distribution<double> dist(0, 1);
-        vector<molecule_descriptor> fused_molecules;
-        set<molecule_descriptor> used_at_the_end;
 
-        for (const auto &md : molecules.at(start)) {
-            if (dist(rand_gen) < event_ratio) {
-                // Fuse the md with a random molecule from the end
-                auto &end_molecules = molecules.at(end);
-                auto &random_md     = end_molecules[random_position_picker(rand_gen)];
-                used_at_the_end.insert(random_md);
-
-                // Create a new molecule
-                molecule_descriptor fused_md = fuse_molecules(md, random_md);
-                fused_molecules.push_back(fused_md);
-            }
-            else {
-                fused_molecules.push_back(md);
+        vector<transcript> fused_transcripts;
+        for(const auto &start_molecule : start_molecules) {
+            for(const auto &end_molecule : end_molecules) {
+                fused_transcripts.push_back(fuse_transcripts(start_molecule, end_molecule));
             }
         }
-
-        // Add the molecules that were not used at the end
-        for (const auto &md : molecules.at(end)) {
-            if (used_at_the_end.find(md) == used_at_the_end.end()) {
-                fused_molecules.push_back(md);
-            }
-        }
-
-        return fused_molecules;
+        return {};
     }
 
     locus get_start() const { return locus{chr, start}; }
@@ -187,7 +156,7 @@ class Fusion_module : public tksm_module {
         // clang-format off
         options.add_options("main")
             (
-                "i,input",
+                "a,abundance",
                 "input mdf file",
                 cxxopts::value<string>()
             )(
@@ -293,7 +262,7 @@ public:
     Fusion_module(int argc, char **argv) : tksm_module{"fusion", "Fusion module"}, args(parse(argc, argv)) {}
 
     int validate_arguments() {
-        std::vector<string> mandatory = {"input", "output", "gtf"};
+        std::vector<string> mandatory = {"abundance", "output", "gtf"};
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
@@ -314,6 +283,62 @@ public:
 
         return 0;
     }
+
+    int run() {
+        if (process_utility_arguments(args)) {
+            return 0;
+        }
+
+        if (validate_arguments()) {
+            return 1;
+        }
+        describe_program();
+
+        std::string gtf_file       = args["gtf"].as<string>();
+        std::string abundance_file = args["abundance"].as<string>();
+        std::string output_file    = args["output"].as<string>();
+
+        int fusion_count                        = args["fusion-count"].as<int>();
+        double translocation_ratio              = args["translocation-ratio"].as<double>();
+        [[maybe_unused]] bool disable_deletions = args["disable-deletions"].as<bool>();
+
+        vector<chimeric_event> fusions;
+        if (args["fusion-file"].count() > 0) {
+            string fusion_file_path{args["fusion-file"].as<string>()};
+            std::ifstream fusion_file{fusion_file_path};
+            fusions = read_fusions(fusion_file);
+        }
+
+        vector<gtf> transcripts = read_gtf(gtf_file);
+        generate_fusions(fusions, fusion_count, transcripts, translocation_ratio);
+
+        IITree<locus, chimeric_event> fusion_tree;
+        IITree<locus, chimeric_event> deletion_tree;
+        for (auto &fusion : fusions) {
+            fusion_tree.add(fusion.get_start(), fusion.get_start() + 1, fusion);
+            fusion_tree.add(fusion.get_end(), fusion.get_end() + 1, fusion);
+            if (fusion.event_type == EventType::DELETION) {
+                deletion_tree.add(fusion.get_start(), fusion.get_end(), fusion);
+            }
+        }
+        fusion_tree.index();
+        deletion_tree.index();
+
+        std::ifstream abundance_file_stream{abundance_file};
+        string buffer;
+
+        while (std::getline(abundance_file_stream, buffer)) {
+            string tid;
+            double tpm;
+            string comment;
+            std::istringstream(buffer) >> tid >> tpm >> comment;
+
+            format_annot_id(tid, !args["use-whole-id"].as<bool>());
+        }
+
+        return 0;
+    }
+    /*
     int run() {
         if (process_utility_arguments(args)) {
             return 0;
@@ -351,7 +376,6 @@ public:
             fusion_tree.add(fusion.get_start(), fusion.get_start() + 1, fusion);
             fusion_tree.add(fusion.get_end(), fusion.get_end() + 1, fusion);
         }
-
         fusion_tree.index();
 
         std::ofstream output_file{output_file_path};
@@ -404,7 +428,7 @@ public:
 
         return 0;
     }
-
+    */
     void describe_program() {
         logi("Running Fusion module");
         logi("Input file: {}", args["input"].as<string>());

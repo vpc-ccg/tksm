@@ -28,14 +28,16 @@ truncate(molecule_descriptor &md, int rand_val, int min_val = 100) {
         std::stringstream ss;
         ss << segments[i].chr << ':' << segments[i].end - (len_so_far - rand_val) << '-' << segments[i].end;
         md.add_comment("truncated", ss.str());
-
-        segments[i].end -= (len_so_far - rand_val);  // Update last segment;
+        segments[i].truncate(0, segments[i].end - (len_so_far - rand_val));
         for (size_t j = i + 1; j < segments.size(); ++j) {
             std::stringstream ss;
             ss << segments[j];
             md.add_comment("truncated", ss.str());
         }
         segments.resize(i + 1);
+
+        // Update the errors of the last segment
+
     }
 }
 /*

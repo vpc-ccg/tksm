@@ -61,13 +61,13 @@ public:
         int missing_parameters        = 0;
         for (string& param : mandatory) {
             if (args.count(param) == 0) {
-                std::cerr << param << " is required!\n";
+                loge("Missing mandatory parameter {}", param);
                 ++missing_parameters;
             }
         }
 
         if (missing_parameters > 0) {
-            std::cerr << options.help() << std::endl;
+            fmt::print("{}\n", options.help());
             return 1;
         }
         return 0;

@@ -219,7 +219,32 @@ struct gtf : public ginterval {
             return entry_type::other;
         }
     }
-
+    static string type_to_string(entry_type type){
+        switch(type){
+            case entry_type::gene:
+                return "gene";
+            case entry_type::transcript:
+                return "transcript";
+            case entry_type::exon:
+                return "exon";
+            case entry_type::five_prime_utr:
+                return "five_prime_utr";
+            case entry_type::three_prime_utr:
+                return "three_prime_utr";
+            case entry_type::start_codon:
+                return "start_codon";
+            case entry_type::stop_codon:
+                return "stop_codon";
+            case entry_type::CDS:
+                return "CDS";
+            case entry_type::Selenocysteine:
+                return "Selenocysteine";
+            case entry_type::other:
+                return "other";
+            default:
+                return "other";
+        }
+    }
     entry_type type;
     std::map<string, string> info;
     gtf(const string &gtf_line) {
@@ -245,7 +270,69 @@ struct gtf : public ginterval {
             info[fs[0]] = fs[1];
         }
     }
+
+    friend ostream &operator<<(ostream &os, const gtf &g) {
+        os << g.chr << "\t" << g.start << "\t" << g.end << "\t" << g.plus_strand << "\t" << type_to_string(g.type) << "\t";
+        for (auto iter = g.info.begin(); iter != g.info.end(); ++iter) {
+            os << iter->first << " " << iter->second << ";";
+        }
+        return os;
+    }
+    string to_string() const {
+        std::ostringstream os;
+        os << *this;
+        return os.str();
+    }
+
 };
+
+class transcript : public gtf{
+    double abundance;
+    vector<gtf> exons;
+    public:
+    transcript(const gtf &entry) : gtf(entry), abundance(0.0) {}
+    transcript(const string &gtf_line) : gtf(gtf_line), abundance(0.0) {}
+    transcript(const string &gtf_line, double abundance) : gtf(gtf_line), abundance(abundance) {}
+    transcript(const string &gtf_line, double abundance, const vector<gtf> &exons) : gtf(gtf_line), abundance(abundance), exons(exons) {}
+
+
+    friend ostream &operator<<(ostream &os, const transcript &t) {
+        os << t.chr << "\t" << t.start << "\t" << t.end << "\t" << t.plus_strand << "\t" << t.abundance << "\t";
+        for (auto iter = t.info.begin(); iter != t.info.end(); ++iter) {
+            os << iter->first << " " << iter->second << ";";
+        }
+        return os;
+    }
+    string to_string() const {
+        std::ostringstream os;
+        os << *this;
+        return os.str();
+    }
+    void add_exon(const gtf &exon){
+        exons.push_back(exon);
+    }
+    void add_exons(const vector<gtf> &exons){
+        for(auto &exon : exons){
+            add_exon(exon);
+        }
+    }
+    void sort_exons(){
+        std::sort(exons.begin(), exons.end(), [](const gtf &a, const gtf &b) { return a.start < b.start; });
+    }
+    void set_abundance(double abundance){
+        this->abundance = abundance;
+    }
+    double get_abundance() const{
+        return abundance;
+    }
+    vector<gtf> get_exons() const{
+        return exons;
+    }
+    auto get_exons(int start , int end){
+        return exons | std::ranges::views::filter([start, end](const gtf &exon) -> bool{return exon.start >= start && exon.end <= end;}); // clangd ignore
+    }
+};
+
 /*
 struct gene : public ginterval {
     string gene_id;
@@ -580,7 +667,26 @@ public:
     void add_errors(const vector<base_mod> &err){
         errors.insert(errors.end(), err.begin(), err.end());
     }
-    
+   
+    void truncate(int start, int end){
+        if (start > end) {
+            std::swap(start, end);
+        }
+        if (start < this->start) {
+            start = this->start;
+        }
+        if (end > this->end) {
+            end = this->end;
+        }
+        this->start = start;
+        this->end   = end;
+        for (auto &error : errors) {
+            if (error.position < start || error.position > end) {
+                error.position = -1;
+            }
+        }
+        errors.erase(std::remove_if(errors.begin(), errors.end(), [](const base_mod &error) { return error.position == -1; }));
+    }
     void parse_and_add_errors(const string &error_string){
         auto mutations = rsplit(error_string, ",");
         for (string mutation : mutations) {
