@@ -44,7 +44,10 @@ class PCR{
                 return;
             }
             double expected_mutation_count = error_rate * positions.size();
-
+            int mutation_count = expected_mutation_count;
+            if (mutation_count < expected_mutation_count){
+                mutation_count += z1dist(rand_gen) < (expected_mutation_count - mutation_count);
+            }
             vector<int> mutation_pos;
             std::sample(positions.begin(), positions.end(), std::back_inserter(mutation_pos), (int)expected_mutation_count, rand_gen);
             
@@ -72,8 +75,8 @@ class PCR{
         });
 
 //Calculate expected number of molecules after pcr
-        int64_t expected_number_after_pcr = std::pow((1 + efficiency), cycles) * molecule_count;
-
+        double expected_number_after_pcr = std::pow((1 + efficiency), cycles) * molecule_count;
+    
         double drop_ratio = static_cast<double>(number_of_target_reads) / expected_number_after_pcr;
 
         for( const molecule_descriptor &pcp : molecules){
