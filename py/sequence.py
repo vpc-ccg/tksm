@@ -80,7 +80,7 @@ def parse_args():
     parser.add_argument(
         "--badread-identity",
         type=str,
-        default="87.5,97.5,5",
+        default="84.0,99.0,5.5",
         help="Sequencing identity distribution (mean, max and stdev)",
     )
     parser.add_argument(
@@ -104,7 +104,7 @@ def parse_args():
     parser.add_argument(
         "--badread-tail-model",
         type=str,
-        default= "no-noise",
+        default= "no_noise",
         help="Badread tail model name or file path. " + \
             f"Available model names: [{', '.join(tksm_badread.TAIL_NOISE_MODEL_PY.tail_model_names)}]",
     )
@@ -318,7 +318,7 @@ if __name__ == "__main__":
             args.badread_error_model, sys.stderr
         )
         qscore_model = tksm_badread.QSCOREMODEL_PY.QScoreModel(
-            args.badread_error_model, sys.stderr
+            args.badread_qscore_model, sys.stderr
         )
         tail_model = tksm_badread.TAIL_NOISE_MODEL_PY.KDE_noise_generator.load(
             args.badread_tail_model

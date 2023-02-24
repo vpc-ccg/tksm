@@ -16,7 +16,7 @@ TS_experiments:
             - Trc:
                 ''
             - Seq:
-                '--other-br="--tail_noise_model=nanopore"'
+                '--skip-qual-compute'
     TS_1_chr21:
         sample : 'MCF7-sgnex_chr21'
         pipeline:
@@ -31,7 +31,7 @@ TS_experiments:
             - Trc:
                 ''
             - Seq:
-                '--skip-qual-compute --badread-model-path py/badread_models'
+                '--skip-qual-compute'
     TS_2_chr21:
         sample : 'N1_chr21'
         pipeline:
@@ -50,7 +50,7 @@ TS_experiments:
             - Trc:
                 ''
             - Seq:
-                '--skip-qual-compute --badread-model-path py/badread_models'
+                '--skip-qual-compute'
 
 NS_experiments:
     NS_1:
@@ -64,13 +64,20 @@ NS_experiments:
 
 plots:
     - {
-        rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition, polyA,tpm_plot],
-        data: [MCF7-sgnex_chr21, TS_1_chr21, NS_1_chr21],
+        rules: [
+            raw_lengths,
+            mapped_raw_lengths,
+            mapped_lengths,
+            substition,
+            polyA,
+            tpm_plot,
+        ],
+        data: [
+            MCF7-sgnex_chr21,
+            TS_1_chr21,
+            NS_1_chr21,
+        ],
     }
-    # - {
-    #     rules: [raw_lengths,mapped_raw_lengths,mapped_lengths, substition, polyA,tpm_plot],
-    #     data: [N1_chr21, TS_2_chr21],
-    # }
     
 exec:
     tksm:

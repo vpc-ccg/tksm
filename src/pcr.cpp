@@ -45,11 +45,9 @@ class PCR{
             }
             double expected_mutation_count = error_rate * positions.size();
             int mutation_count = expected_mutation_count;
-            if (mutation_count < expected_mutation_count){
-                mutation_count += z1dist(rand_gen) < (expected_mutation_count - mutation_count);
-            }
+            mutation_count += z1dist(rand_gen) < (expected_mutation_count - mutation_count);
             vector<int> mutation_pos;
-            std::sample(positions.begin(), positions.end(), std::back_inserter(mutation_pos), (int)expected_mutation_count, rand_gen);
+            std::sample(positions.begin(), positions.end(), std::back_inserter(mutation_pos), (int)mutation_count, rand_gen);
             
 
             molecule_descriptor mdc{md};

@@ -50,7 +50,7 @@ TS_experiments:
             - Trc:
                 ''
             - Seq:
-                '--skip-qual-compute --badread-model-path py/badread_models'
+                '--skip-qual-compute'
 
 exec:
     tksm:

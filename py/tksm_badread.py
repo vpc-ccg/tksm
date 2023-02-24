@@ -881,7 +881,7 @@ class QUICKHIST_PY:
 ### START OF TAIL_NOISE_MODEL_PY ###
 class TAIL_NOISE_MODEL_PY:
     tail_model_names = {
-        "no-noise": None,
+        "no_noise": None,
     }
 
     class KDE_noise_generator:

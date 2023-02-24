@@ -86,8 +86,8 @@ rule sequence:
         binary = config['exec']['tksm'],
         mdf = f'{TS_d}/{{exprmnt}}/{{prefix}}.mdf',
         fastas = fastas_for_TS_sequence,
-        qscore_model = lambda wc: f'{preproc_d}/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz',
-        error_model = lambda wc: f'{preproc_d}/badread/{exprmnt_sample(wc.exprmnt)}.error.gz',
+        qscore_model = lambda wc: f'{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz',
+        error_model = lambda wc: f'{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.error.gz',
     output:
         fastq = f'{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq',
     benchmark:
@@ -102,8 +102,8 @@ rule sequence:
         ' --references {input.fastas}'
         ' -o {output.fastq}'
         ' --threads {threads}'
-        # ' --badread-error-model={input.error_model}'
-        # ' --badread-qscore-model={input.qscore_model}'
+        ' --badread-error-model={input.error_model}'
+        ' --badread-qscore-model={input.qscore_model}'
         ' {params.other}'
 
 rule mirror:
@@ -367,7 +367,7 @@ rule badread_error_model:
         ' --reads {input.reads}'
         ' --reference {input.ref}'
         ' --alignment {input.paf}'
-        ' --max_alignments 100000'
+        # ' --max_alignments 100000'
         ' > {output.model}'
 
 rule badread_qscore_model:
@@ -376,7 +376,7 @@ rule badread_qscore_model:
         ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
         paf = f'{preproc_d}/badread/{{sample}}.badread.cDNA.paf'
     output:
-        model = f'{preproc_d}/badread/{{sample}}.qscore.gz',
+        model = f'{preproc_d}/models/badread/{{sample}}.qscore.gz',
     shell:
         'badread qscore_model'
         ' --reads {input.reads}'
