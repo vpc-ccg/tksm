@@ -11,6 +11,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from snakemake.utils import min_version
 from tqdm import tqdm
+from sklearn.metrics import r2_score,mean_squared_error
 
 min_version('6.0')
 
@@ -59,8 +60,8 @@ def run_longest_polys(seq):
     L = 0
     for c in ['A','T']:
         for i,l,p in longest_polys(seq, 0, len(seq), 1):
-            if p > .8:
-                L = max(L,l)
+            # if p > .8:
+            L = max(L,l)
     return L
 
 def get_sample_ref(name):
@@ -317,8 +318,10 @@ rule substition:
             'insertion counts',
             'deletion counts'
         ]):
-            axs[i].legend()
+            # axs[i].legend()
             axs[i].set_title(f'{title} per 100 bases')
+        handles, labels = axs[i].get_legend_handles_labels()
+        fig.legend(handles, labels, loc='upper left')
         plt.savefig(output[0], dpi=300)
 
 rule polyA:
@@ -364,6 +367,7 @@ rule polyA:
             polys_arrays.append(np.array(polys))
             max_up = max(max_up, np.percentile(polys, 99))
         for polys,sample in zip(polys_arrays, samples):
+            print(f"Mean and std of poly(A,T) length for {sample}: {np.mean(polys):.2f} +- {np.std(polys):.2f}")
             polys = polys[polys < max_up]
             _, bb, _ = plt.hist(
                 polys,
@@ -403,7 +407,7 @@ rule tpm_plot:
 
         samples = wildcards.samples.split('.')
         fl = len(samples)-1
-        fig,axs = plt.subplots(fl,1,sharex=True,sharey=True,figsize=(12,12*fl), squeeze=False)
+        fig,axs = plt.subplots(fl,1,sharex=True,sharey=True,figsize=(12,12*fl), squeeze=True)
         for k, v, ax in zip(samples[1:], input.tsvs[1:], axs.flatten()):
             frame = pd.read_csv(v, sep="\t", header=0)
             keys = real_keys.intersection(set(frame['target_id']))
@@ -414,9 +418,10 @@ rule tpm_plot:
 
             ax.plot(X,Y, 'o', alpha=.5, label = k)
 
+            ax.set_title(f"{k}, r-squared = {r2_score(X,Y):.3f}, RMSE = {mean_squared_error(X,Y, squared=False):.3f}")
             ax.set_xlabel('Simulated read TPM')
             ax.set_ylabel('Simulation input reads TPM')
-            ax.legend()
+            # ax.legend()
             ax.set_xscale('log')
             ax.set_yscale('log')
         plt.savefig(output[0])

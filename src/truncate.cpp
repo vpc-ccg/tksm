@@ -314,7 +314,7 @@ public:
     }
 
     void describe_program() {
-        logi("Running Single-cell barcoding module");
+        logi("Running Trunacte module");
         logi("Input MDF: {}", args["input"].as<string>());
         logi("Output MDF: {}", args["output"].as<string>());
         if (args.count("normal")) {

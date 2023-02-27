@@ -10,7 +10,7 @@ TS_experiments:
             - Spc:
                 '--molecule-count 1000000'
             - plA:
-                '--normal=40,10 --min-length=5'
+                '--normal=15,7.5 --min-length=5'
             - PCR:
                 '--cycles 5 -x Taq-setting1'
             - Trc:
@@ -23,9 +23,9 @@ TS_experiments:
             - Xpr:
                 ''
             - Spc:
-                '--molecule-count 5000'
+                '--molecule-count 100000'
             - plA:
-                '--normal=40,10 --min-length=5'
+                '--normal=15,7.5'
             - PCR:
                 '--cycles 5 -x Taq-setting1 --molecule-count 100000'
             - Trc:
@@ -40,7 +40,7 @@ TS_experiments:
             - Spc:
                 '--molecule-count 100000'
             - plA:
-                '--normal=40,10 --min-length=5 --molecule-count 100000'
+                '--normal=15,7.5'
             - SCB:
                 ''
             - UMI:
