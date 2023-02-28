@@ -17,3 +17,5 @@ dependencies:
   - gxx=12.2.0
   - fmt=9.1.0
   - cxxopts=3.1.0
+  - pip:
+    - liqa

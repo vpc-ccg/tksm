@@ -5,6 +5,7 @@ from multiprocessing import Pool
 import re
 import itertools
 import functools
+from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -318,7 +319,6 @@ rule substition:
             'insertion counts',
             'deletion counts'
         ]):
-            # axs[i].legend()
             axs[i].set_title(f'{title} per 100 bases')
         handles, labels = axs[i].get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper left')
@@ -391,39 +391,123 @@ rule abundance:
         ' -p {input.paf}'
         ' -o {output.tsv}' 
 
+rule LIQA_refgene:
+    input:
+        gtf = '{prefix}.gtf',
+    output:
+        refgen = '{prefix}.gtf.refgene',
+    shell:
+        'liqa -task refgene -format gtf -ref {input.gtf} -out {output.refgen}'
+
+rule minimap_dna:
+    input:
+        reads = lambda wc: get_sample_fastqs(wc.sample),
+        ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['DNA'],
+    output:
+        bam = f'{preproc_d}/minimap2/{{sample}}.DNA.bam',
+        bai = f'{preproc_d}/minimap2/{{sample}}.DNA.bam.bai',
+    benchmark:
+        f'{time_d}/{{sample}}/minimap2_cdna.benchmark'
+    threads:
+        32
+    shell:
+        'minimap2'
+        ' -t {threads}'
+        ' -x splice'
+        ' -a'
+        ' {input.ref}'
+        ' {input.reads}'
+        ' | samtools sort '
+        '   -T {output.bam}.tmp'
+        '   -@ {threads}'
+        '   -o {output.bam}'
+        '   - '
+        ' && samtools index {output.bam}'
+
+
+rule LIQA_quantify:
+    input:
+        refgen = lambda wildcards: f"{config['refs'][get_sample_ref(wildcards.sample)]['GTF']}.refgene",
+        bam = f'{preproc_d}/minimap2/{{sample}}.DNA.bam',
+    output:
+        tsv = f'{plots_d}/expression_stats/{{sample}}.LIQA.tsv',
+    threads:
+        32
+    shell:
+        '/groups/hachgrp/projects/dev-tksm/scripts/LIQA/liqa_src/quantify.py'
+        # ' -task quantify'
+        ' -refgene {input.refgen}'
+        ' -bam {input.bam}'
+        ' -out {output.tsv}'
+        ' -max_distance 20'
+        ' -f_weight 1'
+
 rule tpm_plot:
     input:
         tsvs = lambda wc: [
             f'{plots_d}/expression_stats/{s}.expression_stats.tsv'
             for s in wc.samples.split('.')
         ],
+        liqas = lambda wc: [
+            f'{plots_d}/expression_stats/{s}.LIQA.tsv'
+            for s in wc.samples.split('.')
+        ],
     output:
         png = f'{plots_d}/tpm_plot/{{samples}}.png',        
     run:
-        frames = dict()
-        real = pd.read_csv(input.tsvs[0], sep="\t", header=0)
-        real_keys = set(real['target_id'])
-        real.set_index('target_id', inplace=True)
+        X_tpm = Counter()
+        for line in open(input.tsvs[0], 'r'):
+            if line.startswith('target_id'):
+                continue
+            tid, tpm, _ = line.rstrip().split('\t')
+            X_tpm[tid] = float(tpm)
+        X_tids = set(X_tpm.keys())
 
         samples = wildcards.samples.split('.')
-        fl = len(samples)-1
-        fig,axs = plt.subplots(fl,1,sharex=True,sharey=True,figsize=(12,12*fl), squeeze=True)
-        for k, v, ax in zip(samples[1:], input.tsvs[1:], axs.flatten()):
-            frame = pd.read_csv(v, sep="\t", header=0)
-            keys = real_keys.intersection(set(frame['target_id']))
-            frame.set_index('target_id',inplace=True)
+        plot_count = len(samples)-1
+        fig,axs = plt.subplots(
+            plot_count,
+            3,
+            sharex=True,
+            sharey=True,
+            figsize=(8*3,8*plot_count),
+        )
+        axs[0,0].set_title('Transcripts in sample AND in input')
+        axs[0,1].set_title('Transcripts in sample OR in input')
+        axs[0,2].set_title('Transcripts in input (regardless of sample)')
+        for sample,ax in zip(samples[1:],axs[:,0]):
+            ax.set_ylabel(f'TPM in {sample}')
+        for ax in axs[-1]:
+            ax.set_xlabel('TPM in input')
+        for idx, (sample, tsv) in enumerate(zip(samples[1:], input.tsvs[1:])):
+            Y_tpm = Counter()
+            for line in open(tsv, 'r'):
+                if line.startswith('target_id'):
+                    continue
+                tid, tpm, _ = line.rstrip().split('\t')
+                Y_tpm[tid] = float(tpm)
+            Y_tids = set(Y_tpm.keys())
 
-            X = frame.loc[list(keys)]['tpm']
-            Y = real.loc[list(keys)]['tpm']
-
-            ax.plot(X,Y, 'o', alpha=.5, label = k)
-
-            ax.set_title(f"{k}, r-squared = {r2_score(X,Y):.3f}, RMSE = {mean_squared_error(X,Y, squared=False):.3f}")
-            ax.set_xlabel('Simulated read TPM')
-            ax.set_ylabel('Simulation input reads TPM')
-            # ax.legend()
-            ax.set_xscale('log')
-            ax.set_yscale('log')
+            ax = axs[idx,0]
+            for ax, select_tids in zip(axs[idx], [
+                X_tids & Y_tids,
+                X_tids | Y_tids,
+                X_tids,
+            ]):
+                X = np.array([X_tpm[tid] for tid in select_tids])
+                Y = np.array([Y_tpm[tid] for tid in select_tids])
+                ax.plot(X, Y, 'o', alpha=.5, label = sample)
+                ax.text(
+                    10e-3,
+                    10e3,
+                    f"N = {len(select_tids)}\n" + \
+                    f"Sample: {sample}\n" + \
+                    f"r-squared = {r2_score(X,Y):.3f}\n" + \
+                    f"RMSE = {mean_squared_error(X,Y, squared=False):.3f}"
+                )
+                ax.set_xscale('log')
+                ax.set_yscale('log')
+        fig.tight_layout()            
         plt.savefig(output[0])
 
 rule NS_analysis:
