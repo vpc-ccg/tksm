@@ -26,10 +26,8 @@ TS_experiments:
                 '--molecule-count 100000'
             - plA:
                 '--normal=15,7.5'
-            - PCR:
-                '--cycles 5 -x Taq-setting1 --molecule-count 100000'
-            - Trc:
-                ''
+            # - Trc:
+            #     ''
             - Seq:
                 '--skip-qual-compute'
     TS_2_chr21:
@@ -60,7 +58,7 @@ NS_experiments:
     NS_1_chr21:
         sample : 'MCF7-sgnex_chr21'
         simulation_params:
-            '-n 50000 --seed 42'
+            '-n 100000 --seed 42'
 
 plots:
     - {
@@ -71,6 +69,8 @@ plots:
             substition,
             polyA,
             tpm_plot,
+            tpm_plot_liqa,
+            tpm_plot_paf,
         ],
         data: [
             MCF7-sgnex_chr21,
