@@ -289,11 +289,11 @@ struct gtf : public ginterval {
 class transcript : public gtf{
     double abundance;
     vector<gtf> exons;
+    string comment;
     public:
-    transcript(const gtf &entry) : gtf(entry), abundance(0.0) {}
-    transcript(const string &gtf_line) : gtf(gtf_line), abundance(0.0) {}
-    transcript(const string &gtf_line, double abundance) : gtf(gtf_line), abundance(abundance) {}
-    transcript(const string &gtf_line, double abundance, const vector<gtf> &exons) : gtf(gtf_line), abundance(abundance), exons(exons) {}
+    transcript(const gtf &entry) : gtf(entry), abundance(0.0){}
+    transcript(const gtf &entry, double abundance) : gtf(entry), abundance(abundance) {}
+    transcript(const gtf &entry, double abundance, const string &comment) : gtf(entry), abundance(abundance), comment(comment) {}
 
 
     friend ostream &operator<<(ostream &os, const transcript &t) {
@@ -301,7 +301,16 @@ class transcript : public gtf{
         for (auto iter = t.info.begin(); iter != t.info.end(); ++iter) {
             os << iter->first << " " << iter->second << ";";
         }
+        os << "\n";
+        for(auto &exon : t.exons){
+            os << exon << "\n";
+        }
         return os;
+    }
+    string to_abundance_str() const {
+        std::ostringstream os;
+        os << info.at("transcript_id") << "\t" << abundance << "\t" << comment;
+        return os.str();
     }
     string to_string() const {
         std::ostringstream os;
@@ -331,6 +340,11 @@ class transcript : public gtf{
     auto get_exons(int start , int end){
         return exons | std::ranges::views::filter([start, end](const gtf &exon) -> bool{return exon.start >= start && exon.end <= end;}); // clangd ignore
     }
+
+    string get_comment() const{
+        return comment;
+    }
+
 };
 
 /*

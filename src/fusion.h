@@ -21,10 +21,11 @@ using std::vector;
 class locus {
     string chr;
     int position;
+    bool plus_strand;
 
 public:
-    locus(const string &chr, int position) : chr{chr}, position{position} {}
-
+    locus() : chr{}, position{0}, plus_strand{true} {}
+    locus(const string &chr, int position, bool plus_strand) : chr{chr}, position{position}, plus_strand{plus_strand} {}
     bool operator<(const locus &other) const {
         if (chr == other.chr) {
             return position < other.position;
@@ -32,11 +33,13 @@ public:
         return chr < other.chr;
     }
 
-    locus operator+(int offset) const { return locus{chr, position + offset}; }
+    locus operator+(int offset) const { return locus{chr, position + offset, plus_strand}; }
 
-    locus operator-(int offset) const { return locus{chr, position - offset}; }
+    locus operator-(int offset) const { return locus{chr, position - offset, plus_strand}; }
 
-    bool operator==(const locus &other) const { return chr == other.chr && position == other.position; }
+    bool operator==(const locus &other) const {
+        return chr == other.chr && position == other.position && plus_strand == other.plus_strand;
+    }
 
     bool operator!=(const locus &other) const { return !(*this == other); }
 
@@ -44,7 +47,7 @@ public:
 
     auto get_position() const -> int { return position; }
 
-    auto to_string() const -> string { return chr + ":" + std::to_string(position); }
+    auto to_string() const -> string { return chr + ":" + std::to_string(position) + (plus_strand ? "+" : "-"); }
 
     friend std::ostream &operator<<(std::ostream &os, const locus &loc) {
         os << loc.to_string();
@@ -54,8 +57,9 @@ public:
     friend std::istream &operator>>(std::istream &is, locus &loc) {
         string chr;
         int position;
-        is >> chr >> position;
-        loc = locus{chr, position};
+        string strand;
+        is >> chr >> position >> strand;
+        loc = locus{chr, position, strand == "+"};
         return is;
     }
 
@@ -95,13 +99,30 @@ public:
         : ginterval{chr, start, end, orientation}, event_type{event_type}, event_ratio{0.5} {}
 
     auto fuse_transcripts(const transcript &t1, const transcript &t2) const -> transcript {
-        
-        
+        switch (event_type) {
+            case EventType::DELETION:
+                if (t1.plus_strand != t2.plus_strand) {
+                    throw std::runtime_error("Cannot fuse transcripts on different strands");
+                }
+                break;
+            case EventType::INVERSION:
+                break;
+            case EventType::TRANSLOCATION:
+                break;
+            case EventType::DUPLICATION:
+                break;
+            case EventType::INSERTION:
+                break;
+            case EventType::NONE:
+                break;
+            default:
+                throw std::runtime_error("Invalid event type " + std::to_string(static_cast<int>(event_type)));
+        }
+
         return t1;
     }
 
     auto execute_event(const map<locus, vector<transcript>> &molecules, auto &rand_gen) const -> vector<transcript> {
-        
         set<locus> loci;
         for (const auto &[loc, transcripts] : molecules) {
             loci.insert(loc);
@@ -111,29 +132,28 @@ public:
             throw std::runtime_error("Could not find start locus");
         }
         auto start_locus = *it;
-        it = loci.lower_bound(get_end());
+        it               = loci.lower_bound(get_end());
         if (it == loci.end()) {
             throw std::runtime_error("Could not find end locus");
         }
         auto end_locus = *it;
 
-
         auto start_molecules = molecules.at(start_locus);
-        auto end_molecules = molecules.at(end_locus);
+        auto end_molecules   = molecules.at(end_locus);
 
         std::uniform_real_distribution<double> dist(0, 1);
 
         vector<transcript> fused_transcripts;
-        for(const auto &start_molecule : start_molecules) {
-            for(const auto &end_molecule : end_molecules) {
+        for (const auto &start_molecule : start_molecules) {
+            for (const auto &end_molecule : end_molecules) {
                 fused_transcripts.push_back(fuse_transcripts(start_molecule, end_molecule));
             }
         }
         return {};
     }
 
-    locus get_start() const { return locus{chr, start}; }
-    locus get_end() const { return locus{chr, end}; }
+    locus get_start(bool strand = true) const { return locus{chr, start, strand}; }
+    locus get_end(bool strand = true) const { return locus{chr, end, strand}; }
 };
 
 inline vector<chimeric_event>
@@ -164,8 +184,12 @@ class Fusion_module : public tksm_module {
                 "output mdf file",
                 cxxopts::value<string>()
             )(
-                "g,gtf",
-                "Path to GTF annotation file",
+                "gtfi",
+                "Path to input GTF annotation file",
+                cxxopts::value<string>()
+            )(
+                "gtfo",
+                "Path to output GTF annotation file",
                 cxxopts::value<string>()
             )(
                 "fusion-file",
@@ -262,7 +286,7 @@ public:
     Fusion_module(int argc, char **argv) : tksm_module{"fusion", "Fusion module"}, args(parse(argc, argv)) {}
 
     int validate_arguments() {
-        std::vector<string> mandatory = {"abundance", "output", "gtf"};
+        std::vector<string> mandatory = {"abundance", "output", "gtfi", "gtfo"};
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
@@ -310,6 +334,11 @@ public:
         }
 
         vector<gtf> transcripts = read_gtf(gtf_file);
+        map<string, gtf> transcripts_by_id;
+        for (auto &transcript : transcripts) {
+            transcripts_by_id[transcript.info["transcript_id"]] = transcript;
+        }
+
         generate_fusions(fusions, fusion_count, transcripts, translocation_ratio);
 
         IITree<locus, chimeric_event> fusion_tree;
@@ -317,8 +346,12 @@ public:
         for (auto &fusion : fusions) {
             fusion_tree.add(fusion.get_start(), fusion.get_start() + 1, fusion);
             fusion_tree.add(fusion.get_end(), fusion.get_end() + 1, fusion);
+            fusion_tree.add(fusion.get_start(false), fusion.get_start(false) + 1, fusion);
+            fusion_tree.add(fusion.get_end(false), fusion.get_end(false) + 1, fusion);
+
             if (fusion.event_type == EventType::DELETION) {
                 deletion_tree.add(fusion.get_start(), fusion.get_end(), fusion);
+                deletion_tree.add(fusion.get_start(false), fusion.get_end(false), fusion);
             }
         }
         fusion_tree.index();
@@ -327,6 +360,9 @@ public:
         std::ifstream abundance_file_stream{abundance_file};
         string buffer;
 
+        std::map<chimeric_event, std::map<locus, vector<transcript>>> relevant_molecules;
+        std::ofstream output_file_stream{output_file};
+
         while (std::getline(abundance_file_stream, buffer)) {
             string tid;
             double tpm;
@@ -334,7 +370,37 @@ public:
             std::istringstream(buffer) >> tid >> tpm >> comment;
 
             format_annot_id(tid, !args["use-whole-id"].as<bool>());
+
+            auto iter = transcripts_by_id.find(tid);
+            if (iter == transcripts_by_id.end()) {
+                continue;
+            }
+            transcript t{iter->second, tpm, comment};
+
+            locus start{t.chr, t.start, t.plus_strand};
+            locus end{t.chr, t.end, t.plus_strand};
+            vector<size_t> overlaps;
+            fusion_tree.overlap(start, end, overlaps);
+            for (auto &overlap : overlaps) {
+                const chimeric_event &event = fusion_tree.data(overlap);
+                const locus &start          = fusion_tree.start(overlap);
+                [[maybe_unused]] const locus &end            = fusion_tree.end(overlap);
+                relevant_molecules[event][start].push_back(t);
+            }
+            if (overlaps.empty()){
+                output_file_stream << t.to_abundance_str() << "\n";
+            }
         }
+       
+        std::ofstream gtfo_file{args["gtfo"].as<string>()};
+        for( auto const & [event, loci] : relevant_molecules){
+            auto transcript_vec = event.execute_event(loci, rand_gen);
+            for (auto &t : transcript_vec){
+                output_file_stream << t.to_abundance_str() << "\n";
+                gtfo_file << t;
+            }
+        }
+
 
         return 0;
     }
