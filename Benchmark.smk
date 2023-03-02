@@ -5,12 +5,14 @@ from multiprocessing import Pool
 import re
 import itertools
 import functools
+from collections import Counter
 
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from snakemake.utils import min_version
 from tqdm import tqdm
+from sklearn.metrics import r2_score,mean_squared_error
 
 min_version('6.0')
 
@@ -59,8 +61,8 @@ def run_longest_polys(seq):
     L = 0
     for c in ['A','T']:
         for i,l,p in longest_polys(seq, 0, len(seq), 1):
-            if p > .8:
-                L = max(L,l)
+            # if p > .8:
+            L = max(L,l)
     return L
 
 def get_sample_ref(name):
@@ -115,14 +117,13 @@ rule raw_lengths:
         lens_arrays = list()
         max_up = 0
         samples = wildcards.samples.split('.')
-        print('Reading FASTQ/A files')
-        for fastq in tqdm(input.fastqs):
+        for fastq in tqdm(input.fastqs, total=len(input.fastqs), desc='[raw_lengths] Reading FASTQ/A'):
             lens = list()
             if fastq.endswith('.gz'):
                 infile = gzip.open(fastq, 'rt')
             else:
                 infile = open(fastq, 'rt')
-            for idx,line in tqdm(enumerate(infile)):
+            for idx,line in tqdm(enumerate(infile), desc=f'[raw_lengths] Processing {fastq}'):
                 if idx == 0:
                     mod = 4 if line[0]=='@' else 2
                 if idx % mod == 1:
@@ -139,7 +140,9 @@ rule raw_lengths:
                 label = sample,
                 alpha = .3,
             )
-
+            print(f'{sample} length mean: {np.mean(lens):.2f}')
+            print(f'{sample} length std: {np.std(lens):.2f}')
+            print(f'{sample} length median: {np.median(lens):.2f}')
         plt.legend()
         plt.title('Length distribution (whole reads)')
         plt.savefig(output[0],dpi=300)        
@@ -159,9 +162,9 @@ rule mapped_raw_lengths:
         rids = set()
         samples = wildcards.samples.split('.')
         print('Reading PAF files')
-        for paf in tqdm(input.pafs):
+        for paf in tqdm(input.pafs, total=len(input.pafs), desc='[mapped_raw_lengths] Reading PAF'):
             lens = list()
-            for line in tqdm(open(paf)):
+            for line in tqdm(open(paf), desc=f'[mapped_raw_lengths] Processing {paf}'):
                     if 'tp:A:P' not in line:
                         continue
                     fields = line.rstrip('\n').split('\t')
@@ -174,6 +177,7 @@ rule mapped_raw_lengths:
             lens = np.array(lens)
             lens_arrays.append(lens)
             max_up = max(max_up, np.percentile(lens, 99))
+            
         for lens,sample in zip(lens_arrays, samples):
             lens = lens[lens < max_up]
             _, bb, _ = plt.hist(
@@ -183,6 +187,9 @@ rule mapped_raw_lengths:
                 label = sample,
                 alpha = .3,
             )
+            print(f'{sample} length (PAF) mean: {np.mean(lens):.2f}')
+            print(f'{sample} length (PAF) std: {np.std(lens):.2f}')
+            print(f'{sample} length (PAF) median: {np.median(lens):.2f}')
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title('Length distribution (whole reads from PAF)')
@@ -203,9 +210,9 @@ rule mapped_lengths:
         rids = set()
         samples = wildcards.samples.split('.')
         print('Reading PAF files')
-        for paf in tqdm(input.pafs):
+        for paf in tqdm(input.pafs, total=len(input.pafs), desc='[mapped_lengths] Reading PAF'):
             lens = list()
-            for line in tqdm(open(paf)):
+            for line in tqdm(open(paf), desc=f'[mapped_lengths] Processing {paf}'):
                     if 'tp:A:P' not in line:
                         continue
                     fields = line.rstrip('\n').split('\t')
@@ -228,6 +235,9 @@ rule mapped_lengths:
                 label = sample,
                 alpha = .3,
             )
+            print(f'{sample} mapping length (PAF) mean: {np.mean(lens):.2f}')
+            print(f'{sample} mapping length (PAF) std: {np.std(lens):.2f}')
+            print(f'{sample} mapping length (PAF) median: {np.median(lens):.2f}')
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title('Length distribution (mapping part of reads from PAF)')
@@ -242,7 +252,7 @@ rule substition_stats:
     run:
         cigar_re = re.compile(r'(\d+)([M|I|D|N|S|H|P|=|X]{1})')
         with open(input.paf, 'r') as hand, open(output.tsv, 'w') as whand:
-            for line in tqdm(hand):
+            for line in tqdm(hand, desc=f'[substition_stats] Processing {input.paf}'):
                 if 'tp:A:P' not in line:
                     continue
                 fields = line.rstrip('\n').split('\t')
@@ -277,9 +287,9 @@ rule substition:
         bb = [None,None,None,None]
         maxi = [0,0,0,0]
         print('Reading TSV files...')
-        for tsv,sample in tqdm(zip(input.tsvs, samples), total=len(input.tsvs)):
+        for tsv,sample in tqdm(zip(input.tsvs, samples), total=len(input.tsvs), desc='[substition] Reading TSV files'):
             counts = list()
-            for line in tqdm(open(tsv, 'r')):
+            for line in tqdm(open(tsv, 'r'), desc=f'[substition] Processing {tsv}'):
                 match_c, subs_c, insert_c, del_c, length = [
                     int(float(x)) 
                     for x in line.rstrip().split('\t')
@@ -317,8 +327,9 @@ rule substition:
             'insertion counts',
             'deletion counts'
         ]):
-            axs[i].legend()
             axs[i].set_title(f'{title} per 100 bases')
+        handles, labels = axs[i].get_legend_handles_labels()
+        fig.legend(handles, labels, loc='upper left')
         plt.savefig(output[0], dpi=300)
 
 rule polyA:
@@ -339,13 +350,13 @@ rule polyA:
         samples = wildcards.samples.split('.')
         print('Reading FASTQ/A files')
         polys_arrays = list()
-        for fastq in tqdm(input.fastqs):
+        for fastq in tqdm(input.fastqs, total=len(input.fastqs), desc='[polyA] Reading FASTQ/A files'):
             seqs = list()
             if fastq.endswith('.gz'):
                 infile = gzip.open(fastq, 'rt')
             else:
                 infile = open(fastq, 'rt')
-            for idx,line in tqdm(enumerate(infile)):
+            for idx,line in tqdm(enumerate(infile), desc=f'[polyA] Processing {fastq}'):
                 if idx == 0:
                     mod = 4 if line[0]=='@' else 2
                 if idx % mod != 1:
@@ -357,13 +368,14 @@ rule polyA:
             else:
                 mapper = map
             polys = list()
-            for l in tqdm(mapper(run_longest_polys, seqs), total=len(seqs)):
+            for l in tqdm(mapper(run_longest_polys, seqs), total=len(seqs), desc=f'[polyA] Finding longest tails in {fastq}'):
                 polys.append(l)
             if threads > 1:
                 p.close()
             polys_arrays.append(np.array(polys))
             max_up = max(max_up, np.percentile(polys, 99))
         for polys,sample in zip(polys_arrays, samples):
+            print(f"Mean and std of poly(A,T) length for {sample}: {np.mean(polys):.2f} +- {np.std(polys):.2f}")
             polys = polys[polys < max_up]
             _, bb, _ = plt.hist(
                 polys,
@@ -387,6 +399,217 @@ rule abundance:
         ' -p {input.paf}'
         ' -o {output.tsv}' 
 
+rule LIQA_refgene:
+    input:
+        gtf = '{prefix}.gtf',
+    output:
+        refgen = '{prefix}.gtf.refgene',
+    shell:
+        'python3 extern/LIQA/liqa_src/liqa.py'
+        ' -task refgene'
+        ' -format gtf'
+        ' -ref {input.gtf}'
+        ' -out {output.refgen}'
+
+rule minimap_dna:
+    input:
+        reads = lambda wc: get_sample_fastqs(wc.sample),
+        ref = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['DNA'],
+    output:
+        bam = f'{preproc_d}/minimap2/{{sample}}.DNA.bam',
+        bai = f'{preproc_d}/minimap2/{{sample}}.DNA.bam.bai',
+    benchmark:
+        f'{time_d}/{{sample}}/minimap2_cdna.benchmark'
+    threads:
+        32
+    shell:
+        'minimap2'
+        ' -t {threads}'
+        ' -x splice'
+        ' -a'
+        ' {input.ref}'
+        ' {input.reads}'
+        ' | samtools sort '
+        ' -T {output.bam}.tmp'
+        ' -@ {threads}'
+        ' -o {output.bam}'
+        ' - '
+        ' && samtools index {output.bam}'
+
+
+rule LIQA_quantify:
+    input:
+        refgen = lambda wildcards: f"{config['refs'][get_sample_ref(wildcards.sample)]['GTF']}.refgene",
+        bam = f'{preproc_d}/minimap2/{{sample}}.DNA.bam',
+    output:
+        tsv = f'{plots_d}/expression_stats/{{sample}}.LIQA.tsv',
+    threads:
+        16
+    shell:
+        'python3 extern/LIQA/liqa_src/liqa.py'
+        ' -task quantify'
+        ' -refgene {input.refgen}'
+        ' -bam {input.bam}'
+        ' -out {output.tsv}'
+        ' -max_distance 20'
+        ' -f_weight 1'
+        ' -threads {threads} > /dev/null'
+
+rule paf_quantify:
+    input:
+        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
+    output:
+        tsv = f'{plots_d}/expression_stats/{{sample}}.PAF.tsv',
+    run:
+        tid_to_count = Counter()
+        for line in tqdm(open(input.paf), desc=f'[paf_quantify] Processing {input.paf}'):
+            if 'tp:A:P' not in line:
+                continue
+            fields = line.rstrip('\n').split('\t')
+            tid = fields[5]
+            tid_to_count[tid] += 1
+        with open(output.tsv, 'w') as f:
+            f.write('transcript_id\tcount\n')
+            for tid,count in tid_to_count.items():
+                f.write(f'{tid}\t{count}\n')
+
+rule tpm_plot_paf:
+    input:
+        tsvs = lambda wc: [
+            f'{plots_d}/expression_stats/{s}.PAF.tsv'
+            for s in wc.samples.split('.')
+        ],
+    output:
+        png = f'{plots_d}/tpm_plot_paf/{{samples}}.png',        
+    run:
+        X_tpm = Counter()
+        for line_num,line in enumerate(open(input.tsvs[0], 'r')):
+            if line_num == 0:
+                continue
+            tid, count = line.rstrip().split('\t')
+            X_tpm[tid] = int(count)
+        thruput = sum(X_tpm.values())
+        for k,v in X_tpm.items():
+            X_tpm[k] = v / thruput * 1e6
+
+        samples = wildcards.samples.split('.')
+        Y_tpms = []
+        for tsv in input.tsvs[1:]:
+            Y_tpm = Counter()
+            for line_num,line in enumerate(open(tsv, 'r')):
+                if line_num == 0:
+                    continue
+                tid, count = line.rstrip().split('\t')
+                Y_tpm[tid] = int(count)
+            thruput = sum(Y_tpm.values())
+            for k,v in Y_tpm.items():
+                Y_tpm[k] = v / thruput * 1e6
+            Y_tpms.append(Y_tpm)
+        plot_tpm_func(X_tpm, Y_tpms, samples, output.png)
+
+
+def plot_tpm_func(X_tpm, Y_tpms, samples, outpath):
+    plot_count = len(samples)-1
+    fig,axs = plt.subplots(
+        plot_count,
+        3,
+        sharex=True,
+        sharey=True,
+        figsize=(8*3,8*plot_count),
+    )
+    axs[0,0].set_title('Transcripts in sample AND in input')
+    axs[0,1].set_title('Transcripts in sample OR in input')
+    axs[0,2].set_title('Transcripts in input (regardless of sample)')
+    # Get the 1st 99th percentile of all X_tpm and Y_tpms values to set the max and min of the plot
+    max_val = np.percentile(
+        np.array([
+            *X_tpm.values(),
+            *[y for Y_tpm in Y_tpms for y in Y_tpm.values()]
+        ]),
+        99
+    )
+    min_val = np.percentile(
+        np.array([
+            *X_tpm.values(),
+            *[y for Y_tpm in Y_tpms for y in Y_tpm.values()]
+        ]),
+        1
+    )
+    for ax in axs.flatten():
+        ax.set_xlim(min_val, max_val)
+        ax.set_ylim(min_val, max_val)
+        # ax.plot([min_val, max_val], [min_val, max_val], 'k--')
+    for sample,ax in zip(samples[1:],axs[:,0]):
+        ax.set_ylabel(f'TPM in {sample}')
+    for ax in axs[-1]:
+        ax.set_xlabel('TPM in input')
+    X_tids = set(X_tpm.keys())
+    for idx, (sample, Y_tpm) in enumerate(zip(samples[1:], Y_tpms)):
+        Y_tids = set(Y_tpm.keys())
+
+        ax = axs[idx,0]
+        for ax, select_tids in zip(axs[idx], [
+            X_tids & Y_tids,
+            X_tids | Y_tids,
+            X_tids,
+        ]):
+            X = np.array([X_tpm[tid] for tid in select_tids])
+            Y = np.array([Y_tpm[tid] for tid in select_tids])
+            ax.plot(X, Y, 'o', alpha=.5, label = sample)
+            ax.text(
+                .25,
+                .75,
+                f"N = {len(select_tids)}\n" + \
+                f"Sample: {sample}\n" + \
+                f"r-squared = {r2_score(X,Y):.3f}\n" + \
+                f"RMSE = {mean_squared_error(X,Y, squared=False):.1f}",
+                transform=ax.transAxes,
+            )
+            ax.set_xscale('log')
+            ax.set_yscale('log')
+    fig.tight_layout()            
+    plt.savefig(outpath)
+
+
+
+rule tpm_plot_liqa:
+    input:
+        tsvs = lambda wc: [
+            f'{plots_d}/expression_stats/{s}.LIQA.tsv'
+            for s in wc.samples.split('.')
+        ],
+    output:
+        png = f'{plots_d}/tpm_plot_liqa/{{samples}}.png',        
+    run:
+        X_tpm = Counter()
+        for line_num,line in enumerate(open(input.tsvs[0], 'r')):
+            if line_num == 0:
+                continue
+            gname, tid, read_per_gene, relative_abundance, _ = line.rstrip().split('\t')
+            read_per_gene = float(read_per_gene)
+            if read_per_gene > 0.99:
+                X_tpm[tid] = read_per_gene
+        thruput = sum(X_tpm.values())
+        for k,v in X_tpm.items():
+            X_tpm[k] = v * 1e6 / thruput
+
+        samples = wildcards.samples.split('.')
+        Y_tpms = []
+        for tsv in input.tsvs[1:]:
+            Y_tpm = Counter()
+            for line_num,line in enumerate(open(tsv, 'r')):
+                if line_num == 0:
+                    continue
+                gname, tid, read_per_gene, relative_abundance, _ = line.rstrip().split('\t')
+                read_per_gene = float(read_per_gene)
+                if read_per_gene > 0.1:
+                    Y_tpm[tid] = read_per_gene
+            thruput = sum(Y_tpm.values())
+            for k,v in Y_tpm.items():
+                Y_tpm[k] = v * 1e6 / thruput
+            Y_tpms.append(Y_tpm)
+        plot_tpm_func(X_tpm, Y_tpms, samples, output.png)
+
 rule tpm_plot:
     input:
         tsvs = lambda wc: [
@@ -396,30 +619,27 @@ rule tpm_plot:
     output:
         png = f'{plots_d}/tpm_plot/{{samples}}.png',        
     run:
-        frames = dict()
-        real = pd.read_csv(input.tsvs[0], sep="\t", header=0)
-        real_keys = set(real['target_id'])
-        real.set_index('target_id', inplace=True)
+        X_tpm = Counter()
+        for line_num,line in enumerate(open(input.tsvs[0], 'r')):
+            if line_num == 0:
+                continue
+            tid, tpm, _ = line.rstrip().split('\t')
+            X_tpm[tid] = float(tpm)
 
         samples = wildcards.samples.split('.')
-        fl = len(samples)-1
-        fig,axs = plt.subplots(fl,1,sharex=True,sharey=True,figsize=(12,12*fl), squeeze=False)
-        for k, v, ax in zip(samples[1:], input.tsvs[1:], axs.flatten()):
-            frame = pd.read_csv(v, sep="\t", header=0)
-            keys = real_keys.intersection(set(frame['target_id']))
-            frame.set_index('target_id',inplace=True)
-
-            X = frame.loc[list(keys)]['tpm']
-            Y = real.loc[list(keys)]['tpm']
-
-            ax.plot(X,Y, 'o', alpha=.5, label = k)
-
-            ax.set_xlabel('Simulated read TPM')
-            ax.set_ylabel('Simulation input reads TPM')
-            ax.legend()
-            ax.set_xscale('log')
-            ax.set_yscale('log')
-        plt.savefig(output[0])
+        Y_tpms = []
+        for tsv in input.tsvs[1:]:
+            Y_tpm = Counter()
+            for line_num,line in enumerate(open(tsv, 'r')):
+                if line_num == 0:
+                    continue
+                tid, tpm, _ = line.rstrip().split('\t')
+                Y_tpm[tid] = float(tpm)
+            thruput = sum(Y_tpm.values())
+            for k,v in Y_tpm.items():
+                Y_tpm[k] = v / thruput * 1e6
+            Y_tpms.append(Y_tpm)
+        plot_tpm_func(X_tpm, Y_tpms, samples, output.png)
 
 rule NS_analysis:
     input:
