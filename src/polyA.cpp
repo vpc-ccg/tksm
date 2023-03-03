@@ -145,7 +145,7 @@ public:
         if (poly_a_len > max_polya_len) {
             poly_a_len = max_polya_len;
         }
-        md.prepend_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, "+"});
+        md.prepend_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, true});
         return poly_a_len;
     }
 

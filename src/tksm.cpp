@@ -17,6 +17,7 @@
 #include "splicer.h"
 #include "truncate.h"
 #include "umi.h"
+#include "fusion.h"
 
 using std::set;
 using std::string;
@@ -122,8 +123,8 @@ main(int argc, char **argv) {
         return Truncate_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "fusion") {
-        fmt::print("Fusion\n");
-        return 1;
+        return Fusion_module{argc - 1, argv + 1}.run();
+
     }
     else if (kisim == "sequencer") {
         return Sequencer_module{argc - 1, argv + 1}.run();

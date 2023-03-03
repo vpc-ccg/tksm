@@ -4,6 +4,8 @@
 #ifndef INTERVAL_H
 #define INTERVAL_H
 
+#include <fmt/ostream.h>
+
 #include <algorithm>
 #include <iostream>
 #include <map>
@@ -11,11 +13,10 @@
 #include <ranges>
 #include <sstream>
 #include <string>
+#include <cassert>
 
 #include "cigar.h"
 #include "util.h"
-
-#include <fmt/ostream.h>
 
 using std::string;
 using std::vector;
@@ -142,8 +143,11 @@ public:
     contig_str chr;
     bool plus_strand;
     ginterval() : interval(0, 0), chr(""), plus_strand(true) {}
+
     ginterval(string chr, int start, int end, const string &strand)
         : interval(start, end), chr(chr), plus_strand(strand == "+") {}
+    ginterval(string chr, int start, int end, bool plus_strand)
+        : interval(start, end), chr(chr), plus_strand(plus_strand) {}
     ginterval(const ginterval &g1, const ginterval &g2)
         : interval(g1, g2), chr(g1.chr), plus_strand(g1.plus_strand) {}  // Merge constructor
     ginterval(const ginterval &g1) = default;
@@ -171,7 +175,6 @@ public:
         return chr == other.chr && start == other.start && end == other.end && plus_strand == other.plus_strand;
     }
 };
-
 
 struct gtf : public ginterval {
     enum class entry_type {
@@ -219,8 +222,8 @@ struct gtf : public ginterval {
             return entry_type::other;
         }
     }
-    static string type_to_string(entry_type type){
-        switch(type){
+    static string type_to_string(entry_type type) {
+        switch (type) {
             case entry_type::gene:
                 return "gene";
             case entry_type::transcript:
@@ -251,7 +254,7 @@ struct gtf : public ginterval {
         vector<string> fields = rsplit(gtf_line, "\t");
         type                  = type_from_string(fields[2]);
         chr                   = fields[0];
-        start                 = stoi(fields[3]) - 1; // GTF is 1-based
+        start                 = stoi(fields[3]) - 1;  // GTF is 1-based
         end                   = stoi(fields[4]);
         plus_strand           = (fields[6] == "+");
 
@@ -271,8 +274,16 @@ struct gtf : public ginterval {
         }
     }
 
+    gtf(const gtf &other) = default;
+
+    gtf(const ginterval &pos, entry_type type, const std::map<string, string> &info)
+        : ginterval(pos), type(type), info(info) {}
+    gtf(const ginterval &pos, entry_type type) : ginterval(pos), type(type) {}
+
+    gtf() = default;
     friend ostream &operator<<(ostream &os, const gtf &g) {
-        os << g.chr << "\t" << g.start << "\t" << g.end << "\t" << g.plus_strand << "\t" << type_to_string(g.type) << "\t";
+        os << g.chr << "\t" << g.start << "\t" << g.end << "\t" << g.plus_strand << "\t" << type_to_string(g.type)
+           << "\t";
         for (auto iter = g.info.begin(); iter != g.info.end(); ++iter) {
             os << iter->first << " " << iter->second << ";";
         }
@@ -283,18 +294,18 @@ struct gtf : public ginterval {
         os << *this;
         return os.str();
     }
-
 };
 
-class transcript : public gtf{
+class transcript : public gtf {
     double abundance;
     vector<gtf> exons;
     string comment;
-    public:
-    transcript(const gtf &entry) : gtf(entry), abundance(0.0){}
-    transcript(const gtf &entry, double abundance) : gtf(entry), abundance(abundance) {}
-    transcript(const gtf &entry, double abundance, const string &comment) : gtf(entry), abundance(abundance), comment(comment) {}
 
+public:
+    transcript(const gtf &entry) : gtf(entry), abundance(0.0) {}
+    transcript(const gtf &entry, double abundance) : gtf(entry), abundance(abundance) {}
+    transcript(const gtf &entry, double abundance, const string &comment)
+        : gtf(entry), abundance(abundance), comment(comment) {}
 
     friend ostream &operator<<(ostream &os, const transcript &t) {
         os << t.chr << "\t" << t.start << "\t" << t.end << "\t" << t.plus_strand << "\t" << t.abundance << "\t";
@@ -302,7 +313,7 @@ class transcript : public gtf{
             os << iter->first << " " << iter->second << ";";
         }
         os << "\n";
-        for(auto &exon : t.exons){
+        for (auto &exon : t.exons) {
             os << exon << "\n";
         }
         return os;
@@ -317,34 +328,28 @@ class transcript : public gtf{
         os << *this;
         return os.str();
     }
-    void add_exon(const gtf &exon){
-        exons.push_back(exon);
-    }
-    void add_exons(const vector<gtf> &exons){
-        for(auto &exon : exons){
+    void add_exon(const gtf &exon) { exons.push_back(exon); }
+
+    void prepend_exon(const gtf &exon) { exons.insert(exons.begin(), exon); }
+
+    void add_exons(const vector<gtf> &exons) {
+        for (auto &exon : exons) {
             add_exon(exon);
         }
     }
-    void sort_exons(){
+    void sort_exons() {
         std::sort(exons.begin(), exons.end(), [](const gtf &a, const gtf &b) { return a.start < b.start; });
     }
-    void set_abundance(double abundance){
-        this->abundance = abundance;
-    }
-    double get_abundance() const{
-        return abundance;
-    }
-    vector<gtf> get_exons() const{
-        return exons;
-    }
-    auto get_exons(int start , int end){
-        return exons | std::ranges::views::filter([start, end](const gtf &exon) -> bool{return exon.start >= start && exon.end <= end;}); // clangd ignore
+    void set_abundance(double abundance) { this->abundance = abundance; }
+    double get_abundance() const { return abundance; }
+    vector<gtf> get_exons() const { return exons; }
+    auto get_exons(int start, int end) {
+        return exons | std::ranges::views::filter([start, end](const gtf &exon) -> bool {
+                   return exon.start >= start && exon.end <= end;
+               });  // clangd ignore
     }
 
-    string get_comment() const{
-        return comment;
-    }
-
+    string get_comment() const { return comment; }
 };
 
 /*
@@ -447,6 +452,9 @@ operator<<(std::ostream &ost, const ginterval &ex) {
     ost << ex.chr << ":" << ex.start << "-" << ex.end;
     return ost;
 }
+
+template <> struct fmt::formatter<interval> : ostream_formatter {};
+template <> struct fmt::formatter<ginterval> : ostream_formatter {};
 
 /*
 inline std::ostream &
@@ -652,60 +660,51 @@ public:
     }
 };
 */
-struct base_mod{
+struct base_mod {
     int position;
     char base;
     base_mod(int position, char base) : position(position), base(base) {}
     base_mod(const std::pair<int, char> &error) : position(error.first), base(error.second) {}
     base_mod() : position(-1), base('N') {}
-    operator string() const{
-        return std::to_string(position) + base;
-    }
+    operator string() const { return std::to_string(position) + base; }
 };
 
-class einterval: public ginterval{
+class einterval : public ginterval {
     vector<base_mod> errors;
+
 public:
     einterval() : ginterval() {}
     einterval(const ginterval &gi) : ginterval(gi) {}
     einterval(string chr, int start, int end, const string &strand) : ginterval(chr, start, end, strand) {}
 
-    void add_error(int position, char base){
-        errors.emplace_back(position, base);
-    }
+    void add_error(int position, char base) { errors.emplace_back(position, base); }
 
-    void add_error(const std::pair<int, char> &error){
-        errors.emplace_back(error.first, error.second);
-    }
-    void add_error(const base_mod &error){
-        errors.emplace_back(error);
-    }
+    void add_error(const std::pair<int, char> &error) { errors.emplace_back(error.first, error.second); }
+    void add_error(const base_mod &error) { errors.emplace_back(error); }
 
-    void add_errors(const vector<base_mod> &err){
-        errors.insert(errors.end(), err.begin(), err.end());
-    }
-   
-    void truncate(int start, int end){
+    void add_errors(const vector<base_mod> &err) { errors.insert(errors.end(), err.begin(), err.end()); }
+
+    void truncate(int start, int end) {
         sort_errors();
-        if (start > end) {
-            std::swap(start, end);
-        }
+        assert(start >= 0);
+        assert(end <= this->end - this->start);
+        assert(start < end);
+        
+        this->start +=  start;
+        this->end   = this->start + (end - start);
+        
 
-        if(errors.size() == 0){
+        if (errors.size() == 0) {
             return;
         }
 
-        errors.erase(
-                std::remove_if(
-                    errors.begin(),
-                    errors.end(),
-                    [start, end](const base_mod &error) { return error.position < start || error.position >= end; }
-                ),
-                errors.end()
-            );
-
+        errors.erase(std::remove_if(errors.begin(), errors.end(),
+                                    [start, end](const base_mod &error) {
+                                        return error.position < start || error.position >= end;
+                                    }),
+                     errors.end());
     }
-    void parse_and_add_errors(const string &error_string){
+    void parse_and_add_errors(const string &error_string) {
         auto mutations = rsplit(error_string, ",");
         for (string mutation : mutations) {
             if (mutation == "") {
@@ -716,15 +715,13 @@ public:
             add_error(mutation_pos, target);
         }
     }
-    
-    void sort_errors(){
-        std::sort(errors.begin(), errors.end(), [](const base_mod &a, const base_mod &b) { return a.position < b.position; });
+
+    void sort_errors() {
+        std::sort(errors.begin(), errors.end(),
+                  [](const base_mod &a, const base_mod &b) { return a.position < b.position; });
     }
 
-    auto error_str() const -> string {
-        return join_str(errors.begin(), errors.end(), ",");
-    }
-
+    auto error_str() const -> string { return join_str(errors.begin(), errors.end(), ","); }
 };
 
 struct molecule_descriptor {
@@ -734,7 +731,7 @@ struct molecule_descriptor {
     vector<einterval> _segments;
 
     std::map<string, vector<string>> meta;
-//    vector<std::pair<int, char>> errors_so_far;
+    //    vector<std::pair<int, char>> errors_so_far;
 
 public:
     molecule_descriptor() {}
@@ -804,9 +801,9 @@ public:
 
     molecule_descriptor *prepend_segment(const einterval &i) {
         _segments.insert(_segments.begin(), i);
-        //for (std::pair<int, char> &errs : errors_so_far) {
-        //   errs = std::make_pair(errs.first + i.end - i.start, errs.second);
-        //}
+        // for (std::pair<int, char> &errs : errors_so_far) {
+        //    errs = std::make_pair(errs.first + i.end - i.start, errs.second);
+        // }
         return this;
     }
 
@@ -814,17 +811,16 @@ public:
         _segments.push_back(i);
         return this;
     }
-/*
-    molecule_descriptor *update_errors(const vector<std::pair<int, char>> &errors_so_far) {
-        this->errors_so_far = errors_so_far;
-        return this;
-    }
-*/
+    /*
+        molecule_descriptor *update_errors(const vector<std::pair<int, char>> &errors_so_far) {
+            this->errors_so_far = errors_so_far;
+            return this;
+        }
+    */
 
     molecule_descriptor *add_error(base_mod error) {
-        
         auto iter = _segments.begin();
-        while(iter->size() <= error.position){
+        while (iter->size() <= error.position) {
             error.position -= iter->size();
             iter++;
         }
@@ -859,7 +855,6 @@ public:
         return ost;
     }
 };
-
 
 /*
 // pcr copy structure that tracks pcr errors introduced

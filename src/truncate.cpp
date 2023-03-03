@@ -5,40 +5,44 @@
 #include <random>
 
 #include "interval.h"
-#include "module.h"
 #include "mdf.h"
+#include "module.h"
 #include "pimpl.h"
 
 inline void
-truncate(molecule_descriptor &md, int rand_val, int min_val = 100) {
-    if (min_val > rand_val) {
-        rand_val = min_val;
+truncate(molecule_descriptor &md, int truncated_length, int min_val = 100) {
+    if (min_val > truncated_length) {
+        truncated_length = min_val;
     }
     size_t i       = 0;
     int len_so_far = 0;
     auto &segments = md.get_segments();
     for (const ginterval &g : segments) {
         len_so_far += (g.end - g.start);
-        if (len_so_far >= rand_val) {
+        if (len_so_far >= truncated_length) {
             break;
         }
         ++i;
     }
     if (i != segments.size()) {
         std::stringstream ss;
-        ss << segments[i].chr << ':' << segments[i].end - (len_so_far - rand_val) << '-' << segments[i].end;
+        ss << segments[i].chr << ':' << segments[i].end - (len_so_far - truncated_length) << '-' << segments[i].end;
         md.add_comment("truncated", ss.str());
-        segments[i].truncate(0, segments[i].end - (len_so_far - rand_val));
+        segments[i].truncate(0, segments[i].end - segments[i].start - (len_so_far - truncated_length));
         for (size_t j = i + 1; j < segments.size(); ++j) {
             std::stringstream ss;
             ss << segments[j];
             md.add_comment("truncated", ss.str());
         }
+        logd("Before resize: {}", md.cget_segments().size());
         segments.resize(i + 1);
-
-        // Update the errors of the last segment
-
+        logd("After resize: {}", md.cget_segments().size());
     }
+    int sum = 0;
+    for(const auto &g : md.cget_segments()){
+        sum += g.end - g.start;
+    }
+    logd("sum: {} truncated_len: {}", sum, truncated_length);
 }
 /*
 template <class Distribution>
@@ -117,6 +121,8 @@ public:
         }
         std::uniform_int_distribution<int> smoother_dist(-range_before, range_after);
         double ret = values[val_index] + smoother_dist(g);
+        logd("val_index: {} val: {} before_smooth: {} ret: {} range_before: {} range_after: {}", val_index, val,
+             values[val_index], ret, range_before, range_after);
         return ret;
     }
 
@@ -168,7 +174,7 @@ public:
         if (iter != y_axis_index.begin() && std::abs(*iter - slice) > std::abs(*(iter - 1) - slice)) {
             --iter;
         }
-
+        logd("Slice: {}, index: {}", slice, std::distance(y_axis_index.begin(), iter));
         return distillery.at(std::distance(y_axis_index.begin(), iter))(g);
     }
 
@@ -287,8 +293,14 @@ public:
             custom_distribution2D<> disko{kdefiles[0], kdefiles[1], kdefiles[2]};
             while (streamer) {
                 molecule_descriptor md = streamer();
+
+                logd("----------------------------------------");
+                logd("Truncating {}", md._id);
                 truncate(md, disko(rand_gen, md.size()));
                 output_file << md;
+                logd("DONE {}", md._id);
+                logd("----------------------------------------");
+                fmtlog::poll(true);
             }
         }
         else if (args["normal"].count() > 0) {
@@ -335,6 +347,5 @@ public:
         fmtlog::poll(true);
     }
 };
-
 
 MODULE_IMPLEMENT_PIMPL_CLASS(Truncate_module);

@@ -127,10 +127,10 @@ public:
             int len5 = static_cast<int>(umi_seq5.size());
             int len3 = static_cast<int>(umi_seq3.size());
             if (len5 > 0) {
-                md.prepend_segment(ginterval{umi_ctg_name, 0, len5, "+"});
+                md.prepend_segment(ginterval{umi_ctg_name, 0, len5, true});
             }
             if (len3 > 0) {
-                md.append_segment(ginterval{umi_ctg_name, len5, len5 + len3, "+"});
+                md.append_segment(ginterval{umi_ctg_name, len5, len5 + len3, true});
             }
             ++index;
             outfile << md;
