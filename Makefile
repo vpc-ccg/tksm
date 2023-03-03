@@ -43,7 +43,7 @@ PY_LDFLAGS = $(shell python3-config --ldflags --embed | sed 's|-flto-partition=n
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
 
-SRC_FILES = tksm.cpp umi.cpp truncate.cpp splicer.cpp single-cell-barcoder.cpp sequencer.cpp polyA.cpp pcr.cpp kde.cpp abundance.cpp
+SRC_FILES = tksm.cpp umi.cpp truncate.cpp splicer.cpp single-cell-barcoder.cpp sequencer.cpp polyA.cpp pcr.cpp kde.cpp abundance.cpp fusion.cpp
 #Append SRC_PATH to SRC_FILES
 SRC_FILES := $(addprefix $(SRC_PATH)/,$(SRC_FILES))
 
