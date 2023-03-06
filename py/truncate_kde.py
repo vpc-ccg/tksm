@@ -70,17 +70,17 @@ def score_samples_runner(xy):
 
 
 def get_alignment_lens(paf):
-    alens = list()
     tlens = list()
+    alens = list()
     for line in tqdm(open(paf, "r")):
         if "tp:A:P" not in line:
             continue
         line = line.rstrip("\n").split("\t")
-        alen = int(line[3]) - int(line[2])
         tlen = int(line[6])
-        alens.append(alen)
+        alen = int(line[3]) - int(line[2])
         tlens.append(tlen)
-    return alens, tlens
+        alens.append(alen)
+    return tlens,alens
 
 
 def sort_pp(X, Y, p):
@@ -102,15 +102,14 @@ def main():
 
     print("Reading {}".format(args.input))
 
-    alens, tlens = get_alignment_lens(args.input)
-    len_values = np.vstack([alens, tlens]).T
-    print(len_values.shape)
+    tlens, alens = get_alignment_lens(args.input)
+    len_values = np.vstack([tlens, alens]).T
     if args.bandwidth <= 0:
         print(
             "Non-positive bandwidth selected selected: recomputing bandwidth with GridSearchCV"
         )
         bandwidths = list()
-        for i in range(3):
+        for _ in range(3):
             grid_finder = GridSearchCV(
                 KernelDensity(),
                 {"bandwidth": np.arange(50, 1000, 100)},
