@@ -8,7 +8,7 @@ TS_experiments:
             - Xpr:
                 ''
             - Spc:
-                '--molecule-count 100000'
+                '--molecule-count 5000000'
             - plA:
                 '--normal=15,7.5'
             - Trc:
@@ -66,9 +66,10 @@ plots:
             mapped_lengths,
             # substition,
             # polyA,
-            # tpm_plot,
+            tpm_plot,
             # tpm_plot_liqa,
-            # tpm_plot_paf,
+            tpm_plot_paf,
+            tpm_plot_nanosim,
         ],
         data: [
             MCF7-sgnex,
@@ -92,7 +93,7 @@ refs:
         DNA:
             data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
         GTF:
-            data/refs/Homo_sapiens.GRCh38.108.gtf
+            data/refs/Homo_sapiens.GRCh38.108.chr_patch_hapl_scaff.gtf
     Homo_sapiens_chr21:
         cDNA:
             data/refs/Homo_sapiens.GRCh38.cdna.chr21.fa
