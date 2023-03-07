@@ -227,6 +227,68 @@ read_gtf(const std::string &path2gtf) -> std::vector<gtf> {
 }
 
 inline auto
+read_gtf_genes(const std::string &path2gtf) -> std::vector<gtf> {
+    std::ifstream gtfile(path2gtf);
+    std::string buffer;
+    std::vector<gtf> genes;
+
+    while (std::getline(gtfile, buffer)) {
+        if (buffer[0] == '#') {
+            continue;
+        }
+        gtf entry{buffer};
+        if (entry.type == gtf::entry_type::gene) {
+            genes.push_back(entry);
+        }
+    }
+    return genes;
+}
+
+inline void 
+fillnames(gtf &entry){
+    
+    auto g_name_iter = entry.info.find("gene_name");
+    if(g_name_iter == entry.info.end()){
+        entry.info["gene_name"] = entry.info["gene_id"];
+    }
+    if( entry.type == gtf::entry_type::gene){
+        return;
+    }
+    auto t_name_iter = entry.info.find("transcript_name");
+    if(t_name_iter == entry.info.end()){
+        entry.info["transcript_name"] = entry.info["transcript_id"];
+    }
+}
+
+inline auto
+read_gtf_transcripts_deep(const std::string &path2gtf, bool skip_lnc=true, bool fill_names=true) -> std::vector<transcript> {
+   
+    std::ifstream gtfile(path2gtf);
+    std::string buffer;
+    std::vector<transcript> transcripts;
+
+    while(std::getline(gtfile, buffer)){
+        if(buffer[0] == '#'){
+            continue;
+        }
+        gtf entry{buffer};
+        if( entry.info["gene_biotype"] == "lncRNA" && skip_lnc){
+            continue;
+        }
+        if(fill_names){
+            fillnames(entry);
+        }
+        if( entry.type == gtf::entry_type::transcript){
+            transcripts.push_back(transcript{entry});
+        }
+        if( entry.type == gtf::entry_type::exon){
+            transcripts.back().add_exon(entry);
+        }
+    }
+    return transcripts;
+}
+
+inline auto
 read_gtf_transcripts(const std::string &path2gtf, int default_depth = 1) {
     std::map<std::string, molecule_descriptor> isoforms;
     std::ifstream gtfile(path2gtf);

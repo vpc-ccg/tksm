@@ -98,7 +98,7 @@ public:
         int range_after  = 0;
         // Uniformize
         bool not_first = val_index != 0;
-        bool not_last  = val_index != ((long int)values.size() - 1);
+        bool not_last  = val_index < ((long int)values.size() - 1);
 
         if (not_first) {
             bool odd_before = (values[val_index] - values[val_index - 1]) % 2 == 1;

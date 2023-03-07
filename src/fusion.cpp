@@ -5,6 +5,7 @@
 #include <cxxopts.hpp>
 #include <optional>
 #include <random>
+#include <ranges>
 #include <set>
 #include <string>
 #include <vector>
@@ -45,7 +46,7 @@ public:
 
     bool operator!=(const locus &other) const { return !(*this == other); }
 
-    auto operator<=>(const locus &other) const{
+    auto operator<=>(const locus &other) const {
         if (chr == other.chr) {
             return position <=> other.position;
         }
@@ -98,8 +99,6 @@ event_type_to_string(EventType type) -> string {
 
 class chimeric_event : public ginterval {
 public:
-
-
     enum class CUT { HEAD, TAIL };
     EventType event_type;
     double event_ratio;
@@ -110,11 +109,12 @@ public:
     chimeric_event(const string &chr, int start, int end, const string &orientation, EventType event_type)
         : ginterval{chr, start, end, orientation}, event_type{event_type}, event_ratio{0.5} {}
 
-    chimeric_event(const chimeric_event &other ) = default;
+    chimeric_event(const chimeric_event &other) = default;
     auto cut_transcript(const transcript &t, int cut_position, CUT cut) const
         -> std::pair<transcript, std::optional<gtf>> {
         if (t.start > cut_position || t.end < cut_position) {
-            logw("Cut position {} is not within transcript {}={}", cut_position, t.info.at("transcript_id"), static_cast<ginterval>(t));
+            logw("Cut position {} is not within transcript {}={}", cut_position, t.info.at("transcript_id"),
+                 static_cast<ginterval>(t));
         }
         ginterval i = cut == CUT::TAIL ? ginterval{t.chr, cut_position, t.end, t.plus_strand}
                                        : ginterval{t.chr, t.start, cut_position, t.plus_strand};
@@ -152,9 +152,13 @@ public:
     }
 
     auto fuse_transcripts(const transcript &t1, const transcript &t2) const -> transcript {
+        logd("{} {}", gtf::type_to_string(t1.type), gtf::type_to_string(t2.type));
+
         auto fusion_transcript_name =
             fmt::format("{}{}{}", t1.info.at("transcript_name"), fusion_separator, t2.info.at("transcript_name"));
-        auto fusion_gene_name = fmt::format("{}{}{}", t1.info.at("gene_name"), fusion_separator, t2.info.at("gene_name"));
+
+        auto fusion_gene_name =
+            fmt::format("{}{}{}", t1.info.at("gene_name"), fusion_separator, t2.info.at("gene_name"));
         auto fusion_transcript_id =
             fmt::format("{}{}{}", t1.info.at("transcript_id"), fusion_separator, t2.info.at("transcript_id"));
         auto fusion_gene_id = fmt::format("{}{}{}", t1.info.at("gene_id"), fusion_separator, t2.info.at("gene_id"));
@@ -232,14 +236,16 @@ public:
         }
         auto end_locus = *it;
 
-        auto start_molecules = molecules.at(start_locus);
-        auto end_molecules   = molecules.at(end_locus);
+        auto &start_molecules = molecules.at(start_locus);
+        auto &end_molecules   = molecules.at(end_locus);
 
         std::uniform_real_distribution<double> dist(0, 1);
 
         vector<transcript> fused_transcripts;
         for (const auto &start_molecule : start_molecules) {
             for (const auto &end_molecule : end_molecules) {
+                logd("Fusing {} and {}", start_molecule, end_molecule);
+                fmtlog::poll(true);
                 fused_transcripts.push_back(fuse_transcripts(start_molecule, end_molecule));
             }
         }
@@ -253,7 +259,8 @@ public:
         return os;
     }
 };
-template <> struct fmt::formatter<chimeric_event> : ostream_formatter {};
+template <>
+struct fmt::formatter<chimeric_event> : ostream_formatter {};
 
 inline vector<chimeric_event>
 read_fusions(std::istream &fusion_file) {
@@ -332,17 +339,21 @@ class Fusion_module::impl : public tksm_module {
         std::map<string, unsigned long> chr_size;
         std::map<string, int> fusion_count_per_chr;
         unsigned long total_size = 0;
-        for (const auto &gp : genes_by_chr) {
-            auto &chr     = gp.first;
-            auto &genes   = gp.second;
+        for (auto &gp : genes_by_chr) {
+            auto &chr   = gp.first;
+            auto &genes = gp.second;
+            std::ranges::sort(genes, [](const auto &a, const auto &b) { return a.start < b.start; });
             chr_size[chr] = genes.back().end - genes.front().start;
             total_size += chr_size[chr];
-            fusion_count_per_chr[chr] =
-                std::round(static_cast<double>(fusion_count) * chr_size[chr] / total_size);
-            logi("Fusion count for chr {} is {}", chr, fusion_count_per_chr[chr]);
+            logd("Chr {} size is {}, {}:{}-{}", chr, chr_size[chr], chr, genes.front().start, genes.back().end);
         }
 
+        for (const auto &gp : genes_by_chr) {
+            auto &chr = gp.first;
 
+            fusion_count_per_chr[chr] = std::round(static_cast<double>(fusion_count) * chr_size[chr] / total_size);
+            logi("Fusion count for chr {} is {}", chr, fusion_count_per_chr[chr]);
+        }
         // Convert fusion vector to a map of chr -> vector<chimeric_event>
 
         std::map<string, vector<chimeric_event>> fusions_by_chr;
@@ -437,14 +448,15 @@ public:
             fusions = read_fusions(fusion_file);
         }
 
-        vector<gtf> transcripts = read_gtf(gtf_file);
+        vector<transcript> transcripts = read_gtf_transcripts_deep(gtf_file);
+        vector<gtf> genes              = read_gtf_genes(gtf_file);
         map<string, gtf> transcripts_by_id;
         for (auto &transcript : transcripts) {
             transcripts_by_id[transcript.info["transcript_id"]] = transcript;
         }
-        
+
         logi("Generating fusions");
-        generate_fusions(fusions, fusion_count, transcripts, translocation_ratio);
+        generate_fusions(fusions, fusion_count, genes, translocation_ratio);
 
         IITree<locus, chimeric_event> fusion_tree;
         IITree<locus, chimeric_event> deletion_tree;
@@ -466,51 +478,75 @@ public:
 
         std::ifstream abundance_file_stream{abundance_file};
         string buffer;
-
+        std::getline(abundance_file_stream, buffer);  // Header
         std::map<chimeric_event, std::map<locus, vector<transcript>>> relevant_molecules;
+        std::set<string> processed_transcripts;
         std::ofstream output_file_stream{output_file};
 
         logi("Processing abundance file");
-        while (std::getline(abundance_file_stream, buffer)) {
-            string tid;
-            double tpm;
-            string comment;
-            std::istringstream(buffer) >> tid >> tpm >> comment;
+        int total_count = 0;
+        int skipped     = 0;
 
-            format_annot_id(tid, !args["use-whole-id"].as<bool>());
-
-            auto iter = transcripts_by_id.find(tid);
-            if (iter == transcripts_by_id.end()) {
-                continue;
-            }
-            transcript t{iter->second, tpm, comment};
-
+        for (const auto &t : transcripts) {
             locus start{t.chr, t.start, t.plus_strand};
             locus end{t.chr, t.end, t.plus_strand};
             vector<size_t> overlaps;
             fusion_tree.overlap(start, end, overlaps);
+            logi("Found {} overlaps, for {}:{}-{}", overlaps.size(), t.chr, t.start, t.end);
             for (auto &overlap : overlaps) {
                 const chimeric_event &event       = fusion_tree.data(overlap);
                 const locus &start                = fusion_tree.start(overlap);
                 [[maybe_unused]] const locus &end = fusion_tree.end(overlap);
                 relevant_molecules[event][start].push_back(t);
             }
+            if (overlaps.size() > 0) {
+                processed_transcripts.insert(t.info.at("transcript_id"));
+            }
             overlaps.clear();
-            if (overlaps.empty()) {
-                output_file_stream << t.to_abundance_str() << "\n";
+        }
+
+        map<string, double> fusion_tpm;
+        while (std::getline(abundance_file_stream, buffer)) {
+            ++total_count;
+            string tid;
+            double tpm;
+            string comment;
+            std::istringstream(buffer) >> tid >> tpm >> comment;
+
+            format_annot_id(tid, !args["use-whole-id"].as<bool>());
+            auto iter = transcripts_by_id.find(tid);
+            if (iter == transcripts_by_id.end()) {
+                ++skipped;
+                continue;
+            }
+            if (processed_transcripts.find(tid) != processed_transcripts.end()) {
+                output_file_stream << buffer << "\n";
+                continue;
+            }
+            else {
+                fusion_tpm[tid] = tpm;
             }
         }
 
+        logi("Skipped {} transcripts out of {}", skipped, total_count);
         logi("Creating fusion transcripts");
         std::ofstream gtfo_file{args["gtfo"].as<string>()};
-        for (auto const &[event, loci] : relevant_molecules) {
+        for (auto &[event, loci] : relevant_molecules) {
+            for (auto &l : loci) {
+                for (auto &t : l.second) {
+                    const auto &it = fusion_tpm.find(t.info.at("transcript_id"));
+                    if (it != fusion_tpm.end()) {
+                        t.set_abundance(it->second);
+                    }
+                }
+            }
             auto transcript_vec = event.execute_event(loci, rand_gen);
+            logi("Creating {} fusion transcripts on event {}", transcript_vec.size(), event);
             for (auto &t : transcript_vec) {
                 output_file_stream << t.to_abundance_str() << "\n";
-                gtfo_file << t;
+                gtfo_file << t << "\n";
             }
         }
-
         return 0;
     }
 
@@ -520,7 +556,7 @@ public:
         logi("Output file: {}", args["output"].as<string>());
         logi("GTF Input file: {}", args["gtfi"].as<string>());
         logi("GTF Output file: {}", args["gtfo"].as<string>());
-        if(args["fusion-file"].count() > 0) {
+        if (args["fusion-file"].count() > 0) {
             logi("Fusion file: {}", args["fusion-file"].as<string>());
         }
         logi("Fusion count: {}", args["fusion-count"].as<int>());

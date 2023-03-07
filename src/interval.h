@@ -282,10 +282,10 @@ struct gtf : public ginterval {
 
     gtf() = default;
     friend ostream &operator<<(ostream &os, const gtf &g) {
-        os << g.chr << "\t" << g.start << "\t" << g.end << "\t" << g.plus_strand << "\t" << type_to_string(g.type)
+        os << g.chr << "\t" << g.start << "\t" << g.end << "\t" << (g.plus_strand?'+':'-') << "\t" << type_to_string(g.type)
            << "\t";
         for (auto iter = g.info.begin(); iter != g.info.end(); ++iter) {
-            os << iter->first << " " << iter->second << ";";
+            os << iter->first << " \"" << iter->second << "\";";
         }
         return os;
     }
@@ -308,14 +308,7 @@ public:
         : gtf(entry), abundance(abundance), comment(comment) {}
 
     friend ostream &operator<<(ostream &os, const transcript &t) {
-        os << t.chr << "\t" << t.start << "\t" << t.end << "\t" << t.plus_strand << "\t" << t.abundance << "\t";
-        for (auto iter = t.info.begin(); iter != t.info.end(); ++iter) {
-            os << iter->first << " " << iter->second << ";";
-        }
-        os << "\n";
-        for (auto &exon : t.exons) {
-            os << exon << "\n";
-        }
+        os << static_cast<const gtf &>(t) << "\tabundance \"" << t.abundance << "\";\tmeta \""  << t.comment << "\";";
         return os;
     }
     string to_abundance_str() const {
@@ -454,7 +447,9 @@ operator<<(std::ostream &ost, const ginterval &ex) {
 }
 
 template <> struct fmt::formatter<interval> : ostream_formatter {};
+
 template <> struct fmt::formatter<ginterval> : ostream_formatter {};
+template <> struct fmt::formatter<transcript> : ostream_formatter {};
 
 /*
 inline std::ostream &
