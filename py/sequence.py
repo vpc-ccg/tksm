@@ -341,7 +341,8 @@ if __name__ == "__main__":
     with open(args.input, "r") as f:
         mdg = mdf_generator(f)
         if args.threads > 1:
-            mapper = functools.partial(Pool(args.threads).imap_unordered, chunksize=10)
+            p = Pool(args.threads)
+            mapper = functools.partial(p.imap_unordered, chunksize=10)
         else:
             mapper = map
         for read_dict in tqdm(mapper(mdf_to_seq_targeted, mdg), desc="Sequencing"):
@@ -349,7 +350,7 @@ if __name__ == "__main__":
                 print(v, file=target_outfiles[k])
 
         if args.threads > 1:
-            Pool(args.threads).close()
+            p.close()
 
     for v in target_outfiles.values():
         v.close()

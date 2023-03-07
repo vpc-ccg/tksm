@@ -10,6 +10,7 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+import matplotlib 
 from snakemake.utils import min_version
 from tqdm import tqdm
 from sklearn.metrics import r2_score,mean_squared_error
@@ -375,13 +376,12 @@ rule polyA:
             polys_arrays.append(np.array(polys))
             max_up = max(max_up, np.percentile(polys, 99))
         for polys,sample in zip(polys_arrays, samples):
-            print(f"Mean and std of poly(A,T) length for {sample}: {np.mean(polys):.2f} +- {np.std(polys):.2f}")
             polys = polys[polys < max_up]
             _, bb, _ = plt.hist(
                 polys,
                 bins = params.bins if bb is None else bb,
                 density = True,
-                label = sample,
+                label = f'{sample} (µ={np.mean(polys):.2f}, σ={np.std(polys):.2f})',
                 alpha = .5,
             )
         plt.legend()
@@ -473,6 +473,32 @@ rule paf_quantify:
             for tid,count in tid_to_count.items():
                 f.write(f'{tid}\t{count}\n')
 
+rule nanosim_quantify:
+    input:
+        paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
+    output:
+        tsv = f'{plots_d}/expression_stats/{{sample}}.nanosim.tsv',
+    shell:
+        'nanopore_transcript_abundance.py'
+        ' -i {input.paf}'
+        ' > {output.tsv}'
+
+rule tpm_plot_nanosim:
+    input:
+        tsvs = lambda wc: [
+            f'{NS_d}/{s}/abundance/sim_transcriptome_quantification.tsv'
+            for s in wc.samples.split('.')
+        ],
+    output:
+        png = f'{plots_d}/tpm_plot_nanosim/{{samples}}.png',        
+    run:
+        my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=2, header=True)
+        X_tpm = my_get_tpm(input.tsvs[0])
+        Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
+        samples = wildcards.samples.split('.')
+        plot_tpm_func(X_tpm, Y_tpms, samples, output.png, title='TPM using Nanosim abundance estimates')
+
+
 rule tpm_plot_paf:
     input:
         tsvs = lambda wc: [
@@ -482,67 +508,51 @@ rule tpm_plot_paf:
     output:
         png = f'{plots_d}/tpm_plot_paf/{{samples}}.png',        
     run:
-        X_tpm = Counter()
-        for line_num,line in enumerate(open(input.tsvs[0], 'r')):
-            if line_num == 0:
-                continue
-            tid, count = line.rstrip().split('\t')
-            X_tpm[tid] = int(count)
-        thruput = sum(X_tpm.values())
-        for k,v in X_tpm.items():
-            X_tpm[k] = v / thruput * 1e6
-
+        my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True)
+        X_tpm = my_get_tpm(input.tsvs[0])
+        Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
         samples = wildcards.samples.split('.')
-        Y_tpms = []
-        for tsv in input.tsvs[1:]:
-            Y_tpm = Counter()
-            for line_num,line in enumerate(open(tsv, 'r')):
-                if line_num == 0:
-                    continue
-                tid, count = line.rstrip().split('\t')
-                Y_tpm[tid] = int(count)
-            thruput = sum(Y_tpm.values())
-            for k,v in Y_tpm.items():
-                Y_tpm[k] = v / thruput * 1e6
-            Y_tpms.append(Y_tpm)
-        plot_tpm_func(X_tpm, Y_tpms, samples, output.png)
+        plot_tpm_func(X_tpm, Y_tpms, samples, output.png, title='TPM using minimap2 primary alignments')
 
+def get_tpm(tsv, min_tpm=0.001, min_val=0.0, key_col=0, val_col=1, header=True):
+    tpm = Counter()
+    for line_num,line in enumerate(open(tsv, 'r')):
+        if header and line_num == 0:
+            continue
+        line = line.rstrip().split('\t')
+        key = line[key_col]
+        val = float(line[val_col])
+        if val>min_val:
+            tpm[key] = val
+    thruput = sum(tpm.values())
+    for k,v in tpm.items():
+        tpm[k] = v / thruput * 1e6
+    tpm = Counter({k:v for k,v in tpm.items() if v>min_tpm})
+    thruput = sum(tpm.values())
+    for k,v in tpm.items():
+        tpm[k] = v / thruput * 1e6
+    return tpm
 
-def plot_tpm_func(X_tpm, Y_tpms, samples, outpath):
+def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
+    plt.rc('font', size=22)
+
     plot_count = len(samples)-1
     fig,axs = plt.subplots(
         plot_count,
         3,
         sharex=True,
         sharey=True,
-        figsize=(8*3,8*plot_count),
+        figsize=(10*3,10*plot_count),
     )
-    axs[0,0].set_title('Transcripts in sample AND in input')
-    axs[0,1].set_title('Transcripts in sample OR in input')
-    axs[0,2].set_title('Transcripts in input (regardless of sample)')
-    # Get the 1st 99th percentile of all X_tpm and Y_tpms values to set the max and min of the plot
-    max_val = np.percentile(
-        np.array([
-            *X_tpm.values(),
-            *[y for Y_tpm in Y_tpms for y in Y_tpm.values()]
-        ]),
-        99
-    )
-    min_val = np.percentile(
-        np.array([
-            *X_tpm.values(),
-            *[y for Y_tpm in Y_tpms for y in Y_tpm.values()]
-        ]),
-        1
-    )
-    for ax in axs.flatten():
-        ax.set_xlim(min_val, max_val)
-        ax.set_ylim(min_val, max_val)
-        # ax.plot([min_val, max_val], [min_val, max_val], 'k--')
+    fig.suptitle(title, fontsize=30)
+    axs[0,0].set_title('Transcripts in sample AND in input', fontsize=28)
+    axs[0,1].set_title('Transcripts in sample OR in input', fontsize=28)
+    axs[0,2].set_title('Transcripts in input (regardless of sample)', fontsize=28)
+
     for sample,ax in zip(samples[1:],axs[:,0]):
-        ax.set_ylabel(f'TPM in {sample}')
+        ax.set_ylabel(f'TPM in {sample}', fontsize=28)
     for ax in axs[-1]:
-        ax.set_xlabel('TPM in input')
+        ax.set_xlabel('TPM in input', fontsize=28)
     X_tids = set(X_tpm.keys())
     for idx, (sample, Y_tpm) in enumerate(zip(samples[1:], Y_tpms)):
         Y_tids = set(Y_tpm.keys())
@@ -557,7 +567,7 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath):
             Y = np.array([Y_tpm[tid] for tid in select_tids])
             ax.plot(X, Y, 'o', alpha=.5, label = sample)
             ax.text(
-                .25,
+                .15,
                 .75,
                 f"N = {len(select_tids)}\n" + \
                 f"Sample: {sample}\n" + \
@@ -570,8 +580,6 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath):
     fig.tight_layout()            
     plt.savefig(outpath)
 
-
-
 rule tpm_plot_liqa:
     input:
         tsvs = lambda wc: [
@@ -581,36 +589,13 @@ rule tpm_plot_liqa:
     output:
         png = f'{plots_d}/tpm_plot_liqa/{{samples}}.png',        
     run:
-        X_tpm = Counter()
-        for line_num,line in enumerate(open(input.tsvs[0], 'r')):
-            if line_num == 0:
-                continue
-            gname, tid, read_per_gene, relative_abundance, _ = line.rstrip().split('\t')
-            read_per_gene = float(read_per_gene)
-            if read_per_gene > 0.99:
-                X_tpm[tid] = read_per_gene
-        thruput = sum(X_tpm.values())
-        for k,v in X_tpm.items():
-            X_tpm[k] = v * 1e6 / thruput
-
+        my_get_tpm = functools.partial(get_tpm, min_val=0.99, key_col=1, val_col=2, header=True)
+        X_tpm = my_get_tpm(input.tsvs[0])
+        Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
         samples = wildcards.samples.split('.')
-        Y_tpms = []
-        for tsv in input.tsvs[1:]:
-            Y_tpm = Counter()
-            for line_num,line in enumerate(open(tsv, 'r')):
-                if line_num == 0:
-                    continue
-                gname, tid, read_per_gene, relative_abundance, _ = line.rstrip().split('\t')
-                read_per_gene = float(read_per_gene)
-                if read_per_gene > 0.1:
-                    Y_tpm[tid] = read_per_gene
-            thruput = sum(Y_tpm.values())
-            for k,v in Y_tpm.items():
-                Y_tpm[k] = v * 1e6 / thruput
-            Y_tpms.append(Y_tpm)
-        plot_tpm_func(X_tpm, Y_tpms, samples, output.png)
+        plot_tpm_func(X_tpm, Y_tpms, samples, output.png, 'TPM using LIQA')
 
-rule tpm_plot:
+rule tpm_plot_tksm:
     input:
         tsvs = lambda wc: [
             f'{plots_d}/expression_stats/{s}.expression_stats.tsv'
@@ -619,27 +604,11 @@ rule tpm_plot:
     output:
         png = f'{plots_d}/tpm_plot/{{samples}}.png',        
     run:
-        X_tpm = Counter()
-        for line_num,line in enumerate(open(input.tsvs[0], 'r')):
-            if line_num == 0:
-                continue
-            tid, tpm, _ = line.rstrip().split('\t')
-            X_tpm[tid] = float(tpm)
-
+        my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True)
+        X_tpm = my_get_tpm(input.tsvs[0])
+        Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
         samples = wildcards.samples.split('.')
-        Y_tpms = []
-        for tsv in input.tsvs[1:]:
-            Y_tpm = Counter()
-            for line_num,line in enumerate(open(tsv, 'r')):
-                if line_num == 0:
-                    continue
-                tid, tpm, _ = line.rstrip().split('\t')
-                Y_tpm[tid] = float(tpm)
-            thruput = sum(Y_tpm.values())
-            for k,v in Y_tpm.items():
-                Y_tpm[k] = v / thruput * 1e6
-            Y_tpms.append(Y_tpm)
-        plot_tpm_func(X_tpm, Y_tpms, samples, output.png)
+        plot_tpm_func(X_tpm, Y_tpms, samples, output.png, title='TPM using TKSM abundance estimates')
 
 rule NS_analysis:
     input:
@@ -667,15 +636,13 @@ rule NS_analysis:
 
 rule NS_quantify:
     input:
-        reads = lambda wildcards: config['samples'][wildcards.sample]['fastq'],
+        reads = lambda wildcards: get_sample_fastqs(wildcards.sample),
     output:
         quantify_tsv = f'{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv',
     benchmark:
         f'{time_d}/{{sample}}/NS_quantify.benchmark',
     params:
-        dna  = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['DNA'],
         cdna = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['cDNA'],
-        gtf  = lambda wildcards: config['refs'][get_sample_ref(wildcards.sample)]['GTF'],
         output_prefix = f'{NS_d}/{{sample}}/abundance/sim',
     threads:
         32

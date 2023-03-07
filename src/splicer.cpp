@@ -105,6 +105,7 @@ public:
         double tpm     = 0;
         string comment = "";
         logi("Reading abundance file {} and printing simulated molecules to {}!", abundance_file, output_file);
+        std::getline(abundance_file_stream, buffer);  // skip header
         while (std::getline(abundance_file_stream, buffer)) {
             std::istringstream(buffer) >> tid >> tpm >> comment;
             format_annot_id(tid, !args["use-whole-id"].as<bool>());
