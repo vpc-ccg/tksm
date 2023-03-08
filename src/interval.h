@@ -308,7 +308,10 @@ public:
         : gtf(entry), abundance(abundance), comment(comment) {}
 
     friend ostream &operator<<(ostream &os, const transcript &t) {
-        os << static_cast<const gtf &>(t) << "\tabundance \"" << t.abundance << "\";\tmeta \""  << t.comment << "\";";
+        os << static_cast<const gtf &>(t) << "abundance \"" << t.abundance << "\";meta \""  << t.comment << "\";\n";
+        for(auto &exon : t.exons) {
+            os << exon << "\n";
+        }
         return os;
     }
     string to_abundance_str() const {
@@ -335,7 +338,8 @@ public:
     }
     void set_abundance(double abundance) { this->abundance = abundance; }
     double get_abundance() const { return abundance; }
-    vector<gtf> get_exons() const { return exons; }
+    vector<gtf> &get_exons() { return exons; }
+    const vector<gtf> &cget_exons() const { return exons; }
     auto get_exons(int start, int end) {
         return exons | std::ranges::views::filter([start, end](const gtf &exon) -> bool {
                    return exon.start >= start && exon.end <= end;

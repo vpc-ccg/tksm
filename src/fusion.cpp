@@ -57,6 +57,7 @@ public:
 
     auto get_position() const -> int { return position; }
 
+    auto is_plus_strand() const -> bool { return plus_strand; }
     auto to_string() const -> string { return chr + ":" + std::to_string(position) + (plus_strand ? "+" : "-"); }
 
     friend std::ostream &operator<<(std::ostream &os, const locus &loc) {
@@ -75,6 +76,8 @@ public:
 
     operator std::pair<string, int>() const { return {chr, position}; }
 };
+template <>
+struct fmt::formatter<locus> : ostream_formatter {};
 
 enum class EventType { DELETION, INVERSION, TRANSLOCATION, DUPLICATION, INSERTION, NONE };
 inline auto
@@ -122,7 +125,7 @@ public:
         transcript newt{gtf{i, gtf::entry_type::transcript}, 0};
         bool exon_has_been_cut = false;
         gtf cpy_exon;
-        for (const auto &exon : t.get_exons()) {
+        for (const auto &exon : t.cget_exons()) {
             int overlap = i.overlap(exon);
             if (overlap == 0) {
                 continue;
@@ -178,7 +181,9 @@ public:
                             head_cut_exon.value().end = this->start;  // Retain exon
                         }
                         fusion_transcript.add_exon(head_cut_exon.value());
-                        fusion_transcript.add_exon(tail_cut_exon.value());
+                        if(tail_cut_exon) {
+                            fusion_transcript.add_exon(tail_cut_exon.value());
+                        }
                     }
 
                     for (const auto &exon : pseudo_tail_transcript.get_exons()) {
@@ -201,6 +206,7 @@ public:
                     fusion_transcript.info["gene_name"]       = fusion_gene_name;
                     fusion_transcript.info["transcript_id"]   = fusion_transcript_id;
                     fusion_transcript.info["gene_id"]         = fusion_gene_id;
+                    return fusion_transcript;
                 }
                 break;
             case EventType::INVERSION:
@@ -227,11 +233,32 @@ public:
         }
         auto it = loci.lower_bound(get_start());
         if (it == loci.end()) {
+            for(const auto &l : loci) {
+                logd("{}", l);
+            }
+            logd("----------------");
+            for(const auto &m : molecules) {
+                for(const auto &t : m.second) {
+                    logd("{} - {}", m.first, t);
+                }
+            }
+            fmtlog::poll(true);
             throw std::runtime_error("Could not find start locus");
         }
         auto start_locus = *it;
         it               = loci.lower_bound(get_end());
         if (it == loci.end()) {
+
+            for(const auto &l : loci) {
+                logd("{}", l);
+            }
+            logd("----------------");
+            for(const auto &m : molecules) {
+                for(const auto &t : m.second) {
+                    logd("{} - {}", m.first, t);
+                }
+            }
+            fmtlog::poll(true);
             throw std::runtime_error("Could not find end locus");
         }
         auto end_locus = *it;
@@ -325,8 +352,16 @@ class Fusion_module::impl : public tksm_module {
     }
 
     cxxopts::ParseResult args;
+   
 
-    auto generate_fusions(vector<chimeric_event> &fusions_so_far, int fusion_count, const vector<gtf> &genes,
+    auto generate_random_breakpoint( const gtf &gene) -> locus{
+        std::uniform_int_distribution<int> breakpoint_selector(gene.start, gene.end);
+        return locus{gene.chr, breakpoint_selector(rand_gen), gene.plus_strand};
+
+    }
+
+
+    auto generate_fusions(vector<chimeric_event> &fusions_so_far, int total_fusion_count, const vector<gtf> &genes,
                           double translocation_ratio) -> vector<chimeric_event> {
         // Convert genes vector to a map of chr -> vector<gtf>
 
@@ -334,7 +369,7 @@ class Fusion_module::impl : public tksm_module {
         for (auto &gene : genes) {
             genes_by_chr[gene.chr].push_back(gene);
         }
-
+        int fusion_count = total_fusion_count - fusions_so_far.size();
         // Assuming distance between the first and last gene of chromosome estimates the size of the chromosome
         std::map<string, unsigned long> chr_size;
         std::map<string, int> fusion_count_per_chr;
@@ -353,6 +388,13 @@ class Fusion_module::impl : public tksm_module {
 
             fusion_count_per_chr[chr] = std::round(static_cast<double>(fusion_count) * chr_size[chr] / total_size);
             logi("Fusion count for chr {} is {}", chr, fusion_count_per_chr[chr]);
+        }
+        int calculated_fusions = std::accumulate(fusion_count_per_chr.begin(), fusion_count_per_chr.end(), 0,
+                                                 [](int a, const auto &b) { return a + b.second; });
+        for(int i = 0; i < fusion_count - calculated_fusions; i++) {
+            std::vector<std::pair<string, int>> v;
+            std::ranges::sample(fusion_count_per_chr, std::back_inserter(v), 1, rand_gen);
+            fusion_count_per_chr[v.begin()->first]++;
         }
         // Convert fusion vector to a map of chr -> vector<chimeric_event>
 
@@ -383,14 +425,20 @@ class Fusion_module::impl : public tksm_module {
             for (int i = 0; i < fusion_count; i += 2) {
                 auto &gene1 = genes_copy[i];
                 auto &gene2 = genes_copy[i + 1];
-
+                if( gene1.overlap(gene2) > 0){
+                    logd("Skipping fusion between overlapping genes {} and {}", gene1.info["gene_name"], gene2.info["gene_name"]);
+                    continue;
+                }
                 // if genes are on the same strand generate deletion else inversion
 
                 EventType event_type =
                     gene1.plus_strand != gene2.plus_strand ? EventType::INVERSION : EventType::DELETION;
+               
 
-                chimeric_event fusion{gene1.chr, gene1.end, gene2.start, gene1.plus_strand ? "+" : "-", event_type};
-                logi("Generated fusion: {}", fusion);
+                locus g1 = generate_random_breakpoint(gene1);
+                locus g2 = generate_random_breakpoint(gene2);
+                chimeric_event fusion{g1.get_chr(), g1.get_position(), g2.get_position(), g1.is_plus_strand()? "+" : "-", event_type};
+                logi("Generated fusion: {}, on genes {} and {}", fusion, gene1.info["gene_name"], gene2.info["gene_name"]);
                 fusions_so_far.push_back(fusion);
             }
         }
@@ -456,17 +504,20 @@ public:
         }
 
         logi("Generating fusions");
-        generate_fusions(fusions, fusion_count, genes, translocation_ratio);
-
+        while(fusions.size() < fusion_count){
+            generate_fusions(fusions, fusion_count, genes, translocation_ratio);
+            logd("Generated {}/{} fusions", fusions.size(), fusion_count);
+            fmtlog::poll(true);
+        }
         IITree<locus, chimeric_event> fusion_tree;
         IITree<locus, chimeric_event> deletion_tree;
-
+        int RANGE = 0;
         logi("Indexing fusions");
         for (auto &fusion : fusions) {
-            fusion_tree.add(fusion.get_start(), fusion.get_start() + 1, fusion);
-            fusion_tree.add(fusion.get_end(), fusion.get_end() + 1, fusion);
-            fusion_tree.add(fusion.get_start(false), fusion.get_start(false) + 1, fusion);
-            fusion_tree.add(fusion.get_end(false), fusion.get_end(false) + 1, fusion);
+            fusion_tree.add(fusion.get_start()-RANGE, fusion.get_start()+RANGE, fusion);
+            fusion_tree.add(fusion.get_end()-RANGE, fusion.get_end()+RANGE, fusion);
+            fusion_tree.add(fusion.get_start(false)-RANGE, fusion.get_start(false)+RANGE, fusion);
+            fusion_tree.add(fusion.get_end(false)-RANGE, fusion.get_end(false)+RANGE, fusion);
 
             if (fusion.event_type == EventType::DELETION) {
                 deletion_tree.add(fusion.get_start(), fusion.get_end(), fusion);
@@ -492,7 +543,7 @@ public:
             locus end{t.chr, t.end, t.plus_strand};
             vector<size_t> overlaps;
             fusion_tree.overlap(start, end, overlaps);
-            logi("Found {} overlaps, for {}:{}-{}", overlaps.size(), t.chr, t.start, t.end);
+
             for (auto &overlap : overlaps) {
                 const chimeric_event &event       = fusion_tree.data(overlap);
                 const locus &start                = fusion_tree.start(overlap);
@@ -500,6 +551,7 @@ public:
                 relevant_molecules[event][start].push_back(t);
             }
             if (overlaps.size() > 0) {
+                logi("Found {} overlaps, for {}:{}-{}", overlaps.size(), t.chr, t.start, t.end);
                 processed_transcripts.insert(t.info.at("transcript_id"));
             }
             overlaps.clear();
@@ -540,11 +592,14 @@ public:
                     }
                 }
             }
+            if(event.event_type == EventType::INVERSION){ // TODO remove this after inversion is implemented
+                continue;
+            }
             auto transcript_vec = event.execute_event(loci, rand_gen);
             logi("Creating {} fusion transcripts on event {}", transcript_vec.size(), event);
             for (auto &t : transcript_vec) {
                 output_file_stream << t.to_abundance_str() << "\n";
-                gtfo_file << t << "\n";
+                gtfo_file << t;
             }
         }
         return 0;

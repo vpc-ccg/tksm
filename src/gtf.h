@@ -226,23 +226,6 @@ read_gtf(const std::string &path2gtf) -> std::vector<gtf> {
     return gtf_entries;
 }
 
-inline auto
-read_gtf_genes(const std::string &path2gtf) -> std::vector<gtf> {
-    std::ifstream gtfile(path2gtf);
-    std::string buffer;
-    std::vector<gtf> genes;
-
-    while (std::getline(gtfile, buffer)) {
-        if (buffer[0] == '#') {
-            continue;
-        }
-        gtf entry{buffer};
-        if (entry.type == gtf::entry_type::gene) {
-            genes.push_back(entry);
-        }
-    }
-    return genes;
-}
 
 inline void 
 fillnames(gtf &entry){
@@ -261,6 +244,30 @@ fillnames(gtf &entry){
 }
 
 inline auto
+read_gtf_genes(const std::string &path2gtf, bool fill_names = true, bool skip_lnc=true) -> std::vector<gtf> {
+    std::ifstream gtfile(path2gtf);
+    std::string buffer;
+    std::vector<gtf> genes;
+
+    while (std::getline(gtfile, buffer)) {
+        if (buffer[0] == '#') {
+            continue;
+        }
+        gtf entry{buffer};
+        if (skip_lnc && entry.info["gene_biotype"] != "protein_coding") {
+            continue;
+        }
+        if (fill_names) {
+            fillnames(entry);
+        }
+        if (entry.type == gtf::entry_type::gene) {
+            genes.push_back(entry);
+        }
+    }
+    return genes;
+}
+
+inline auto
 read_gtf_transcripts_deep(const std::string &path2gtf, bool skip_lnc=true, bool fill_names=true) -> std::vector<transcript> {
    
     std::ifstream gtfile(path2gtf);
@@ -272,12 +279,15 @@ read_gtf_transcripts_deep(const std::string &path2gtf, bool skip_lnc=true, bool 
             continue;
         }
         gtf entry{buffer};
-        if( entry.info["gene_biotype"] == "lncRNA" && skip_lnc){
+        if( entry.info["gene_biotype"] != "protein_coding" && skip_lnc){
             continue;
         }
         if(fill_names){
             fillnames(entry);
         }
+//        if( entry.info["transcript_biotype"] != "protein_coding" && skip_lnc){
+//            continue;
+//        }
         if( entry.type == gtf::entry_type::transcript){
             transcripts.push_back(transcript{entry});
         }

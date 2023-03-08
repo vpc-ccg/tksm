@@ -39,17 +39,11 @@ truncate(molecule_descriptor &md, int truncated_length, int min_val = 100) {
         logd("After resize: {}", md.cget_segments().size());
     }
     int sum = 0;
-    for(const auto &g : md.cget_segments()){
+    for (const auto &g : md.cget_segments()) {
         sum += g.end - g.start;
     }
     logd("sum: {} truncated_len: {}", sum, truncated_length);
 }
-/*
-template <class Distribution>
-void truncate(molecule_descriptor &md, Distribution &dist, int min_val = 100){
-    return truncate(md, dist(rand_gen), min_val);
-}
-*/
 
 template <class RealType = double, class IndexType = long>
 class custom_distribution {
@@ -59,71 +53,36 @@ class custom_distribution {
 
     vector<RealType> pdfv;
     vector<RealType> cdfv;
-    vector<IndexType> values;
+    vector<IndexType> bins;
+    vector<std::uniform_int_distribution<int>> smoother_distros;
 
 public:
+    // clang-format off
     template <class IterType, class IterTypeV>
-    custom_distribution(IterType pd_beg, IterType pd_end, IterTypeV val_beg, IterTypeV val_end)
-        : uniform_dist{0.0, 1}, pdfv{pd_beg, pd_end}, cdfv{0}, values{val_beg, val_end} {
-        double sum_pdf = std::accumulate(pd_beg, pd_end, 0.0L);
+    custom_distribution(IterType pdf_beg, IterType pdf_end, IterTypeV bins_beg, IterTypeV bins_end) :
+            uniform_dist{0.0, 1},
+            pdfv{pdf_beg, pdf_end},
+            cdfv{0},
+            bins{bins_beg, bins_end} {
+        double sum_pdf = std::accumulate(pdf_beg, pdf_end, 0.0L);
         for (double d : pdfv) {
             cdfv.push_back(d / sum_pdf + cdfv.back());
         }
-    }
-    template <class IterType>
-    custom_distribution(IterType pd_beg, IterType pd_end, const vector<IndexType> &values)
-        : uniform_dist{0.0, 1}, pdfv{pd_beg, pd_end}, cdfv{0}, values{values} {
-        double sum_pdf = std::accumulate(pd_beg, pd_end, 0.0L);
-        for (double d : pdfv) {
-            cdfv.push_back(d / sum_pdf + cdfv.back());
+        smoother_distros.reserve(bins.size());
+        smoother_distros.emplace_back(0, bins.front());
+        for (auto it = bins.begin(); std::next(it) != bins.end(); ++it){
+            int current = *it;
+            int next = *(it + 1);
+            smoother_distros.emplace_back(current, next);
         }
     }
-    custom_distribution() {}
-    custom_distribution(const vector<RealType> &pdf, const vector<RealType> &values)
-        : uniform_dist{0.0, 1}, pdfv{pdf}, cdfv{0}, values{values} {
-        double sum_pdf = std::accumulate(pdf.begin(), pdf.end(), 0.0L);
-        for (double d : pdf) {
-            cdfv.push_back(d / sum_pdf + cdfv.back());
-        }
-    }
-
+    // clang-format on
     template <class Generator>
     result_type operator()(Generator &g) {
-        double val     = uniform_dist(g);
-        auto iter      = std::lower_bound(cdfv.cbegin(), cdfv.cend(), val);
-        auto val_index = std::distance(cdfv.cbegin(), iter);
-        --val_index;  // Because we add 0 to cdf
-
-        int range_before = 0;
-        int range_after  = 0;
-        // Uniformize
-        bool not_first = val_index != 0;
-        bool not_last  = val_index != ((long int)values.size() - 1);
-
-        if (not_first || not_last) {
-            bool odd_before = (values[val_index] - values[val_index - 1]) % 2 == 1;
-
-            if (odd_before) {
-                range_before = (values[val_index] - values[val_index - 1]) / 2;  // Rounds down
-            }
-            else {  // Same if added for clarity
-                range_before = (values[val_index] - values[val_index - 1]) / 2;
-            }
-        }
-        if (not_last) {
-            bool odd_after = (values[val_index + 1] - values[val_index]) % 2 == 1;
-            if (odd_after) {
-                range_after = (values[val_index + 1] - values[val_index]) / 2;  // Rounds down
-            }
-            else {
-                range_after = (values[val_index + 1] - values[val_index]) / 2 - 1;
-            }
-        }
-        std::uniform_int_distribution<int> smoother_dist(-range_before, range_after);
-        double ret = values[val_index] + smoother_dist(g);
-        logd("val_index: {} val: {} before_smooth: {} ret: {} range_before: {} range_after: {}", val_index, val,
-             values[val_index], ret, range_before, range_after);
-        return ret;
+        auto cdf_index_iter     = std::lower_bound(cdfv.cbegin(), cdfv.cend(), uniform_dist(g));
+        auto cdf_index = std::distance(cdfv.cbegin(), cdf_index_iter);
+        auto bin_index = cdf_index - 1;  // Because we add 0 to cdf
+        return smoother_distros[bin_index](g);
     }
 
     const vector<result_type> &cdf() const { return cdfv; }
