@@ -245,15 +245,15 @@ rule mapped_lengths:
         plt.savefig(output[0],dpi=300)        
 
 
-rule substition_stats:
+rule substitution_stats:
     input:
         paf = f'{preproc_d}/minimap2/{{sample}}.cDNA.paf',
     output:
-        tsv = f'{plots_d}/substition_stats/{{sample}}.substition_stats.tsv',
+        tsv = f'{plots_d}/substitution_stats/{{sample}}.substitution_stats.tsv',
     run:
         cigar_re = re.compile(r'(\d+)([M|I|D|N|S|H|P|=|X]{1})')
         with open(input.paf, 'r') as hand, open(output.tsv, 'w') as whand:
-            for line in tqdm(hand, desc=f'[substition_stats] Processing {input.paf}'):
+            for line in tqdm(hand, desc=f'[substitution_stats] Processing {input.paf}'):
                 if 'tp:A:P' not in line:
                     continue
                 fields = line.rstrip('\n').split('\t')
@@ -270,27 +270,26 @@ rule substition_stats:
                 print(match_c, subs_c, insert_c, del_c, int(fields[3])-int(fields[2]), sep='\t', file=whand)
 
 
-rule substition:
+rule substitution:
     input:
         tsvs = lambda wc: [
-            f'{plots_d}/substition_stats/{s}.substition_stats.tsv' 
+            f'{plots_d}/substitution_stats/{s}.substitution_stats.tsv' 
             for s in wc.samples.split('.')
         ],
     output:
-        f'{plots_d}/substition/{{samples}}.png'
+        f'{plots_d}/substitution/{{samples}}.png'
     params:
         bins=50
     run:
         samples = wildcards.samples.split('.')
-        fig, axs = plt.subplots(4)
-        fig.tight_layout()
-
+        fig, axs = plt.subplots(2,2, figsize=(12,4))
+        axs = axs.flatten()
         bb = [None,None,None,None]
         maxi = [0,0,0,0]
         print('Reading TSV files...')
-        for tsv,sample in tqdm(zip(input.tsvs, samples), total=len(input.tsvs), desc='[substition] Reading TSV files'):
+        for tsv,sample in tqdm(zip(input.tsvs, samples), total=len(input.tsvs), desc='[substitution] Reading TSV files'):
             counts = list()
-            for line in tqdm(open(tsv, 'r'), desc=f'[substition] Processing {tsv}'):
+            for line in tqdm(open(tsv, 'r'), desc=f'[substitution] Processing {tsv}'):
                 match_c, subs_c, insert_c, del_c, length = [
                     int(float(x)) 
                     for x in line.rstrip().split('\t')
@@ -301,36 +300,30 @@ rule substition:
                     l100*subs_c,
                     l100*insert_c,
                     l100*del_c,
-                )) 
+                ))
             for j,title in enumerate([
                 'match counts',
-                'substition counts',
+                'substitution counts',
                 'insertion counts',
                 'deletion counts'
             ]):
                 cc = np.array([x[j] for x in counts])
-                try:
-                    perc = np.percentile(cc, 99)
-                except:
-                    print(counts)
-                    raise
-                cc = cc[cc < perc]
                 _, bb[j], _ = axs[j].hist(
                     cc,
                     bins    = params.bins if bb[j] is None else bb[j],
                     alpha   = 0.3,
-                    label   = sample,
+                    label   = f'{sample}: (µ={np.mean(cc):.2f}, σ={np.std(cc):.2f})',
                     density = True,
                 )
+                axs[j].legend()
         for i,title in enumerate([
             'match counts',
-            'substition counts',
+            'substitution counts',
             'insertion counts',
             'deletion counts'
         ]):
             axs[i].set_title(f'{title} per 100 bases')
-        handles, labels = axs[i].get_legend_handles_labels()
-        fig.legend(handles, labels, loc='upper left')
+        fig.tight_layout()
         plt.savefig(output[0], dpi=300)
 
 rule polyA:
@@ -602,7 +595,7 @@ rule tpm_plot_tksm:
             for s in wc.samples.split('.')
         ],
     output:
-        png = f'{plots_d}/tpm_plot/{{samples}}.png',        
+        png = f'{plots_d}/tpm_plot_tksm/{{samples}}.png',        
     run:
         my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True)
         X_tpm = my_get_tpm(input.tsvs[0])

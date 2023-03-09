@@ -130,12 +130,19 @@ def main():
     kde_vals = kd.fit(len_values)
 
     print("Computing KDE with {} threads".format(args.threads))
-    X_idxs = np.arange(args.grid_start, args.grid_end, args.grid_step)
-    Y_idxs = np.arange(args.grid_start, args.grid_end, args.grid_step)
+    
+    X_idxs = np.arange(args.grid_start, args.grid_end+1, args.grid_step)
+    Y_idxs = np.arange(args.grid_start, args.grid_end+1, args.grid_step)
 
     XY = list()
     P = list()
-    linearized_grid = [[(x, y)] for x in X_idxs for y in Y_idxs]
+    linearized_grid = list()
+    for i,x in enumerate(X_idxs[:-1]):
+        for j,y in enumerate(Y_idxs[:-1]):
+            linearized_grid.append([(
+                (x + X_idxs[i+1])//2,
+                (y + Y_idxs[j+1])//2,
+            )])
     if args.threads > 1:
         p = Pool(args.threads)
         mapper = functools.partial(p.imap_unordered, chunksize=10)
@@ -153,7 +160,7 @@ def main():
     Y = np.array(XY)[:, 1]
     P = np.array(P)
     X, Y, P = sort_pp(X, Y, P)
-    P = np.exp(P).reshape(X_idxs.shape[0], Y_idxs.shape[0])
+    P = np.exp(P).reshape(X_idxs.shape[0]-1, Y_idxs.shape[0]-1)
 
     print("Writing output...")
     np.save(f"{args.output}.X_idxs.npy", X_idxs)
