@@ -8,6 +8,7 @@
 
 // Import kisims
 #include "abundance.h"
+#include "fusion.h"
 #include "head.h"
 #include "kde.h"
 #include "pcr.h"
@@ -17,7 +18,6 @@
 #include "splicer.h"
 #include "truncate.h"
 #include "umi.h"
-#include "fusion.h"
 
 using std::set;
 using std::string;
@@ -124,7 +124,6 @@ main(int argc, char **argv) {
     }
     else if (kisim == "fusion") {
         return Fusion_module{argc - 1, argv + 1}.run();
-
     }
     else if (kisim == "sequencer") {
         return Sequencer_module{argc - 1, argv + 1}.run();

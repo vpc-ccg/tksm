@@ -154,7 +154,7 @@ public:
         }
     }
 
-    auto fuse_transcripts(const transcript &t1, const transcript &t2) const -> transcript {
+    auto fuse_transcripts(const transcript &t1, const transcript &t2, auto rand_gen) const -> transcript {
         logd("{} {}", gtf::type_to_string(t1.type), gtf::type_to_string(t2.type));
 
         auto fusion_transcript_name =
@@ -166,64 +166,68 @@ public:
             fmt::format("{}{}{}", t1.info.at("transcript_id"), fusion_separator, t2.info.at("transcript_id"));
         auto fusion_gene_id = fmt::format("{}{}{}", t1.info.at("gene_id"), fusion_separator, t2.info.at("gene_id"));
 
-        switch (event_type) {
-            case EventType::DELETION:
-                if (t1.plus_strand != t2.plus_strand) {
-                    // Cannot fuse
-                }
-                else {
-                    auto [fusion_transcript, head_cut_exon] =
-                        cut_transcript(t1, this->start, CUT::HEAD);  // Start from the head
-                    auto [pseudo_tail_transcript, tail_cut_exon] = cut_transcript(t2, this->end, CUT::TAIL);
+        auto head_cut_orientation = [&]() -> CUT {
+            if (event_type == EventType::DELETION) {
+                return CUT::HEAD;
+            }
+            else if (event_type == EventType::INVERSION) {
+                std::uniform_real_distribution<double> dist(0, 1);
+                // Pick a random orientation, we might want to generate both, then we have to modify upstream code
+                return dist(rand_gen) > 0.5 ? CUT::HEAD : CUT::TAIL;
+            }
+            else {
+                throw std::runtime_error("Invalid event type " + event_type_to_string(event_type));
+            }
+        }();
 
-                    if (head_cut_exon) {
-                        if (!tail_cut_exon) {
-                            head_cut_exon.value().end = this->start;  // Retain exon
-                        }
-                        fusion_transcript.add_exon(head_cut_exon.value());
-                        if(tail_cut_exon) {
-                            fusion_transcript.add_exon(tail_cut_exon.value());
-                        }
-                    }
-
-                    for (const auto &exon : pseudo_tail_transcript.get_exons()) {
-                        fusion_transcript.add_exon(exon);
-                    }
-
-                    int number = 1;
-                    // Fix GTF info
-                    for (auto &exon : fusion_transcript.get_exons()) {
-                        exon.info["exon_number"]       = std::to_string(number++);
-                        exon.info["transcript_name"]   = fusion_transcript_name;
-                        exon.info["gene_name"]         = fusion_gene_name;
-                        exon.info["transcript_id"]     = fusion_transcript_id;
-                        exon.info["gene_id"]           = fusion_gene_id;
-                        exon.info["transcript_source"] = "TKSM";
-                        exon.info["tag"]               = "TKSM-fusion";
-                    }
-
-                    fusion_transcript.info["transcript_name"] = fusion_transcript_name;
-                    fusion_transcript.info["gene_name"]       = fusion_gene_name;
-                    fusion_transcript.info["transcript_id"]   = fusion_transcript_id;
-                    fusion_transcript.info["gene_id"]         = fusion_gene_id;
-                    return fusion_transcript;
-                }
-                break;
-            case EventType::INVERSION:
-                break;
-            case EventType::TRANSLOCATION:
-                break;
-            case EventType::DUPLICATION:
-                break;
-            case EventType::INSERTION:
-                break;
-            case EventType::NONE:
-                break;
-            default:
-                throw std::runtime_error("Invalid event type " + std::to_string(static_cast<int>(event_type)));
+        auto tail_cut_orientation = [&]() -> CUT {
+            if (event_type == EventType::DELETION) {
+                return CUT::TAIL;
+            }
+            else if (event_type == EventType::INVERSION) {
+                return head_cut_orientation;  // Inversion cuts the same orientation as the head
+            }
+            else {
+                throw std::runtime_error("Invalid event type " + event_type_to_string(event_type));
+            }
+        }();
+        auto [fusion_transcript, head_cut_exon]      = cut_transcript(t1, this->start, head_cut_orientation);
+        auto [pseudo_tail_transcript, tail_cut_exon] = cut_transcript(t2, this->end, tail_cut_orientation);
+        if (head_cut_exon) {
+            if (!tail_cut_exon) {
+                head_cut_exon.value().end = this->start;  // Retain exon
+            }
+            fusion_transcript.add_exon(head_cut_exon.value());
+            if (tail_cut_exon) {
+                fusion_transcript.add_exon(tail_cut_exon.value());
+            }
+        }
+        if (head_cut_orientation == CUT::TAIL) {
+            std::ranges::swap(fusion_transcript, pseudo_tail_transcript);
+            // TODO: Reverse the exons if required, I might merge deletion and inversion after this
+            // preprocessing
+        }
+        for (const auto &exon : pseudo_tail_transcript.get_exons()) {
+            fusion_transcript.add_exon(exon);
+        }
+        int number = 1;
+        // Fix GTF info
+        for (auto &exon : fusion_transcript.get_exons()) {
+            exon.info["exon_number"]       = std::to_string(number++);
+            exon.info["transcript_name"]   = fusion_transcript_name;
+            exon.info["gene_name"]         = fusion_gene_name;
+            exon.info["transcript_id"]     = fusion_transcript_id;
+            exon.info["gene_id"]           = fusion_gene_id;
+            exon.info["transcript_source"] = "TKSM-" + event_type_to_string(event_type);
+            exon.info["tag"]               = "TKSM-fusion";
         }
 
-        return t1;
+        fusion_transcript.info["transcript_name"] = fusion_transcript_name;
+        fusion_transcript.info["gene_name"]       = fusion_gene_name;
+        fusion_transcript.info["transcript_id"]   = fusion_transcript_id;
+        fusion_transcript.info["gene_id"]         = fusion_gene_id;
+        fusion_transcript.end                     = pseudo_tail_transcript.end;
+        return fusion_transcript;
     }
 
     auto execute_event(const map<locus, vector<transcript>> &molecules, auto &rand_gen) const -> vector<transcript> {
@@ -233,12 +237,12 @@ public:
         }
         auto it = loci.lower_bound(get_start());
         if (it == loci.end()) {
-            for(const auto &l : loci) {
+            for (const auto &l : loci) {
                 logd("{}", l);
             }
             logd("----------------");
-            for(const auto &m : molecules) {
-                for(const auto &t : m.second) {
+            for (const auto &m : molecules) {
+                for (const auto &t : m.second) {
                     logd("{} - {}", m.first, t);
                 }
             }
@@ -248,13 +252,12 @@ public:
         auto start_locus = *it;
         it               = loci.lower_bound(get_end());
         if (it == loci.end()) {
-
-            for(const auto &l : loci) {
+            for (const auto &l : loci) {
                 logd("{}", l);
             }
             logd("----------------");
-            for(const auto &m : molecules) {
-                for(const auto &t : m.second) {
+            for (const auto &m : molecules) {
+                for (const auto &t : m.second) {
                     logd("{} - {}", m.first, t);
                 }
             }
@@ -273,7 +276,7 @@ public:
             for (const auto &end_molecule : end_molecules) {
                 logd("Fusing {} and {}", start_molecule, end_molecule);
                 fmtlog::poll(true);
-                fused_transcripts.push_back(fuse_transcripts(start_molecule, end_molecule));
+                fused_transcripts.push_back(fuse_transcripts(start_molecule, end_molecule, rand_gen));
             }
         }
         return fused_transcripts;
@@ -352,21 +355,18 @@ class Fusion_module::impl : public tksm_module {
     }
 
     cxxopts::ParseResult args;
-   
 
-    auto generate_random_breakpoint( const gtf &gene) -> locus{
+    auto generate_random_breakpoint(const gtf &gene) -> locus {
         std::uniform_int_distribution<int> breakpoint_selector(gene.start, gene.end);
         return locus{gene.chr, breakpoint_selector(rand_gen), gene.plus_strand};
-
     }
 
-
-    auto generate_fusions(vector<chimeric_event> &fusions_so_far, int total_fusion_count, const vector<gtf> &genes,
+    auto generate_fusions(vector<chimeric_event> &fusions_so_far, int total_fusion_count, const map<string, gtf> &genes,
                           double translocation_ratio) -> vector<chimeric_event> {
         // Convert genes vector to a map of chr -> vector<gtf>
 
         std::map<string, vector<gtf>> genes_by_chr;
-        for (auto &gene : genes) {
+        for (auto &[gene_id, gene] : genes) {
             genes_by_chr[gene.chr].push_back(gene);
         }
         int fusion_count = total_fusion_count - fusions_so_far.size();
@@ -391,7 +391,7 @@ class Fusion_module::impl : public tksm_module {
         }
         int calculated_fusions = std::accumulate(fusion_count_per_chr.begin(), fusion_count_per_chr.end(), 0,
                                                  [](int a, const auto &b) { return a + b.second; });
-        for(int i = 0; i < fusion_count - calculated_fusions; i++) {
+        for (int i = 0; i < fusion_count - calculated_fusions; i++) {
             std::vector<std::pair<string, int>> v;
             std::ranges::sample(fusion_count_per_chr, std::back_inserter(v), 1, rand_gen);
             fusion_count_per_chr[v.begin()->first]++;
@@ -425,24 +425,39 @@ class Fusion_module::impl : public tksm_module {
             for (int i = 0; i < fusion_count; i += 2) {
                 auto &gene1 = genes_copy[i];
                 auto &gene2 = genes_copy[i + 1];
-                if( gene1.overlap(gene2) > 0){
-                    logd("Skipping fusion between overlapping genes {} and {}", gene1.info["gene_name"], gene2.info["gene_name"]);
+                if (gene1.overlap(gene2) > 0) {
+                    logd("Skipping fusion between overlapping genes {} and {}", gene1.info["gene_name"],
+                         gene2.info["gene_name"]);
                     continue;
                 }
                 // if genes are on the same strand generate deletion else inversion
 
                 EventType event_type =
                     gene1.plus_strand != gene2.plus_strand ? EventType::INVERSION : EventType::DELETION;
-               
 
                 locus g1 = generate_random_breakpoint(gene1);
                 locus g2 = generate_random_breakpoint(gene2);
-                chimeric_event fusion{g1.get_chr(), g1.get_position(), g2.get_position(), g1.is_plus_strand()? "+" : "-", event_type};
-                logi("Generated fusion: {}, on genes {} and {}", fusion, gene1.info["gene_name"], gene2.info["gene_name"]);
+                chimeric_event fusion{g1.get_chr(), g1.get_position(), g2.get_position(),
+                                      g1.is_plus_strand() ? "+" : "-", event_type};
+                logi("Generated fusion: {}, on genes {} and {}", fusion, gene1.info["gene_name"],
+                     gene2.info["gene_name"]);
                 fusions_so_far.push_back(fusion);
             }
         }
         return fusions_so_far;
+    }
+
+    gtf combine_gene_entries(const gtf &gene1, const gtf &gene2) {
+        gtf gene;
+        gene.chr               = gene1.chr;
+        gene.start             = std::min(gene1.start, gene2.start);
+        gene.end               = std::max(gene1.end, gene2.end);
+        gene.plus_strand       = gene1.plus_strand;
+        gene.info              = gene1.info;
+        gene.info["gene_name"] = gene1.info.at("gene_name") + "::" + gene2.info.at("gene_name");
+        gene.info["gene_id"]   = gene1.info.at("gene_id") + "::" + gene2.info.at("gene_id");
+        gene.type              = gtf::entry_type::gene;
+        return gene;
     }
 
 public:
@@ -485,7 +500,7 @@ public:
         std::string abundance_file = args["abundance"].as<string>();
         std::string output_file    = args["output"].as<string>();
 
-        int fusion_count                        = args["fusion-count"].as<int>();
+        size_t fusion_count                     = args["fusion-count"].as<int>();
         double translocation_ratio              = args["translocation-ratio"].as<double>();
         [[maybe_unused]] bool disable_deletions = args["disable-deletions"].as<bool>();
 
@@ -497,14 +512,17 @@ public:
         }
 
         vector<transcript> transcripts = read_gtf_transcripts_deep(gtf_file);
-        vector<gtf> genes              = read_gtf_genes(gtf_file);
+        map<string, gtf> genes;
+        for (const gtf &g : read_gtf_genes(gtf_file)) {
+            genes[g.info.at("gene_id")] = g;
+        }
         map<string, gtf> transcripts_by_id;
         for (auto &transcript : transcripts) {
             transcripts_by_id[transcript.info["transcript_id"]] = transcript;
         }
 
         logi("Generating fusions");
-        while(fusions.size() < fusion_count){
+        while (fusions.size() < fusion_count) {
             generate_fusions(fusions, fusion_count, genes, translocation_ratio);
             logd("Generated {}/{} fusions", fusions.size(), fusion_count);
             fmtlog::poll(true);
@@ -514,10 +532,10 @@ public:
         int RANGE = 0;
         logi("Indexing fusions");
         for (auto &fusion : fusions) {
-            fusion_tree.add(fusion.get_start()-RANGE, fusion.get_start()+RANGE, fusion);
-            fusion_tree.add(fusion.get_end()-RANGE, fusion.get_end()+RANGE, fusion);
-            fusion_tree.add(fusion.get_start(false)-RANGE, fusion.get_start(false)+RANGE, fusion);
-            fusion_tree.add(fusion.get_end(false)-RANGE, fusion.get_end(false)+RANGE, fusion);
+            fusion_tree.add(fusion.get_start() - RANGE, fusion.get_start() + RANGE, fusion);
+            fusion_tree.add(fusion.get_end() - RANGE, fusion.get_end() + RANGE, fusion);
+            fusion_tree.add(fusion.get_start(false) - RANGE, fusion.get_start(false) + RANGE, fusion);
+            fusion_tree.add(fusion.get_end(false) - RANGE, fusion.get_end(false) + RANGE, fusion);
 
             if (fusion.event_type == EventType::DELETION) {
                 deletion_tree.add(fusion.get_start(), fusion.get_end(), fusion);
@@ -583,6 +601,7 @@ public:
         logi("Skipped {} transcripts out of {}", skipped, total_count);
         logi("Creating fusion transcripts");
         std::ofstream gtfo_file{args["gtfo"].as<string>()};
+        string current_gene = "";
         for (auto &[event, loci] : relevant_molecules) {
             for (auto &l : loci) {
                 for (auto &t : l.second) {
@@ -592,13 +611,15 @@ public:
                     }
                 }
             }
-            if(event.event_type == EventType::INVERSION){ // TODO remove this after inversion is implemented
-                continue;
-            }
             auto transcript_vec = event.execute_event(loci, rand_gen);
             logi("Creating {} fusion transcripts on event {}", transcript_vec.size(), event);
             for (auto &t : transcript_vec) {
                 output_file_stream << t.to_abundance_str() << "\n";
+                if (t.info["gene_id"] != current_gene) {
+                    current_gene              = t.info["gene_id"];
+                    vector<string> gene_names = rsplit(current_gene, "::");
+                    gtfo_file << combine_gene_entries(genes.at(gene_names[0]), genes.at(gene_names[1]));
+                }
                 gtfo_file << t;
             }
         }

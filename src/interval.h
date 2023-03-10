@@ -287,6 +287,7 @@ struct gtf : public ginterval {
         for (auto iter = g.info.begin(); iter != g.info.end(); ++iter) {
             os << iter->first << " \"" << iter->second << "\";";
         }
+        os << "\n";
         return os;
     }
     string to_string() const {
@@ -308,9 +309,9 @@ public:
         : gtf(entry), abundance(abundance), comment(comment) {}
 
     friend ostream &operator<<(ostream &os, const transcript &t) {
-        os << static_cast<const gtf &>(t) << "abundance \"" << t.abundance << "\";meta \""  << t.comment << "\";\n";
+        os << static_cast<const gtf &>(t);
         for(auto &exon : t.exons) {
-            os << exon << "\n";
+            os << exon;
         }
         return os;
     }
