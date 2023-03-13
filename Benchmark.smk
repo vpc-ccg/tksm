@@ -436,12 +436,12 @@ rule polyA:
         plt.savefig(output[0], dpi=300)
 
 
-rule abundance:
+rule tksm_abundance:
     input:
         binary=config["exec"]["tksm"],
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     output:
-        tsv=f"{plots_d}/expression_stats/{{sample}}.expression_stats.tsv",
+        tsv=f"{plots_d}/expression_stats/{{sample}}.tksm.tsv",
     shell:
         "{input.binary} abundance"
         " -p {input.paf}"
@@ -492,7 +492,7 @@ rule LIQA_quantify:
         refgen=lambda wildcards: f"{config['refs'][get_sample_ref(wildcards.sample)]['GTF']}.refgene",
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
     output:
-        tsv=f"{plots_d}/expression_stats/{{sample}}.LIQA.tsv",
+        tsv=f"{plots_d}/expression_stats/{{sample}}.liqa.tsv",
     threads: 16
     shell:
         "python3 extern/LIQA/liqa_src/liqa.py"
@@ -505,11 +505,11 @@ rule LIQA_quantify:
         " -threads {threads} > /dev/null"
 
 
-rule paf_quantify:
+rule minimap_quantify:
     input:
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     output:
-        tsv=f"{plots_d}/expression_stats/{{sample}}.PAF.tsv",
+        tsv=f"{plots_d}/expression_stats/{{sample}}.minimap2.tsv",
     run:
         tid_to_count = Counter()
         for line in tqdm(
@@ -526,27 +526,38 @@ rule paf_quantify:
                 f.write(f"{tid}\t{count}\n")
 
 
-rule nanosim_quantify:
+rule NS_quantify_cp:
     input:
-        paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
+        tsv=f"{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv",
     output:
         tsv=f"{plots_d}/expression_stats/{{sample}}.nanosim.tsv",
     shell:
-        "nanopore_transcript_abundance.py"
-        " -i {input.paf}"
-        " > {output.tsv}"
+        "cp {input.tsv} {output.tsv}"
 
 
-rule tpm_plot_nanosim:
+rule tpm_plot:
     input:
         tsvs=lambda wc: [
-            f"{NS_d}/{s}/abundance/sim_transcriptome_quantification.tsv"
+            f"{plots_d}/expression_stats/{s}.{wc.tpm_method}.tsv"
             for s in wc.samples.split(".")
         ],
     output:
-        png=f"{plots_d}/tpm_plot_nanosim/{{samples}}.png",
+        png=f"{plots_d}/tpm_plot_{{tpm_method}}/{{samples}}.png",
     run:
-        my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=2, header=True)
+        if wildcards.tpm_method == "minimap2":
+            my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True, min_val=0.99)
+            title = "minimap2 primary alignments"
+        elif wildcards.tpm_method == "nanosim":
+            my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=2, header=True)
+            title = "Nanosim abundance estimates"
+        elif wildcards.tpm_method == "liqa":
+            my_get_tpm = functools.partial(get_tpm, key_col=1, val_col=2, header=True)
+            title = "LIQA abundance estimates"
+        elif wildcards.tpm_method == "tksm":
+            my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True)
+            title = "TKSM abundance estimates"
+        else:
+            raise ValueError(f"Unknown tpm_method: {wildcards.tpm_method}")
         X_tpm = my_get_tpm(input.tsvs[0])
         Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
         samples = wildcards.samples.split(".")
@@ -555,28 +566,7 @@ rule tpm_plot_nanosim:
             Y_tpms,
             samples,
             output.png,
-            title="TPM using Nanosim abundance estimates",
-        )
-
-
-rule tpm_plot_paf:
-    input:
-        tsvs=lambda wc: [
-            f"{plots_d}/expression_stats/{s}.PAF.tsv" for s in wc.samples.split(".")
-        ],
-    output:
-        png=f"{plots_d}/tpm_plot_paf/{{samples}}.png",
-    run:
-        my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True)
-        X_tpm = my_get_tpm(input.tsvs[0])
-        Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
-        samples = wildcards.samples.split(".")
-        plot_tpm_func(
-            X_tpm,
-            Y_tpms,
-            samples,
-            output.png,
-            title="TPM using minimap2 primary alignments",
+            title=f"TPM using {title}",
         )
 
 
@@ -650,45 +640,6 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
             ax.set_yscale("log")
     fig.tight_layout()
     plt.savefig(outpath)
-
-
-rule tpm_plot_liqa:
-    input:
-        tsvs=lambda wc: [
-            f"{plots_d}/expression_stats/{s}.LIQA.tsv" for s in wc.samples.split(".")
-        ],
-    output:
-        png=f"{plots_d}/tpm_plot_liqa/{{samples}}.png",
-    run:
-        my_get_tpm = functools.partial(
-            get_tpm, min_val=0.99, key_col=1, val_col=2, header=True
-        )
-        X_tpm = my_get_tpm(input.tsvs[0])
-        Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
-        samples = wildcards.samples.split(".")
-        plot_tpm_func(X_tpm, Y_tpms, samples, output.png, "TPM using LIQA")
-
-
-rule tpm_plot_tksm:
-    input:
-        tsvs=lambda wc: [
-            f"{plots_d}/expression_stats/{s}.expression_stats.tsv"
-            for s in wc.samples.split(".")
-        ],
-    output:
-        png=f"{plots_d}/tpm_plot_tksm/{{samples}}.png",
-    run:
-        my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True)
-        X_tpm = my_get_tpm(input.tsvs[0])
-        Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
-        samples = wildcards.samples.split(".")
-        plot_tpm_func(
-            X_tpm,
-            Y_tpms,
-            samples,
-            output.png,
-            title="TPM using TKSM abundance estimates",
-        )
 
 
 rule NS_analysis:

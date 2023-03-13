@@ -1,5 +1,4 @@
-outpath:
-    /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
+outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
 
 ### Pipeline modules
 # Xpr : expression  --> Must be first module only
@@ -13,86 +12,46 @@ outpath:
 # Trc : truncate
 # Seq : sequence --> Must be last module
 TS_experiments:
-    # e1:
-    #     sample : "N1_chr21"
-    #     pipeline:
-    #         - Xpr_sc:
-    #             ''
-    #         - Spc:
-    #             '--molecule-count 1000000'
-    #         - plA:
-    #             '--normal=40,10 --min-length=5'
-    #         - SCB:
-    #             ''
-    #         - UMI:
-    #             '--format5 10'
-    #         - PCR:
-    #             '--cycles 5 -x Taq-setting1'
-    #         - Trc:
-    #             ''
-    #         - Seq:
-    #             '--other-br="--tail_noise_model=nanopore"'
     small_sc_1:
-        sample : 'N1_chr21'
+        sample: "N1_chr21"
         pipeline:
-            - Xpr_sc:
-                ''
-            - Spc:
-                '--molecule-count 10000'
-            - plA:
-                '--normal=40,10 --min-length=5'
-            - SCB:
-                ''
-            - UMI:
-                '--format5 10'
-            - PCR:
-                '--cycles 3 -x Taq-setting1 --molecule-count 10000'
-            - Trc:
-                ''
-            - Seq:
-                '--skip-qual-compute'
+            - Xpr_sc: ""
+            - Spc: "--molecule-count 10000"
+            - plA: "--normal=40,10 --min-length=5"
+            - SCB: ""
+            - UMI: "--format5 10"
+            - PCR: "--cycles 3 -x Taq-setting1 --molecule-count 10000"
+            - Trc: ""
+            - Seq: "--skip-qual-compute"
 
 exec:
-    tksm:
-        build/bin/tksm
+    tksm: build/bin/tksm
 
 refs:
     Homo_sapiens:
-        cDNA:
-            data/refs/Homo_sapiens.GRCh38.cdna.chr.fa
-        DNA:
-            data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
-        GTF:
-            data/refs/Homo_sapiens.GRCh38.108.chr.gtf
+        cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr.fa
+        DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+        GTF: data/refs/Homo_sapiens.GRCh38.108.chr.gtf
     Homo_sapiens_chr21:
-        cDNA:
-            data/refs/Homo_sapiens.GRCh38.cdna.chr21.fa
-        DNA:
-            data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.chr21.fa
-        GTF:
-            data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
-    10x_bc:
-        data/refs/3M-february-2018.txt.gz
-
+        cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr21.fa
+        DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.chr21.fa
+        GTF: data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
+    10x_bc: data/refs/3M-february-2018.txt.gz
 
 samples:
-    'MCF7-sgnex':
+    "MCF7-sgnex":
         fastq:
             - data/samples/MCF7-sgnex.fastq.gz
-        ref:
-            Homo_sapiens
-    'MCF7-sgnex_chr21':
+        ref: Homo_sapiens
+    "MCF7-sgnex_chr21":
         fastq:
             - data/samples/MCF7-sgnex_subsample.fastq.gz
-        ref:
-            Homo_sapiens_chr21
-    'N1':
+        ref: Homo_sapiens_chr21
+    "N1":
         fastq:
             - data/samples/N1.fastq
-        ref:
-            Homo_sapiens
-    'N1_chr21':
+        ref: Homo_sapiens
+    "N1_chr21":
         fastq:
             - data/samples/N1_subsample.fastq.gz
-        ref:
-            Homo_sapiens_chr21
+        ref: Homo_sapiens_chr21
