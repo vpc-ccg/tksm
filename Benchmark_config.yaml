@@ -33,7 +33,7 @@ NS_experiments:
     NS_1:
         sample : 'MCF7-sgnex'
         simulation_params:
-            '-n 5000000 --seed 42'
+            '-n 1000000 --seed 42'
     NS_1_chr21:
         sample : 'MCF7-sgnex_chr21'
         simulation_params:
@@ -66,15 +66,15 @@ plots:
             mapped_lengths,
             substitution,
             polyA,
-            # tpm_plot_tksm,
+            tpm_plot_tksm,
             # tpm_plot_liqa,
-            # tpm_plot_paf,
-            # tpm_plot_nanosim,
+            tpm_plot_paf,
+            tpm_plot_nanosim,
         ],
         data: [
-            MCF7-sgnex_chr21,
-            # NS_1,
-            TS_1_chr21,
+            MCF7-sgnex,
+            NS_1,
+            TS_1,
         ],
     }
     

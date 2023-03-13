@@ -403,6 +403,7 @@ rule LIQA_refgene:
         ' -format gtf'
         ' -ref {input.gtf}'
         ' -out {output.refgen}'
+        ' -m 1'
 
 rule minimap_dna:
     input:
@@ -536,6 +537,7 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
         sharex=True,
         sharey=True,
         figsize=(10*3,10*plot_count),
+        squeeze=False,
     )
     fig.suptitle(title, fontsize=30)
     axs[0,0].set_title('Transcripts in sample AND in input', fontsize=28)
