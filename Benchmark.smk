@@ -545,37 +545,70 @@ rule tpm_plot:
         png=f"{plots_d}/tpm_plot_{{tpm_method}}/{{samples}}.png",
     run:
         if wildcards.tpm_method == "minimap2":
-            my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True, min_val=0.99)
-            title = "minimap2 primary alignments"
+            my_get_tpm = functools.partial(
+                get_tpm,
+                key_col=0,
+                val_col=1,
+                header=True,
+            )
+            my_plot_tpm_func = functools.partial(
+                plot_tpm_func,
+                title="TPM using minimap2 primary alignments",
+            )
         elif wildcards.tpm_method == "nanosim":
-            my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=2, header=True)
-            title = "Nanosim abundance estimates"
+            my_get_tpm = functools.partial(
+                get_tpm,
+                key_col=0,
+                val_col=2,
+                header=True,
+            )
+            my_plot_tpm_func = functools.partial(
+                plot_tpm_func,
+                title="TPM using Nanosim abundance estimates",
+            )
         elif wildcards.tpm_method == "liqa":
-            my_get_tpm = functools.partial(get_tpm, key_col=1, val_col=2, header=True)
-            title = "LIQA abundance estimates"
+            my_get_tpm = functools.partial(
+                get_tpm,
+                key_col=1,
+                val_col=2,
+                header=True,
+            )
+            my_plot_tpm_func = functools.partial(
+                plot_tpm_func,
+                title="TPM using LIQA abundance estimates",
+            )
         elif wildcards.tpm_method == "tksm":
-            my_get_tpm = functools.partial(get_tpm, key_col=0, val_col=1, header=True)
-            title = "TKSM abundance estimates"
+            my_get_tpm = functools.partial(
+                get_tpm,
+                key_col=0,
+                val_col=1,
+                header=True,
+            )
+            my_plot_tpm_func = functools.partial(
+                plot_tpm_func,
+                title="TPM using TKSM abundance estimates",
+            )
         else:
             raise ValueError(f"Unknown tpm_method: {wildcards.tpm_method}")
         X_tpm = my_get_tpm(input.tsvs[0])
         Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
         samples = wildcards.samples.split(".")
-        plot_tpm_func(
+        my_plot_tpm_func(
             X_tpm,
             Y_tpms,
             samples,
             output.png,
-            title=f"TPM using {title}",
         )
 
 
-def get_tpm(tsv, min_tpm=0.001, min_val=0.0, key_col=0, val_col=1, header=True):
+def get_tpm(
+    tsv, min_tpm=0.01, min_val=0.0, key_col=0, val_col=1, header=True, sep="\t"
+):
     tpm = Counter()
     for line_num, line in enumerate(open(tsv, "r")):
         if header and line_num == 0:
             continue
-        line = line.rstrip().split("\t")
+        line = line.rstrip().split(sep)
         key = line[key_col]
         val = float(line[val_col])
         if val > min_val:
