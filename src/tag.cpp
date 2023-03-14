@@ -1,4 +1,4 @@
-#include "umi.h"
+#include "tag.h"
 
 #include <cxxopts.hpp>
 #include <random>
@@ -15,7 +15,7 @@ using std::string;
 using std::vector;
 
 
-class UMI_module::impl : public tksm_module {
+class TAG_module::impl : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
@@ -33,11 +33,11 @@ class UMI_module::impl : public tksm_module {
                 cxxopts::value<string>()
             )(
                 "5,format5",
-                "5' UMI format",
+                "5' TAG format",
                 cxxopts::value<string>()->default_value("")
             )(
                 "3,format3",
-                "3' UMI format",
+                "3' TAG format",
                 cxxopts::value<string>()->default_value("")
             )(
                 "contig-prefix",
@@ -51,7 +51,7 @@ class UMI_module::impl : public tksm_module {
     cxxopts::ParseResult args;
 
 public:
-    impl(int argc, char **argv) : tksm_module{"umi", "UMI tagging module"}, args(parse(argc, argv)) {}
+    impl(int argc, char **argv) : tksm_module{"umi", "TAGging module"}, args(parse(argc, argv)) {}
     ~impl() = default;
     int validate_arguments() {
         std::vector<string> mandatory = {"input", "output", "umi-fasta"};
@@ -64,7 +64,7 @@ public:
         }
 
         if (args["format5"].as<string>().empty() && args["format3"].as<string>().empty()) {
-            loge("At least one of the UMI formats must be provided");
+            loge("At least one of the TAG formats must be provided");
             ++missing_parameters;
         }
 
@@ -91,7 +91,7 @@ public:
 
         auto streamer = stream_mdf(mdf_file);
 
-        logi("Adding UMI tags");
+        logi("Adding tags");
 
         if (isdigit(format5[0])) {
             int len = std::stoi(format5);
@@ -108,7 +108,7 @@ public:
         string umi_ctg_prefix = args["contig-prefix"].as<string>();
 
         string outfile_name = args["output"].as<string>();
-        logi("Adding UMIs and printing to: {}", outfile_name);
+        logi("Adding TAGs and printing to: {}", outfile_name);
         fmtlog::poll(true);
         std::ofstream outfile{outfile_name};
         std::string umi_ref_file = args["umi-fasta"].as<string>();
@@ -140,16 +140,16 @@ public:
     }
 
     void describe_program() {
-        logi("Running UMI tagging module");
+        logi("Running TAGging module");
         logi("Input MDF: {}", args["input"].as<string>());
         logi("Output MDF: {}", args["output"].as<string>());
-        logi("Output UMI FASTA: {}", args["umi-fasta"].as<string>());
-        logi("5' UMI tag format: {}", args["format5"].as<string>());
-        logi("3' UMI tag format: {}", args["format3"].as<string>());
+        logi("Output TAG FASTA: {}", args["umi-fasta"].as<string>());
+        logi("5' tag format: {}", args["format5"].as<string>());
+        logi("3' tag format: {}", args["format3"].as<string>());
         logi("Random seed: {}", args["seed"].as<int>());
         fmtlog::poll(true);
     }
 };
 
 
-MODULE_IMPLEMENT_PIMPL_CLASS(UMI_module)
+MODULE_IMPLEMENT_PIMPL_CLASS(TAG_module)

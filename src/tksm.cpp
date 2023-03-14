@@ -17,7 +17,7 @@
 #include "single-cell-barcoder.h"
 #include "splicer.h"
 #include "truncate.h"
-#include "umi.h"
+#include "tag.h"
 
 using std::set;
 using std::string;
@@ -31,7 +31,7 @@ using std::vector;
 vector<string> kisims = {
     "abundance",
     "splicer",
-    "umi",
+    "tag",
     "polyA",
     "single-cell-barcoder",
     "pcr",
@@ -107,8 +107,8 @@ main(int argc, char **argv) {
     else if (kisim == "splicer") {
         return Splicer_module{argc - 1, argv + 1}.run();
     }
-    else if (kisim == "umi") {
-        return UMI_module{argc - 1, argv + 1}.run();
+    else if (kisim == "tag") {
+        return TAG_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "polyA") {
         return PolyA_module{argc - 1, argv + 1}.run();

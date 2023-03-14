@@ -1,4 +1,4 @@
-#include "umi.h"
+#include "head.h"
 #include <iterator>
 #include <string>
 #include <fstream>
@@ -44,7 +44,7 @@ int main(int argc, char **argv){
         return 1;
     }
 
-    auto streamer = stream_mdf(stdin, true);
+    auto streamer = stream_mdf(std::cin, true);
 
 
     for( int i = 0; i < args["count"].as<int>() && streamer; ++i){

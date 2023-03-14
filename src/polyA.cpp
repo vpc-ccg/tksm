@@ -15,8 +15,6 @@
 #endif
 
 class PolyA_module::impl : public tksm_module {
-    // copy of the UMI_module from src/umi.h
-
 private:
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off

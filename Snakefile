@@ -185,7 +185,7 @@ rule umi:
             component_idx(wc.prefix)
         ]["UMI"],
     shell:
-        "{input.binary} umi"
+        "{input.binary} tag"
         " -i {input.mdf}"
         " -o {output.mdf}"
         " -f {output.fasta}"
