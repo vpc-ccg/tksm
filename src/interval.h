@@ -348,6 +348,12 @@ public:
     }
 
     string get_comment() const { return comment; }
+
+    auto operator ==(const transcript &other) const -> bool {
+        return exons == other.exons && info.at("transcript_id") == other.info.at("transcript_id") &&
+               info.at("gene_id") == other.info.at("gene_id") && info.at("gene_name") == other.info.at("gene_name") &&
+               start == other.start && end == other.end && chr == other.chr && plus_strand == other.plus_strand;
+    }
 };
 
 /*

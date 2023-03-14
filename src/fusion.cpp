@@ -8,6 +8,7 @@
 #include <ranges>
 #include <set>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "gtf.h"
@@ -19,6 +20,14 @@
 using std::set;
 using std::string;
 using std::vector;
+namespace sr = std::ranges;
+
+class runtime_error :   public std::runtime_error {
+public:
+    runtime_error(const string &msg) : std::runtime_error(msg) {
+        fmtlog::poll(true);
+    }
+};
 
 string fusion_separator = "::";
 class locus {
@@ -96,7 +105,7 @@ event_type_to_string(EventType type) -> string {
         case EventType::NONE:
             return "none";
         default:
-            throw std::runtime_error("Invalid event type " + std::to_string(static_cast<int>(type)));
+            throw runtime_error("Invalid event type " + std::to_string(static_cast<int>(type)));
     }
 }
 
@@ -176,7 +185,7 @@ public:
                 return dist(rand_gen) > 0.5 ? CUT::HEAD : CUT::TAIL;
             }
             else {
-                throw std::runtime_error("Invalid event type " + event_type_to_string(event_type));
+                throw runtime_error("Invalid event type " + event_type_to_string(event_type));
             }
         }();
 
@@ -188,7 +197,7 @@ public:
                 return head_cut_orientation;  // Inversion cuts the same orientation as the head
             }
             else {
-                throw std::runtime_error("Invalid event type " + event_type_to_string(event_type));
+                throw runtime_error("Invalid event type " + event_type_to_string(event_type));
             }
         }();
         auto [fusion_transcript, head_cut_exon]      = cut_transcript(t1, this->start, head_cut_orientation);
@@ -203,7 +212,7 @@ public:
             }
         }
         if (head_cut_orientation == CUT::TAIL) {
-            std::ranges::swap(fusion_transcript, pseudo_tail_transcript);
+            sr::swap(fusion_transcript, pseudo_tail_transcript);
             // TODO: Reverse the exons if required, I might merge deletion and inversion after this
             // preprocessing
         }
@@ -218,8 +227,8 @@ public:
             exon.info["gene_name"]         = fusion_gene_name;
             exon.info["transcript_id"]     = fusion_transcript_id;
             exon.info["gene_id"]           = fusion_gene_id;
-            exon.info["transcript_source"] = "TKSM-" + event_type_to_string(event_type);
-            exon.info["tag"]               = "TKSM-fusion";
+            exon.info["transcript_source"] = "TKSM_" + event_type_to_string(event_type);
+            exon.info["tag"]               = "TKSM_fusion";
         }
 
         fusion_transcript.info["transcript_name"] = fusion_transcript_name;
@@ -228,6 +237,22 @@ public:
         fusion_transcript.info["gene_id"]         = fusion_gene_id;
         fusion_transcript.end                     = pseudo_tail_transcript.end;
         return fusion_transcript;
+    }
+
+    auto crunch_fusions(vector<transcript> &fusion_events) const -> void {
+        std::unordered_map<string, transcript> id_to_transcript;
+        for (auto &t : fusion_events) {
+            auto [it, inserted] = id_to_transcript.try_emplace(t.info.at("transcript_id"), t);
+            if (!inserted) {
+                it->second.set_abundance(it->second.get_abundance() + t.get_abundance());
+            }
+        }
+        fusion_events.clear();
+        for (auto &[id, t] : id_to_transcript) {
+            fusion_events.push_back(t);
+        }
+        sr::sort(fusion_events,
+                 [](const auto &t1, const auto &t2) { return t1.info.at("gene_id") < t2.info.at("gene_id"); });
     }
 
     auto execute_event(const map<locus, vector<transcript>> &molecules, auto &rand_gen) const -> vector<transcript> {
@@ -246,8 +271,8 @@ public:
                     logd("{} - {}", m.first, t);
                 }
             }
-            fmtlog::poll(true);
-            throw std::runtime_error("Could not find start locus");
+
+            throw runtime_error("Could not find start locus");
         }
         auto start_locus = *it;
         it               = loci.lower_bound(get_end());
@@ -261,8 +286,8 @@ public:
                     logd("{} - {}", m.first, t);
                 }
             }
-            fmtlog::poll(true);
-            throw std::runtime_error("Could not find end locus");
+
+            throw runtime_error("Could not find end locus");
         }
         auto end_locus = *it;
 
@@ -272,13 +297,26 @@ public:
         std::uniform_real_distribution<double> dist(0, 1);
 
         vector<transcript> fused_transcripts;
+        double total_head_abundance = std::accumulate(start_molecules.begin(), start_molecules.end(), 0.0,
+                                                      [](auto acc, const auto &t) { return acc + t.get_abundance(); });
+
+        double total_tail_abundance = std::accumulate(end_molecules.begin(), end_molecules.end(), 0.0,
+                                                      [](auto acc, const auto &t) { return acc + t.get_abundance(); });
         for (const auto &start_molecule : start_molecules) {
             for (const auto &end_molecule : end_molecules) {
                 logd("Fusing {} and {}", start_molecule, end_molecule);
                 fmtlog::poll(true);
                 fused_transcripts.push_back(fuse_transcripts(start_molecule, end_molecule, rand_gen));
+                // Log all abundance values
+                logd("Total head_abundance: {}, head_abundance: {}, total_tail_abundance: {}, tail_abundance: {}",
+                     total_head_abundance, start_molecule.get_abundance(), total_tail_abundance,
+                     end_molecule.get_abundance());
+                double abundance = total_head_abundance * (start_molecule.get_abundance() / total_head_abundance) *
+                                   (end_molecule.get_abundance() / total_tail_abundance);
+                fused_transcripts.back().set_abundance(abundance);
             }
         }
+        crunch_fusions(fused_transcripts);
         return fused_transcripts;
     }
 
@@ -347,6 +385,13 @@ class Fusion_module::impl : public tksm_module {
                 "translocation-ratio",
                 "Ratio of translocated fusions",
                 cxxopts::value<double>()->default_value("0")
+            )(
+                "expression-fallback",
+                "Fallback expression distribution for transcripts that are not expressed. "
+                "If not provided only expressed transcripts will be fused. "
+                "Comma separated list of distribution type and parameters. "
+                "Available distributions: uniform,s,e; normal,μ,σ. ",
+                cxxopts::value<vector<string>>()
             )
             ;
         // clang-format on
@@ -361,26 +406,49 @@ class Fusion_module::impl : public tksm_module {
         return locus{gene.chr, breakpoint_selector(rand_gen), gene.plus_strand};
     }
 
-    auto generate_fusions(vector<chimeric_event> &fusions_so_far, int total_fusion_count, const map<string, gtf> &genes,
-                          double translocation_ratio) -> vector<chimeric_event> {
+    auto process_expression_parameters(const std::vector<string> &vec) const
+        -> std::variant<std::uniform_real_distribution<>, std::normal_distribution<>> {
+        if (vec.size() != 3) {
+            throw runtime_error("Invalid number of parameters for expression distribution");
+        }
+        if (vec[0] == "uniform") {
+            return std::uniform_real_distribution<>{std::stod(vec[1]), std::stod(vec[2])};
+        }
+        else if (vec[0] == "normal") {
+            return std::normal_distribution<>{std::stod(vec[1]), std::stod(vec[2])};
+        }
+        else {
+            throw runtime_error("Invalid distribution type " + vec[0]);
+        }
+    }
+
+    auto generate_fusions_on_expressed(vector<chimeric_event> &fusions_so_far, uint64_t total_fusion_count,
+                                       const map<string, gtf> &genes, double translocation_ratio,
+                                       const map<string, double> &expression) -> vector<chimeric_event> {
+        return {};
+    }
+    auto generate_fusions_all(vector<chimeric_event> &fusions_so_far, uint64_t total_fusion_count,
+                              const map<string, gtf> &genes, double translocation_ratio)
+        -> vector<chimeric_event> {
         // Convert genes vector to a map of chr -> vector<gtf>
 
         std::map<string, vector<gtf>> genes_by_chr;
         for (auto &[gene_id, gene] : genes) {
             genes_by_chr[gene.chr].push_back(gene);
         }
-        int fusion_count = total_fusion_count - fusions_so_far.size();
+        uint64_t fusion_count = total_fusion_count - fusions_so_far.size();
         // Assuming distance between the first and last gene of chromosome estimates the size of the chromosome
         std::map<string, unsigned long> chr_size;
-        std::map<string, int> fusion_count_per_chr;
+        std::map<string, uint64_t> fusion_count_per_chr;
         unsigned long total_size = 0;
         for (auto &gp : genes_by_chr) {
-            auto &chr   = gp.first;
-            auto &genes = gp.second;
-            std::ranges::sort(genes, [](const auto &a, const auto &b) { return a.start < b.start; });
-            chr_size[chr] = genes.back().end - genes.front().start;
+            auto &chr        = gp.first;
+            auto &genes_copy = gp.second;
+            sr::sort(genes_copy, [](const auto &a, const auto &b) { return a.start < b.start; });
+            chr_size[chr] = genes_copy.back().end - genes_copy.front().start;
             total_size += chr_size[chr];
-            logd("Chr {} size is {}, {}:{}-{}", chr, chr_size[chr], chr, genes.front().start, genes.back().end);
+            logd("Chr {} size is {}, {}:{}-{}", chr, chr_size[chr], chr, genes_copy.front().start,
+                 genes_copy.back().end);
         }
 
         for (const auto &gp : genes_by_chr) {
@@ -389,12 +457,16 @@ class Fusion_module::impl : public tksm_module {
             fusion_count_per_chr[chr] = std::round(static_cast<double>(fusion_count) * chr_size[chr] / total_size);
             logi("Fusion count for chr {} is {}", chr, fusion_count_per_chr[chr]);
         }
-        int calculated_fusions = std::accumulate(fusion_count_per_chr.begin(), fusion_count_per_chr.end(), 0,
-                                                 [](int a, const auto &b) { return a + b.second; });
-        for (int i = 0; i < fusion_count - calculated_fusions; i++) {
-            std::vector<std::pair<string, int>> v;
-            std::ranges::sample(fusion_count_per_chr, std::back_inserter(v), 1, rand_gen);
-            fusion_count_per_chr[v.begin()->first]++;
+        uint64_t calculated_fusions = std::accumulate(fusion_count_per_chr.begin(), fusion_count_per_chr.end(), 0UL,
+                                                      [](uint64_t a, const auto &b) { return a + b.second; });
+        if (fusion_count > calculated_fusions) {
+            logi("Adding {} fusions to random chromosomes", fusion_count - calculated_fusions);
+
+            for (uint64_t i = 0; i < fusion_count - calculated_fusions; i++) {
+                std::vector<std::pair<string, int>> v;
+                sr::sample(fusion_count_per_chr, std::back_inserter(v), 1, rand_gen);
+                fusion_count_per_chr[v.begin()->first]++;
+            }
         }
         // Convert fusion vector to a map of chr -> vector<chimeric_event>
 
@@ -404,25 +476,30 @@ class Fusion_module::impl : public tksm_module {
         }
 
         for (const auto &fp : fusion_count_per_chr) {
-            auto &chr        = fp.first;
-            auto &fusions    = fusions_by_chr[chr];
-            auto &genes_copy = genes_by_chr[chr];
-            int fusion_count = fp.second;
+            auto &chr                         = fp.first;
+            auto &fusions                     = fusions_by_chr[chr];
+            auto &genes_copy                  = genes_by_chr[chr];
+            uint64_t fusion_count_of_this_chr = fp.second;
             for (auto &fusion : fusions) {
                 auto it = std::remove_if(genes_copy.begin(), genes_copy.end(), [&fusion](const gtf &gene) {
                     return gene.chr == fusion.chr && gene.start >= fusion.start && gene.end <= fusion.end;
                 });
                 genes_copy.erase(it, genes_copy.end());
             }
-            std::shuffle(genes_copy.begin(), genes_copy.end(), rand_gen);
-            // Take the first fusion_count_per_chr[chr] * 2 genes and sort it back
 
-            std::sort(genes_copy.begin(), genes_copy.begin() + fusion_count_per_chr[chr] * 2,
-                      [](const gtf &a, const gtf &b) { return a.start < b.start; });
+            sr::shuffle(genes_copy, rand_gen);
+            // Take the first fusion_count_per_chr[chr] * 2 genes and sort it back
+            if (fusion_count_of_this_chr * 2 > genes_copy.size()) {
+                logw("Not enough genes to generate {} fusions on chr {}", fusion_count_of_this_chr, chr);
+                logw("Reducing fusion count to {}", genes_copy.size() / 2);
+                fusion_count_of_this_chr = genes_copy.size() / 2;
+            }
+            sr::sort(genes_copy.begin(), genes_copy.begin() + fusion_count_of_this_chr * 2,
+                     [](const gtf &a, const gtf &b) { return a.start < b.start; });
 
             // Generate chimeric events for each adjacent gene pair in the chromosome as many as
             // fusion_count_per_chr[chr]
-            for (int i = 0; i < fusion_count; i += 2) {
+            for (uint64_t i = 0; i < fusion_count_of_this_chr; i += 2) {
                 auto &gene1 = genes_copy[i];
                 auto &gene2 = genes_copy[i + 1];
                 if (gene1.overlap(gene2) > 0) {
@@ -449,14 +526,17 @@ class Fusion_module::impl : public tksm_module {
 
     gtf combine_gene_entries(const gtf &gene1, const gtf &gene2) {
         gtf gene;
-        gene.chr               = gene1.chr;
-        gene.start             = std::min(gene1.start, gene2.start);
-        gene.end               = std::max(gene1.end, gene2.end);
-        gene.plus_strand       = gene1.plus_strand;
-        gene.info              = gene1.info;
-        gene.info["gene_name"] = gene1.info.at("gene_name") + "::" + gene2.info.at("gene_name");
-        gene.info["gene_id"]   = gene1.info.at("gene_id") + "::" + gene2.info.at("gene_id");
-        gene.type              = gtf::entry_type::gene;
+        gene.chr                  = gene1.chr;
+        gene.start                = std::min(gene1.start, gene2.start);
+        gene.end                  = std::max(gene1.end, gene2.end);
+        gene.plus_strand          = gene1.plus_strand;
+        gene.info                 = gene1.info;
+        gene.info["gene_name"]    = gene1.info.at("gene_name") + "::" + gene2.info.at("gene_name");
+        gene.info["gene_id"]      = gene1.info.at("gene_id") + "::" + gene2.info.at("gene_id");
+        gene.info["gene_source"]  = "TKSM_fusion";
+        gene.info["gene_version"] = "1";
+        gene.type                 = gtf::entry_type::gene;
+
         return gene;
     }
 
@@ -504,6 +584,17 @@ public:
         double translocation_ratio              = args["translocation-ratio"].as<double>();
         [[maybe_unused]] bool disable_deletions = args["disable-deletions"].as<bool>();
 
+        bool do_fall_back_to_expression = args.count("expression-fallback") > 0;
+
+        auto tpm_dist = [&](){
+            if(do_fall_back_to_expression){
+                return process_expression_parameters(args["expression-fallback"].as<vector<string>>());
+            }
+            else{
+                return std::variant<std::uniform_real_distribution<>, std::normal_distribution<>>{std::normal_distribution<>{0,0}};
+            }
+        }();
+
         vector<chimeric_event> fusions;
         if (args["fusion-file"].count() > 0) {
             string fusion_file_path{args["fusion-file"].as<string>()};
@@ -522,11 +613,19 @@ public:
         }
 
         logi("Generating fusions");
-        while (fusions.size() < fusion_count) {
-            generate_fusions(fusions, fusion_count, genes, translocation_ratio);
-            logd("Generated {}/{} fusions", fusions.size(), fusion_count);
-            fmtlog::poll(true);
+        if (do_fall_back_to_expression) {
+            while (fusions.size() < fusion_count) {
+                logd("Generating fusions");
+                fmtlog::poll(true);
+                generate_fusions_all(fusions, fusion_count, genes, translocation_ratio);
+                logd("Generated {}/{} fusions", fusions.size(), fusion_count);
+                fmtlog::poll(true);
+            }
+            logi("Using expression fallback");
         }
+        else {  // Only simulate fusions from expressed transcripts
+        }
+
         IITree<locus, chimeric_event> fusion_tree;
         IITree<locus, chimeric_event> deletion_tree;
         int RANGE = 0;
@@ -575,7 +674,7 @@ public:
             overlaps.clear();
         }
 
-        map<string, double> fusion_tpm;
+        map<string, double> tpm_saved_for_fusions;
         while (std::getline(abundance_file_stream, buffer)) {
             ++total_count;
             string tid;
@@ -594,7 +693,8 @@ public:
                 continue;
             }
             else {
-                fusion_tpm[tid] = tpm;
+                tpm_saved_for_fusions[tid] = tpm;
+                logd("Saving tpm={} for {}", tpm, tid);
             }
         }
 
@@ -605,9 +705,18 @@ public:
         for (auto &[event, loci] : relevant_molecules) {
             for (auto &l : loci) {
                 for (auto &t : l.second) {
-                    const auto &it = fusion_tpm.find(t.info.at("transcript_id"));
-                    if (it != fusion_tpm.end()) {
+                    const auto &it = tpm_saved_for_fusions.find(t.info.at("transcript_id"));
+                    if (it != tpm_saved_for_fusions.end()) {
                         t.set_abundance(it->second);
+                        logd("Found tpm={} for {}", it->second, t.info.at("transcript_id"));
+                    }
+                    else {
+                        if(do_fall_back_to_expression) {
+                            double tpm = std::visit([&](auto &&arg) { return arg(rand_gen);}, tpm_dist);
+                            t.set_abundance(tpm);
+                        }
+
+                        logd("Could not find tpm for {}", t.info.at("transcript_id"));
                     }
                 }
             }
@@ -618,7 +727,8 @@ public:
                 if (t.info["gene_id"] != current_gene) {
                     current_gene              = t.info["gene_id"];
                     vector<string> gene_names = rsplit(current_gene, "::");
-                    gtfo_file << combine_gene_entries(genes.at(gene_names[0]), genes.at(gene_names[1]));
+                    auto new_gene             = combine_gene_entries(genes.at(gene_names[0]), genes.at(gene_names[1]));
+                    gtfo_file << new_gene;
                 }
                 gtfo_file << t;
             }
@@ -640,7 +750,13 @@ public:
             logi("Deletions are disabled");
         }
         logi("Translocation ratio: {}", args["translocation-ratio"].as<double>());
-
+        
+        if (args["expression-fallback"].count() > 0) {
+            logi("Expression fallback: {}", fmt::join(args["expression-fallback"].as<vector<string>>(),","));
+        }
+        else {
+            logi("Expression fallback: Disabled");
+        }
         fmtlog::poll(true);
     }
 };
