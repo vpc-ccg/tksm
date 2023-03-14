@@ -92,7 +92,7 @@ compile_flags.txt: compile_flags.txt.pre
 	rm $<
 
 compile_flags.txt.pre: Makefile
-	@echo -stdlib=libc++ > $@
+	@echo -stdlib=libstdc++ > $@
 	@echo -xc++ >> $@
 	@echo -std=$(CXX_STD) >> $@
 	@echo -Wall >> $@
@@ -114,7 +114,7 @@ TEST_BINARIES = $(TEST_SOURCES:${TSTD}/%.cpp=${TSTB}/%)
 
 $(TSTB)/%: $(TSTD)/%.cpp
 	@mkdir -p ${TSTB}
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -I$(EXTERN_HEADER_PATH) $(PY_LDLFAGS) $(PY_CXXFLAGS) -o $@ $^
 
 check: ${TEST_BINARIES}
 	for t in $^; do echo $$t && $$t; done
