@@ -3,6 +3,8 @@
 #include <cxxopts.hpp>
 #include <npy/npy.hpp>
 #include <random>
+#include <variant>
+
 
 #include "interval.h"
 #include "mdf.h"
@@ -170,6 +172,11 @@ public:
     }
 };
 
+// Visit helpers
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+// End visit helpers
+//
 class Truncate_module::impl : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
@@ -246,39 +253,35 @@ public:
         string output_file_path{args["output"].as<string>()};
         std::ofstream output_file{output_file_path};
 
-        if (args["kde"].count() > 0) {
-            std::vector<std::string> kdefiles = args["kde"].as<vector<string>>();
+        // Immediately executed lambda magix
+        auto disko = [&]()
+        -> std::variant<custom_distribution2D<>, std::normal_distribution<>, std::lognormal_distribution<>> 
+        {
+            if(args["kde"].count() > 0 ){
+                std::vector<std::string> kdefiles = args["kde"].as<vector<string>>();
+                return custom_distribution2D<> {kdefiles[0], kdefiles[1], kdefiles[2]};
+            }
+            else if( args["normal"].count() > 0){
+                std::vector<double> normal_params = args["normal"].as<vector<double>>();
+                return std::normal_distribution<>{normal_params[0], normal_params[1]};
+            }
+            else{//(args["lognormal"].count() > 0){ // skipped because we already check this and lambda needs to always return
+                std::vector<double> lognormal_params = args["lognormal"].as<vector<double>>();
+                return std::lognormal_distribution<>{lognormal_params[0], lognormal_params[1]};
+            }
+        }();
+        
 
-            custom_distribution2D<> disko{kdefiles[0], kdefiles[1], kdefiles[2]};
-            while (streamer) {
-                molecule_descriptor md = streamer();
-
-                logd("----------------------------------------");
-                logd("Truncating {}", md._id);
-                truncate(md, disko(rand_gen, md.size()));
-                output_file << md;
-                logd("DONE {}", md._id);
-                logd("----------------------------------------");
-                fmtlog::poll(true);
-            }
-        }
-        else if (args["normal"].count() > 0) {
-            std::vector<double> normal_params = args["normal"].as<vector<double>>();
-            std::normal_distribution<> disko{normal_params[0], normal_params[1]};
-            while (streamer) {
-                molecule_descriptor md = streamer();
-                truncate(md, disko(rand_gen));
-                output_file << md;
-            }
-        }
-        else if (args["lognormal"].count() > 0) {
-            std::vector<double> lognormal_params = args["lognormal"].as<vector<double>>();
-            std::lognormal_distribution<> disko{lognormal_params[0], lognormal_params[1]};
-            while (streamer) {
-                molecule_descriptor md = streamer();
-                truncate(md, disko(rand_gen));
-                output_file << md;
-            }
+        while (streamer) {
+            molecule_descriptor md = streamer();
+            auto truncate_length = std::visit(
+                    overloaded{
+                    [&](auto &arg) { return arg(rand_gen);},
+                    [&](custom_distribution2D<> &arg) { return arg(rand_gen,md.size()); }
+                    },
+                    disko);
+            truncate(md, truncate_length);
+            output_file << md;
         }
 
         return 0;
