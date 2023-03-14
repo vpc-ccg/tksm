@@ -250,10 +250,12 @@ struct gtf : public ginterval {
     }
     entry_type type;
     std::map<string, string> info;
+    string source;
     gtf(const string &gtf_line) {
         vector<string> fields = rsplit(gtf_line, "\t");
         type                  = type_from_string(fields[2]);
         chr                   = fields[0];
+        source                = fields[1];
         start                 = stoi(fields[3]) - 1;  // GTF is 1-based
         end                   = stoi(fields[4]);
         plus_strand           = (fields[6] == "+");
@@ -277,12 +279,14 @@ struct gtf : public ginterval {
     gtf(const gtf &other) = default;
 
     gtf(const ginterval &pos, entry_type type, const std::map<string, string> &info)
-        : ginterval(pos), type(type), info(info) {}
-    gtf(const ginterval &pos, entry_type type) : ginterval(pos), type(type) {}
+        : ginterval(pos), type(type), info(info), source{"TKSM"}{}
+    gtf(const ginterval &pos, entry_type type) : ginterval(pos), type(type), source{"TKSM"} {}
 
     gtf() = default;
     friend ostream &operator<<(ostream &os, const gtf &g) {
-        os << g.chr << "\t" << g.start << "\t" << g.end << "\t" << (g.plus_strand?'+':'-') << "\t" << type_to_string(g.type)
+
+        os << g.chr << "\t" << g.source << "\t"<< type_to_string(g.type) << "\t"
+         << g.start << "\t" << g.end << "\t" << (g.plus_strand?'+':'-') << "\t" << "." 
            << "\t";
         for (auto iter = g.info.begin(); iter != g.info.end(); ++iter) {
             os << iter->first << " \"" << iter->second << "\";";

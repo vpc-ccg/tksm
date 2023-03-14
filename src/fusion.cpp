@@ -220,8 +220,11 @@ public:
             fusion_transcript.add_exon(exon);
         }
         int number = 1;
+
         // Fix GTF info
         for (auto &exon : fusion_transcript.get_exons()) {
+            string exon_id = exon.info.at("exon_id");
+            exon.info.clear();
             exon.info["exon_number"]       = std::to_string(number++);
             exon.info["transcript_name"]   = fusion_transcript_name;
             exon.info["gene_name"]         = fusion_gene_name;
@@ -527,6 +530,7 @@ class Fusion_module::impl : public tksm_module {
     gtf combine_gene_entries(const gtf &gene1, const gtf &gene2) {
         gtf gene;
         gene.chr                  = gene1.chr;
+        gene.source               = "TKSM";
         gene.start                = std::min(gene1.start, gene2.start);
         gene.end                  = std::max(gene1.end, gene2.end);
         gene.plus_strand          = gene1.plus_strand;
@@ -668,7 +672,7 @@ public:
                 relevant_molecules[event][start].push_back(t);
             }
             if (overlaps.size() > 0) {
-                logi("Found {} overlaps, for {}:{}-{}", overlaps.size(), t.chr, t.start, t.end);
+                logd("Found {} overlaps, for {}:{}-{}", overlaps.size(), t.chr, t.start, t.end);
                 processed_transcripts.insert(t.info.at("transcript_id"));
             }
             overlaps.clear();
@@ -698,7 +702,7 @@ public:
             }
         }
 
-        logi("Skipped {} transcripts out of {}", skipped, total_count);
+        logd("Skipped {} transcripts out of {}", skipped, total_count);
         logi("Creating fusion transcripts");
         std::ofstream gtfo_file{args["gtfo"].as<string>()};
         string current_gene = "";
@@ -721,7 +725,7 @@ public:
                 }
             }
             auto transcript_vec = event.execute_event(loci, rand_gen);
-            logi("Creating {} fusion transcripts on event {}", transcript_vec.size(), event);
+            logd("Creating {} fusion transcripts on event {}", transcript_vec.size(), event);
             for (auto &t : transcript_vec) {
                 output_file_stream << t.to_abundance_str() << "\n";
                 if (t.info["gene_id"] != current_gene) {
