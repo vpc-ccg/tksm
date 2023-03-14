@@ -28,17 +28,25 @@ ifneq ($(TKSM_MODELS_PATH),"")
 endif
 CXX?=g++
 
-
-CXX_OPT ?= -O2
-CXX_DBG ?=
-LD_DBG ?=
+ifneq ($(DEBUG),1)
+	CXX_OPT ?= -O3
+else
+	CXX_OPT ?= -O0 -g
+endif
 CXX_STD ?=c++20
 CXXFLAGS += -std=$(CXX_STD) -Wall  $(CXX_OPT) $(CXX_DBG) 
 LDFLAGS += -lz -lpthread -lfmt $(LD_DBG) 
 
 
-PY_CXXFLAGS = $(shell python3-config --cflags --embed | sed 's|-flto-partition=none||g')
-PY_LDFLAGS = $(shell python3-config --ldflags --embed | sed 's|-flto-partition=none||g')
+ifneq ($(DEBUG),1)
+	PY_CXXFLAGS = $(shell python3-config --cflags --embed | sed 's|-flto-partition=none||g')
+	PY_LDFLAGS = $(shell python3-config --ldflags --embed | sed 's|-flto-partition=none||g')
+else
+	PY_CXXFLAGS = $(shell python3-config --cflags --embed | sed 's|-flto-partition=none||g' | sed 's|-O3|-O0|g')
+	PY_LDFLAGS = $(shell python3-config --ldflags --embed | sed 's|-flto-partition=none||g' | sed 's|-O3|-O0|g')
+endif
+
+
 
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
