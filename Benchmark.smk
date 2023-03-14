@@ -675,6 +675,7 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
     plt.savefig(outpath)
 
 
+
 rule NS_analysis:
     input:
         reads=lambda wildcards: config["samples"][wildcards.sample]["fastq"],
@@ -744,3 +745,25 @@ rule NS_simulate:
         " -t {threads}"
         " --no_model_ir"
         " {params.other}"
+
+rule lr_cell_stats:
+    input:
+        lr_matches=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
+        lr_bc=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
+    output:
+        tsv=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.tsv",
+    shell:
+        "touch"
+        " {output.tsv}"
+
+rule lr_cell_plot:
+    input:
+        tsvs=lambda wc: [
+            f"{plots_d}/lr_cell_stats/{s}.lr_cell_stats.tsv"
+            for s in wc.samples.split(".")
+        ],
+    output:
+        f"{plots_d}/lr_cell_stats/{{samples}}.png",
+    shell:
+        "touch"
+        " {output}"

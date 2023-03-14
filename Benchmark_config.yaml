@@ -22,9 +22,10 @@ TS_experiments:
         pipeline:
             - Xpr_sc: ""
             - Spc: "--molecule-count 100000"
-            - SCB: ""
-            - UMI: "--format5 10"
             - plA: "--normal=15,7.5"
+            - UMI: "--format5 10"
+            - SCB: ""
+            - UMI: "--format5 CTACACGACGCTCTTCCGATCT"
             - Trc: ""
             - Seq: "--skip-qual-compute"
 
@@ -38,37 +39,41 @@ NS_experiments:
 
 plots:
     - {
-          rules: [
-                  raw_lengths,
-                  mapped_raw_lengths,
-                  mapped_lengths,
-                  substitution,
-                  polyA,
-                  tpm_plot_tksm,
-                  # tpm_plot_liqa,
-                  tpm_plot_minimap2,
-              ],
-          # tpm_plot_nanosim,
-          data: [N1_chr21, TS_2_chr21],
+        rules: [
+            raw_lengths,
+            mapped_raw_lengths,
+            mapped_lengths,
+            substitution,
+            polyA,
+            tpm_plot_tksm,
+            # tpm_plot_liqa,
+            # tpm_plot_nanosim,
+            tpm_plot_minimap2,
+            lr_cell_stats,
+        ],
+        data: [
+            N1_chr21, 
+            TS_2_chr21,
+        ],
       }
-    # - {
-    #     rules: [
-    #         raw_lengths,
-    #         mapped_raw_lengths,
-    #         mapped_lengths,
-    #         substitution,
-    #         polyA,
-    #         tpm_plot_tksm,
-    #         tpm_plot_liqa,
-    #         tpm_plot_minimap2,
-    #         tpm_plot_nanosim,
-    #     ],
-    #     data: [
-    #         MCF7-sgnex,
-    #         NS_1,
-    #         TS_1,
-    #     ],
-    # }
+    - {
+        rules: [
+            raw_lengths,
+            mapped_raw_lengths,
+            mapped_lengths,
+            substitution,
+            polyA,
+            tpm_plot_tksm,
+            tpm_plot_liqa,
+            tpm_plot_minimap2,
+            tpm_plot_nanosim,
+        ],
+        data: [
+            MCF7-sgnex,
+            NS_1,
+            TS_1,
+        ],
+    }
 
 exec:
     tksm: build/bin/tksm
