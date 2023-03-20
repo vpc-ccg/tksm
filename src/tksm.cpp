@@ -17,6 +17,7 @@
 #include "splicer.h"
 #include "truncate.h"
 #include "tag.h"
+#include "strand_man.h"
 
 using std::set;
 using std::string;
@@ -34,6 +35,7 @@ vector<string> kisims = {
     "polyA",
     "single-cell-barcoder",
     "pcr",
+    "flip",
     "truncate",
     "sequencer",
 };
@@ -119,6 +121,9 @@ main(int argc, char **argv) {
     }
     else if (kisim == "truncate") {
         return Truncate_module{argc - 1, argv + 1}.run();
+    }
+    else if (kisim == "flip") {
+        return StrandMan_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "sequencer") {
         return Sequencer_module{argc - 1, argv + 1}.run();
