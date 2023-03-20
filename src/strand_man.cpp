@@ -32,7 +32,7 @@ class StrandMan_module::impl : public tksm_module {
             )(
                 "p,flip-probability",
                 "probability of flipping the strand of a molecule",
-                cxxopts::value<double>()->default_value("0.5")
+                cxxopts::value<double>()
             )
             ;
         // clang-format on
