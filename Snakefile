@@ -93,9 +93,9 @@ rule make_binary:
         "make {output}"
 
 
-rule sequence:
+rule sequencer:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/sequencer.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         fastas=fastas_for_TS_sequence,
         qscore_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz",
@@ -104,13 +104,14 @@ rule sequence:
         fastq=f"{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq",
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Seq.benchmark"
+    threads: 32
     params:
         other=lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
         ]["Seq"],
-    threads: 32
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} sequencer"
+        "{params.binary} sequencer"
         " -i {input.mdf}"
         " --references {input.fastas}"
         " -o {output.fastq}"
@@ -120,18 +121,9 @@ rule sequence:
         " {params.other}"
 
 
-rule mirror:
-    input:
-        "{anything}",
-    output:
-        temp("{anything}.mirror"),
-    shell:
-        "cat {input} > {output}"
-
-
 rule truncate:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/truncate.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         x=lambda wc: f"{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.X_idxs.npy",
         y=lambda wc: f"{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.Y_idxs.npy",
@@ -144,16 +136,18 @@ rule truncate:
         lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
         ]["Trc"],
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} truncate"
+        "{params.binary} truncate"
         " -i {input.mdf}"
         " --kde={input.g},{input.x},{input.y}"
         " -o {output.mdf}"
         " {params}"
 
+
 rule flip:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flp.mdf"),
@@ -163,15 +157,17 @@ rule flip:
         lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
         ]["Flp"],
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} flip"
+        "{params.binary} flip"
         " -i {input.mdf}"
         " -o {output.mdf}"
         " {params}"
 
+
 rule pcr:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/pcr.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.PCR.mdf"),
@@ -181,16 +177,17 @@ rule pcr:
         lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
         ]["PCR"],
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} pcr"
+        "{params.binary} pcr"
         " -i {input.mdf}"
         " -o {output.mdf}"
         " {params}"
 
 
-rule umi:
+rule tag:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/tag.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.mdf"),
@@ -201,8 +198,9 @@ rule umi:
         lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
         ]["Tag"],
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} tag"
+        "{params.binary} tag"
         " -i {input.mdf}"
         " -o {output.mdf}"
         " -f {output.fasta}"
@@ -211,7 +209,7 @@ rule umi:
 
 rule single_cell_barcoder:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/single-cell-barcoder.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.mdf"),
@@ -222,8 +220,9 @@ rule single_cell_barcoder:
         lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
         ]["SCB"],
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} single-cell-barcoder"
+        "{params.binary} single-cell-barcoder"
         " -i {input.mdf}"
         " -o {output.mdf}"
         " -f {output.fasta}"
@@ -232,7 +231,7 @@ rule single_cell_barcoder:
 
 rule polyA:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/polyA.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.plA.mdf"),
@@ -243,8 +242,9 @@ rule polyA:
         lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
         ]["plA"],
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} polyA"
+        "{params.binary} polyA"
         " -i {input.mdf}"
         " -o {output.mdf}"
         " -f {output.fasta}"
@@ -253,7 +253,7 @@ rule polyA:
 
 rule splicer:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/splicer.o", "build/obj/tksm.o"] if DEBUG else list(),
         tsv=f"{TS_d}/{{exprmnt}}/{{prefix}}.tsv",
         gtf=lambda wc: config["refs"][get_sample_ref(exprmnt_sample(wc.exprmnt))]["GTF"],
     output:
@@ -264,8 +264,9 @@ rule splicer:
         lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
         ]["Spc"],
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} splicer"
+        "{params.binary} splicer"
         " -a {input.tsv}"
         " -g {input.gtf}"
         " -o {output.mdf}"
@@ -274,29 +275,33 @@ rule splicer:
 
 rule abundance:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
         paf=lambda wc: f"{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf",
     output:
         tsv=f"{TS_d}/{{exprmnt}}/Xpr.tsv",
     benchmark:
         f"{time_d}/{{exprmnt}}/Xpr.benchmark"
+    params:
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} abundance"
+        "{params.binary} abundance"
         " -p {input.paf}"
         " -o {output.tsv}"
 
 
 rule abundance_sc:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
         paf=lambda wc: f"{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf",
         lr_matches=lambda wc: f"{preproc_d}/scTagger/{exprmnt_sample(wc.exprmnt)}/{exprmnt_sample(wc.exprmnt)}.lr_matches.tsv.gz",
     output:
         tsv=f"{TS_d}/{{exprmnt}}/Xpr_sc.tsv",
     benchmark:
         f"{time_d}/{{exprmnt}}/Xpr_sc.benchmark"
+    params:
+        binary=config["exec"]["tksm"],
     shell:
-        "{input.binary} abundance"
+        "{params.binary} abundance"
         " -p {input.paf}"
         " -m {input.lr_matches}"
         " -o {output.tsv}"
@@ -304,7 +309,7 @@ rule abundance_sc:
 
 rule truncate_kde:
     input:
-        binary=config["exec"]["tksm"],
+        obj=["build/obj/kde.o", "build/obj/tksm.o"] if DEBUG else list(),
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     output:
         x=f"{preproc_d}/truncate_kde/{{sample}}.X_idxs.npy",
@@ -314,9 +319,10 @@ rule truncate_kde:
         f"{time_d}/{{sample}}/truncate_kde.benchmark"
     params:
         out_prefix=f"{preproc_d}/truncate_kde/{{sample}}",
+        binary=config["exec"]["tksm"],
     threads: 32
     shell:
-        "{input.binary} kde"
+        "{params.binary} kde"
         " -i {input.paf}"
         " -o {params.out_prefix}"
         " --threads {threads}"

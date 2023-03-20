@@ -911,9 +911,8 @@ rule lr_cell_stats:
         for line in tqdm(opener, desc=f"Processing {input.lr_matches}"):
             line = line.rstrip('\n').split('\t')
             rid = rname_to_rid[line[0]]
-            reads[rid]["dist"] = int(line[2])
+            reads[rid]["dist"] = int(line[1])
             reads[rid]["bids"] = [barcode_to_bid[b] for b in line[4].split(',')]
-                                
             for bid in reads[rid]["bids"]:
                 barcodes[bid]["rids"].append((
                     rid,
