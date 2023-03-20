@@ -259,7 +259,7 @@ public:
         }
     }
 
-    auto truncate_transformer( auto disko) {
+    auto truncate_transformer( auto &disko) {
         return std::ranges::views::transform([&](auto &md) {
             auto truncate_length =
                 std::visit(overloaded{[&](auto &arg) { return arg(rand_gen); },
@@ -272,7 +272,8 @@ public:
     }
 
     auto operator()(){
-        return truncate_transformer(get_dist());
+        auto dist = get_dist();
+        return truncate_transformer(dist);
     }
 
     int run() {
