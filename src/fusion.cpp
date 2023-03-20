@@ -22,13 +22,6 @@ using std::string;
 using std::vector;
 namespace sr = std::ranges;
 
-class runtime_error :   public std::runtime_error {
-public:
-    runtime_error(const string &msg) : std::runtime_error(msg) {
-        fmtlog::poll(true);
-    }
-};
-
 string fusion_separator = "::";
 class locus {
     string chr;
@@ -348,24 +341,16 @@ read_fusions(std::istream &fusion_file) {
     return fusions;
 }
 
-class Fusion_module::impl : public tksm_module {
-    cxxopts::ParseResult parse(int argc, char **argv) {
+class Fusion_submodule : public tksm_submodule {
+    void add_options(cxxopts::Options &options) override {
         // clang-format off
-        options.add_options("main")
+        options.add_options("fusion")
             (
-                "a,abundance",
-                "input mdf file",
+                "fusion-abundance",
+                "Fusion abundance file",
                 cxxopts::value<string>()
             )(
-                "o,output",
-                "output mdf file",
-                cxxopts::value<string>()
-            )(
-                "gtfi",
-                "Path to input GTF annotation file",
-                cxxopts::value<string>()
-            )(
-                "gtfo",
+                "fusion-gtf",
                 "Path to output GTF annotation file",
                 cxxopts::value<string>()
             )(
@@ -398,11 +383,7 @@ class Fusion_module::impl : public tksm_module {
             )
             ;
         // clang-format on
-
-        return options.parse(argc, argv);
     }
-
-    cxxopts::ParseResult args;
 
     auto generate_random_breakpoint(const gtf &gene) -> locus {
         std::uniform_int_distribution<int> breakpoint_selector(gene.start, gene.end);
@@ -431,8 +412,7 @@ class Fusion_module::impl : public tksm_module {
         return {};
     }
     auto generate_fusions_all(vector<chimeric_event> &fusions_so_far, uint64_t total_fusion_count,
-                              const map<string, gtf> &genes, double translocation_ratio)
-        -> vector<chimeric_event> {
+                              const map<string, gtf> &genes, double translocation_ratio) -> vector<chimeric_event> {
         // Convert genes vector to a map of chr -> vector<gtf>
 
         std::map<string, vector<gtf>> genes_by_chr;
@@ -545,41 +525,48 @@ class Fusion_module::impl : public tksm_module {
     }
 
 public:
-    impl(int argc, char **argv) : tksm_module{"fusion", "Fusion module"}, args(parse(argc, argv)) {}
-    ~impl() = default;
-    int validate_arguments() {
-        std::vector<string> mandatory = {"abundance", "output", "gtfi", "gtfo"};
-        int missing_parameters        = 0;
-        for (string &param : mandatory) {
+    Fusion_submodule(std::mt19937 &rand_gen) : tksm_submodule{"fusion", "Fusion module", rand_gen} {}
+    ~Fusion_submodule() = default;
+    submodule_status receive_arguments(const cxxopts::ParseResult &args) override {
+        std::vector<string> mandatory        = {"abundance", "gtf"};  // Top module should provide abundance and gtf
+        std::vector<string> mandatory_fusion = {"fusion-abundance", "fusion-gtf"};
+        int missing_parameters               = 0;
+        for (string &param : mandatory_fusion) {
             if (args.count(param) == 0) {
                 report_missing_parameter(param);
                 ++missing_parameters;
             }
         }
 
+        if (missing_parameters == int(mandatory_fusion.size())) {
+            logi("No fusion parameters specified, skipping fusion module");
+
+            return update_status(submodule_status::DONT_RUN);
+        }
         if (missing_parameters > 0) {
-            std::cerr << options.help() << std::endl;
-            return 1;
+            return update_status(submodule_status::ERROR);
+        }
+        for (string &param : mandatory) {
+            if (args.count(param) == 0) {
+                report_missing_parameter(param);
+                ++missing_parameters;
+            }
+        }
+        if (missing_parameters > 0) {
+            return update_status(submodule_status::ERROR);
         }
 
         if (args["fusion-count"].as<int>() == 0 && args["fusion-file"].as<string>().empty()) {
             loge("Either fusion-file or fusion-count must be specified");
-            return 1;
+            return update_status(submodule_status::ERROR);
         }
 
-        return 0;
+        return update_status(submodule_status::RUN);
     }
 
-    int run() {
-        if (process_utility_arguments(args)) {
-            return 0;
-        }
-
-        if (validate_arguments()) {
-            return 1;
-        }
-        describe_program();
-
+    template <class TopModule>
+    auto run(TopModule *top_module) -> std::pair<std::vector<transcript>, std::vector<gtf>> {
+        cxxopts::ParseResult &args = top_module->args;
         std::string gtf_file       = args["gtfi"].as<string>();
         std::string abundance_file = args["abundance"].as<string>();
         std::string output_file    = args["output"].as<string>();
@@ -590,12 +577,13 @@ public:
 
         bool do_fall_back_to_expression = args.count("expression-fallback") > 0;
 
-        auto tpm_dist = [&](){
-            if(do_fall_back_to_expression){
+        auto tpm_dist = [&]() {
+            if (do_fall_back_to_expression) {
                 return process_expression_parameters(args["expression-fallback"].as<vector<string>>());
             }
-            else{
-                return std::variant<std::uniform_real_distribution<>, std::normal_distribution<>>{std::normal_distribution<>{0,0}};
+            else {
+                return std::variant<std::uniform_real_distribution<>, std::normal_distribution<>>{
+                    std::normal_distribution<>{0, 0}};
             }
         }();
 
@@ -715,12 +703,13 @@ public:
                         logd("Found tpm={} for {}", it->second, t.info.at("transcript_id"));
                     }
                     else {
-                        if(do_fall_back_to_expression) {
-                            double tpm = std::visit([&](auto &&arg) { return arg(rand_gen);}, tpm_dist);
+                        logd("Could not find tpm for {}", t.info.at("transcript_id"));
+                        if (do_fall_back_to_expression) {
+                            double tpm = std::visit([&](auto &&arg) { return arg(rand_gen); }, tpm_dist);
+                            logd("Using fallback tpm={}", tpm);
+
                             t.set_abundance(tpm);
                         }
-
-                        logd("Could not find tpm for {}", t.info.at("transcript_id"));
                     }
                 }
             }
@@ -737,15 +726,14 @@ public:
                 gtfo_file << t;
             }
         }
-        return 0;
+        return {};
     }
 
-    void describe_program() {
-        logi("Running Fusion module");
-        logi("Abundance file: {}", args["abundance"].as<string>());
-        logi("Output file: {}", args["output"].as<string>());
-        logi("GTF Input file: {}", args["gtfi"].as<string>());
-        logi("GTF Output file: {}", args["gtfo"].as<string>());
+    void describe_program() override {
+        logi("Fusion submodule");
+        logi("Fusion GTF file: {}", args["fusion-gtf"].as<string>());
+        logi("Fusion abundance file: {}", args["fusion-abundance"].as<string>());
+
         if (args["fusion-file"].count() > 0) {
             logi("Fusion file: {}", args["fusion-file"].as<string>());
         }
@@ -754,15 +742,13 @@ public:
             logi("Deletions are disabled");
         }
         logi("Translocation ratio: {}", args["translocation-ratio"].as<double>());
-        
+
         if (args["expression-fallback"].count() > 0) {
-            logi("Expression fallback: {}", fmt::join(args["expression-fallback"].as<vector<string>>(),","));
+            logi("Expression fallback: {}", fmt::join(args["expression-fallback"].as<vector<string>>(), ","));
         }
         else {
             logi("Expression fallback: Disabled");
         }
-        fmtlog::poll(true);
     }
 };
 
-MODULE_IMPLEMENT_PIMPL_CLASS(Fusion_module);

@@ -8,7 +8,6 @@
 
 // Import kisims
 #include "abundance.h"
-#include "fusion.h"
 #include "head.h"
 #include "kde.h"
 #include "pcr.h"
@@ -36,7 +35,6 @@ vector<string> kisims = {
     "single-cell-barcoder",
     "pcr",
     "truncate",
-    "fusion",
     "sequencer",
 };
 
@@ -121,9 +119,6 @@ main(int argc, char **argv) {
     }
     else if (kisim == "truncate") {
         return Truncate_module{argc - 1, argv + 1}.run();
-    }
-    else if (kisim == "fusion") {
-        return Fusion_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "sequencer") {
         return Sequencer_module{argc - 1, argv + 1}.run();

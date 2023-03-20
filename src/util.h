@@ -16,6 +16,13 @@
 
 
 
+class runtime_error :   public std::runtime_error {
+public:
+    runtime_error(const std::string &msg) : std::runtime_error(msg) {
+        fmtlog::poll(true);
+    }
+};
+
 using std::map;
 using std::ostream;
 using std::string;

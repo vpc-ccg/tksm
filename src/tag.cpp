@@ -89,7 +89,7 @@ public:
         string mdf_file_path{args["input"].as<string>()};
         std::ifstream mdf_file{mdf_file_path};
 
-        auto streamer = stream_mdf(mdf_file);
+
 
         logi("Adding tags");
 
@@ -115,8 +115,7 @@ public:
         std::ofstream umifile{umi_ref_file};
 
         int index = 0;
-        while (streamer) {
-            molecule_descriptor md = streamer();
+        for(auto &md : stream_mdf(mdf_file, true)) {
             string umi_seq5        = make_seq5[rand_gen];
             string umi_seq3        = make_seq3[rand_gen];
             string umi_ctg_name    = fmt::format("{}_{}", umi_ctg_prefix, index);
@@ -146,7 +145,8 @@ public:
         logi("Output TAG FASTA: {}", args["umi-fasta"].as<string>());
         logi("5' tag format: {}", args["format5"].as<string>());
         logi("3' tag format: {}", args["format3"].as<string>());
-        logi("Random seed: {}", args["seed"].as<int>());
+        logi("Contig prefix: {}", args["contig-prefix"].as<string>());
+        logi("Seed {}", args["seed"].as<int>());
         fmtlog::poll(true);
     }
 };

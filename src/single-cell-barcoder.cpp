@@ -80,8 +80,7 @@ public:
         std::ofstream fastafile{fasta_file_name};
         std::unordered_set<string> used_barcodes;
 
-        while (streamer) {
-            molecule_descriptor md      = streamer();
+        for(auto &md : stream_mdf(mdf_file, true)){
             const string &barcode_str   = md.get_comment("CB")[0];
             const string barcode_ctg_id = "CB_" + barcode_str;
             if (barcode_str != ".") {

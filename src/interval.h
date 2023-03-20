@@ -749,7 +749,7 @@ public:
     molecule_descriptor(const string &id, bool reversed) : _id(id), _reversed(reversed), _depth(1) {}
     
     molecule_descriptor(const molecule_descriptor &other)
-        : _id(other._id), _reversed(other._reversed), _depth(other._depth), _segments(other._segments.begin(), other._segments.end()) {}
+        : _id(other._id), _reversed(other._reversed), _depth(other._depth), _segments(other._segments.begin(), other._segments.end()), meta{other.meta}{}
     /*
     molecule_descriptor(const isoform &iso)
         : _id(iso.transcript_id), _reversed(!iso.segments.back().plus_strand), _depth(iso.depth) {

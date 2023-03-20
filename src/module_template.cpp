@@ -73,11 +73,11 @@ public:
         string output_file = args["output"].as<string>();
 
         ifstream input(input_file);
-        auto streamer = stream_mdf(input);
+
         ofstream output(output_file);
 
 
-        while(streamer){
+        for(auto &md : stream_mdf(input)) {
             output << streamer();
         }
         return 0;

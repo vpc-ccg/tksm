@@ -4,11 +4,10 @@
 #include <variant>
 
 #include "interval.h"
+#include "mdf.h"
 #include "module.h"
 #include "pimpl.h"
 #include "util.h"
-#include "mdf.h"
-
 
 #ifndef POLYA_REFERENCE_NAME
 #define POLYA_REFERENCE_NAME "tksm_polyA_reference"
@@ -132,8 +131,6 @@ public:
         : tksm_module("polyA module", "Adds polyA tails to molecules with given size distribution"),
           args(parse(argc, argv)) {}
 
-
-
     template <class Distribution>
     int add_polyA(molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len) {
         int poly_a_len = static_cast<int>(dist(rand_gen));
@@ -143,10 +140,39 @@ public:
         if (poly_a_len > max_polya_len) {
             poly_a_len = max_polya_len;
         }
-        md.prepend_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, true});
+        md.append_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, true});
         return poly_a_len;
     }
 
+    auto polya_transformer(int min_length, int max_length, auto dist) {
+        return std::ranges::views::transform([&](auto &md) {
+            std::visit([&](auto dist) { add_polyA(md, dist, min_length, max_length); }, dist);
+            return md;
+        });
+    }
+    auto get_dist() -> std::variant<std::gamma_distribution<double>, std::poisson_distribution<int>,
+                                    std::weibull_distribution<double>, std::normal_distribution<double>> {
+        if (args.count("gamma")) {
+            auto vec = args["gamma"].as<vector<double>>();
+            return std::gamma_distribution<double>(vec[0], vec[1]);
+        }
+        if (args.count("poisson")) {
+            auto vec = args["poisson"].as<vector<double>>();
+            return std::poisson_distribution<int>(vec[0]);
+        }
+        if (args.count("weibull")) {
+            auto vec = args["weibull"].as<vector<double>>();
+            return std::weibull_distribution<double>(vec[0], vec[1]);
+        }
+        if (args.count("normal")) {
+            auto vec = args["normal"].as<vector<double>>();
+            return std::normal_distribution<double>(vec[0], vec[1]);
+        }
+        return std::gamma_distribution<double>(1, 1);
+    }
+    auto operator()() {
+        return polya_transformer(args["min-length"].as<int>(), args["max-length"].as<int>(), get_dist());
+    }
     int run() {
         if (process_utility_arguments(args)) {
             return 0;
@@ -157,30 +183,8 @@ public:
         }
         describe_program();
 
-        int min_length = args["min-length"].as<int>();
-        int max_length = args["max-length"].as<int>();
-
-        std::variant<std::gamma_distribution<double>, std::poisson_distribution<int>, std::weibull_distribution<double>,
-                     std::normal_distribution<double>>
-            dist;
-
-        if (args.count("gamma")) {
-            auto vec = args["gamma"].as<vector<double>>();
-            dist     = std::gamma_distribution<double>(vec[0], vec[1]);
-        }
-        if (args.count("poisson")) {
-            auto vec = args["poisson"].as<vector<double>>();
-            dist     = std::poisson_distribution<int>(vec[0]);
-        }
-        if (args.count("weibull")) {
-            auto vec = args["weibull"].as<vector<double>>();
-            dist     = std::weibull_distribution<double>(vec[0], vec[1]);
-        }
-        if (args.count("normal")) {
-            auto vec = args["normal"].as<vector<double>>();
-            dist     = std::normal_distribution<double>(vec[0], vec[1]);
-        }
-
+        int min_length          = args["min-length"].as<int>();
+        int max_length          = args["max-length"].as<int>();
         std::string input_file  = args["input"].as<std::string>();
         std::string output_file = args["output"].as<std::string>();
 
@@ -192,11 +196,9 @@ public:
                 loge("Error: cannot open output polyA reference file");
                 break;
             }
-
             output_polya_reference << ">" << POLYA_REFERENCE_NAME << "\n";
             string polya_tail_string(max_length, 'A');
             output_polya_reference << polya_tail_string << "\n";
-
         } while (0);
 
         std::ifstream input(input_file);
@@ -211,13 +213,7 @@ public:
             return 1;
         }
 
-        auto mdf_stream = stream_mdf(input, true);
-
-        while (mdf_stream) {
-            molecule_descriptor md = mdf_stream();
-
-            std::visit([&](auto dist) { add_polyA(md, dist, min_length, max_length); }, dist);
-
+        for (const auto &md : stream_mdf(input, true) | polya_transformer(min_length, max_length, get_dist())) {
             output << md;
         }
 
@@ -254,8 +250,6 @@ public:
         }
         fmtlog::poll(true);
     }
-
 };
-
 
 MODULE_IMPLEMENT_PIMPL_CLASS(PolyA_module);

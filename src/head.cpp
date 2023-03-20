@@ -44,14 +44,14 @@ int main(int argc, char **argv){
         return 1;
     }
 
-    auto streamer = stream_mdf(std::cin, true);
 
 
-    for( int i = 0; i < args["count"].as<int>() && streamer; ++i){
-//        std::stringstream iss;
-//        iss << streamer();
-//        fmt::print("{}\n", iss.str());
-        std::cout << streamer();
+    int cnt = args["count"].as<int>();
+    for(const auto &md : stream_mdf(std::cin)){
+        std::cout << md;
+        if(--cnt == 0){
+            break;
+        }
     }
     return 0;
 }

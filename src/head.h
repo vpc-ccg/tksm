@@ -40,12 +40,12 @@ public:
         }
         describe_program();
 
-        auto streamer = stream_mdf(std::cin, true);
-
         int count = args["count"].as<int>();
-        for (int i = 0; (i < count) && streamer; ++i) {
-            molecule_descriptor md = streamer();
+        for(auto &md : stream_mdf(std::cin, true)) {
             std::cout << md;
+            if (--count == 0) {
+                break;
+            }
         }
         return 0;
     }

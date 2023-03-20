@@ -10,6 +10,7 @@
 #include "mdf.h"
 #include "module.h"
 #include "util.h"
+#include "fusion.cpp"
 
 using std::string;
 using std::vector;
@@ -52,9 +53,10 @@ class Splicer_module::impl : public tksm_module {
     }
 
     cxxopts::ParseResult args;
-
+    Fusion_submodule fusion_submodule;
+    friend class Fusion_submodule;
 public:
-    impl(int argc, char** argv) : tksm_module{"Splicer", "RNA Splicing module"}, args(parse(argc, argv)) {}
+    impl(int argc, char** argv) : tksm_module{"Splicer", "RNA Splicing module"}, args(parse(argc, argv)), fusion_submodule(rand_gen){}
 
     ~impl() = default;
 
@@ -67,11 +69,14 @@ public:
                 ++missing_parameters;
             }
         }
-
+        if(fusion_submodule.receive_arguments(args)==Fusion_submodule::submodule_status::ERROR){
+            ++missing_parameters;
+        }
         if (missing_parameters > 0) {
             fmt::print("{}\n", options.help());
             return 1;
         }
+        
         return 0;
     }
     int run() {
@@ -83,6 +88,8 @@ public:
             return 1;
         }
         describe_program();
+        
+        fusion_submodule.run(this);
 
         std::string gtf_file               = args["gtf"].as<string>();
         std::string abundance_file         = args["abundance"].as<string>();
