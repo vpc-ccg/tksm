@@ -88,8 +88,14 @@ public:
             return 1;
         }
         describe_program();
-        
-        fusion_submodule.run(this);
+        auto fusion_status = fusion_submodule.receive_arguments(args);
+        if(fusion_status == Fusion_submodule::submodule_status::ERROR){
+            return 1;
+        }
+        else if (fusion_status == Fusion_submodule::submodule_status::RUN){
+            fusion_submodule.run(this);
+        }
+
 
         std::string gtf_file               = args["gtf"].as<string>();
         std::string abundance_file         = args["abundance"].as<string>();
