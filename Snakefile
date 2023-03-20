@@ -34,7 +34,7 @@ def fastas_for_TS_sequence(wc):
     fastas.append(config["refs"][get_sample_ref(sample)]["DNA"])
     for idx, component in enumerate(config["TS_experiments"][wc.exprmnt]["pipeline"]):
         component = list(component.keys())[0]
-        if component in ["plA", "SCB", "UMI"]:
+        if component in ["plA", "SCB", "Tag"]:
             prefix = ".".join(
                 [
                     list(c.keys())[0]
@@ -176,14 +176,14 @@ rule umi:
         binary=config["exec"]["tksm"],
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
-        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.UMI.mdf"),
-        fasta=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.UMI.fasta"),
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.mdf"),
+        fasta=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.fasta"),
     benchmark:
-        f"{time_d}/{{exprmnt}}/{{prefix}}.UMI.benchmark"
+        f"{time_d}/{{exprmnt}}/{{prefix}}.Tag.benchmark"
     params:
         lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
             component_idx(wc.prefix)
-        ]["UMI"],
+        ]["Tag"],
     shell:
         "{input.binary} tag"
         " -i {input.mdf}"

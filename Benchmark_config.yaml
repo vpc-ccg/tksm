@@ -23,9 +23,9 @@ TS_experiments:
             - Xpr_sc: ""
             - Spc: "--molecule-count 100000"
             - plA: "--normal=15,7.5"
-            - UMI: "--format5 10 --contig-prefix umi_contig"
+            - Tag: "--format5 10 --contig-prefix umi_contig"
             - SCB: ""
-            - UMI: "--format5 CTACACGACGCTCTTCCGATCT --contig-prefix sr_adaptor_contig"
+            - Tag: "--format5 CTACACGACGCTCTTCCGATCT --contig-prefix sr_adaptor_contig"
             - Trc: ""
             - Seq: "--skip-qual-compute"
     TS_2:
@@ -34,9 +34,9 @@ TS_experiments:
             - Xpr_sc: ""
             - Spc: "--molecule-count 2500000"
             - plA: "--normal=15,7.5"
-            - UMI: "--format5 10 --contig-prefix umi_contig"
+            - Tag: "--format5 10 --contig-prefix umi_contig"
             - SCB: ""
-            - UMI: "--format5 CTACACGACGCTCTTCCGATCT --contig-prefix sr_adaptor_contig"
+            - Tag: "--format5 CTACACGACGCTCTTCCGATCT --contig-prefix sr_adaptor_contig"
             - Trc: ""
             - Seq: "--skip-qual-compute"
 

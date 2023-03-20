@@ -8,7 +8,7 @@ outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
 # PCR : pcr
 # plA : polyA
 # SCB : single_cell
-# UMI : umi
+# Tag : Tag/adapter tag
 # Trc : truncate
 # Seq : sequence --> Must be last module
 TS_experiments:
@@ -19,7 +19,7 @@ TS_experiments:
             - Spc: "--molecule-count 10000"
             - plA: "--normal=40,10 --min-length=5"
             - SCB: ""
-            - UMI: "--format5 10"
+            - Tag: "--format5 10"
             - PCR: "--cycles 3 -x Taq-setting1 --molecule-count 10000"
             - Trc: ""
             - Seq: "--skip-qual-compute"
