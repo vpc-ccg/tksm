@@ -9,6 +9,7 @@ outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
 # plA : polyA
 # SCB : single_cell
 # Tag : Tag/adapter tag
+# Flp : Flib the molecule strand  
 # Trc : truncate
 # Seq : sequence --> Must be last module
 TS_experiments:

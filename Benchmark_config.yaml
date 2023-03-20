@@ -37,6 +37,7 @@ TS_experiments:
             - Tag: "--format5 10 --contig-prefix umi_contig"
             - SCB: ""
             - Tag: "--format5 CTACACGACGCTCTTCCGATCT --contig-prefix sr_adaptor_contig"
+            - Flp: ""
             - Trc: ""
             - Seq: "--skip-qual-compute"
 

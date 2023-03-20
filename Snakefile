@@ -151,6 +151,23 @@ rule truncate:
         " -o {output.mdf}"
         " {params}"
 
+rule flip:
+    input:
+        binary=config["exec"]["tksm"],
+        mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
+    output:
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flp.mdf"),
+    benchmark:
+        f"{time_d}/{{exprmnt}}/{{prefix}}.Flp.benchmark"
+    params:
+        lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
+            component_idx(wc.prefix)
+        ]["Flp"],
+    shell:
+        "{input.binary} flip"
+        " -i {input.mdf}"
+        " -o {output.mdf}"
+        " {params}"
 
 rule pcr:
     input:
