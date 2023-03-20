@@ -402,6 +402,7 @@ rule badread_error_model:
         " --reads {input.reads}"
         " --reference {input.ref}"
         " --alignment {input.paf}"
+        " --max_alignments 250000"
         " > {output.model}"
 
 
@@ -417,5 +418,5 @@ rule badread_qscore_model:
         " --reads {input.reads}"
         " --reference {input.ref}"
         " --alignment {input.paf}"
-        " --max_alignments 100000"
+        " --max_alignments 250000"
         " > {output.model}"

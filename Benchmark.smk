@@ -1,6 +1,7 @@
 import sys
 import gzip
 from multiprocessing import Pool
+import pickle
 
 import re
 import itertools
@@ -51,6 +52,50 @@ use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
         reads=lambda wc: get_sample_fastqs(wc.sample),
 
 
+tpm_method_settings = {
+    "minimap2": dict(
+        get_tpm_args=dict(
+            key_col=0,
+            val_col=1,
+            header=True,
+        ),
+        title="TPM using minimap2 primary alignments",
+    ),
+    "nanosim": dict(
+        get_tpm_args=dict(
+            key_col=0,
+            val_col=2,
+            header=True,
+        ),
+        title="TPM using Nanosim abundance estimates",
+    ),
+    "liqa": dict(
+        get_tpm_args=dict(
+            key_col=1,
+            val_col=2,
+            header=True,
+        ),
+        title="TPM using LIQA abundance estimates",
+    ),
+    "tksm": dict(
+        get_tpm_args=dict(
+            key_col=0,
+            val_col=1,
+            header=True,
+        ),
+        title="TPM using TKSM abundance estimates",
+    ),
+    "tksm_sc": dict(
+        get_tpm_args=dict(
+            key_col=[0, 2],
+            val_col=1,
+            header=True,
+        ),
+        title="TPM using TKSM single cell abundance estimates",
+    ),
+}
+
+
 def longest_polys(seq, s, e, step, match_score=1, mismatch_score=-2, char="A"):
     if e - s == 0:
         return
@@ -77,6 +122,11 @@ def run_longest_polys(seq):
         for i, l, p in longest_polys(seq, 0, len(seq), 1):
             L = max(L, l)
     return L
+
+
+def reverse_complement(seq):
+    complement = {"A": "T", "C": "G", "G": "C", "T": "A", "N": "N"}
+    return "".join(complement.get(base, base) for base in reversed(seq))
 
 
 def get_sample_ref(name):
@@ -448,6 +498,20 @@ rule tksm_abundance:
         " -o {output.tsv}"
 
 
+rule tksm_abundance_sc:
+    input:
+        binary=config["exec"]["tksm"],
+        paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
+        lr_matches=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
+    output:
+        tsv=f"{plots_d}/expression_stats/{{sample}}.tksm_sc.tsv",
+    shell:
+        "{input.binary} abundance"
+        " -p {input.paf}"
+        " -m {input.lr_matches}"
+        " -o {output.tsv}"
+
+
 rule LIQA_refgene:
     input:
         gtf="{prefix}.gtf",
@@ -535,81 +599,90 @@ rule NS_quantify_cp:
         "cp {input.tsv} {output.tsv}"
 
 
+rule tid_to_gid:
+    input:
+        gtf="{prefix}.gtf",
+    output:
+        pickle="{prefix}.gtf.tid_to_gid.pickle",
+    run:
+        tid_to_gid = dict()
+        for l in tqdm(open(input.gtf), desc=f"[tid_to_gid] Processing {input.gtf}"):
+            if l[0] == "#":
+                continue
+            l = l.rstrip("\n").split("\t")
+            if l[2] != "transcript":
+                continue
+            info = l[8]
+            info = [x.strip().split(" ") for x in info.strip(";").split(";")]
+            info = {x[0]: x[1].strip('"') for x in info}
+            tid = info["transcript_id"]
+            gid = info["gene_id"]
+            assert tid not in tid_to_gid
+            tid_to_gid[tid] = gid
+        pickle.dump(tid_to_gid, open(output.pickle, "wb+"))
+
+
 rule tpm_plot:
     input:
         tsvs=lambda wc: [
             f"{plots_d}/expression_stats/{s}.{wc.tpm_method}.tsv"
             for s in wc.samples.split(".")
         ],
+        tid_to_gid=lambda wc: f"{config['refs'][get_sample_ref(wc.samples.split('.')[0])]['GTF']}.tid_to_gid.pickle",
     output:
-        png=f"{plots_d}/tpm_plot_{{tpm_method}}/{{samples}}.png",
+        png=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.png",
+    wildcard_constraints:
+        tpm_method="|".join(tpm_method_settings.keys()),
+        merge_type=".by_gene|",
     run:
-        if wildcards.tpm_method == "minimap2":
-            my_get_tpm = functools.partial(
-                get_tpm,
-                key_col=0,
-                val_col=1,
-                header=True,
-            )
-            my_plot_tpm_func = functools.partial(
-                plot_tpm_func,
-                title="TPM using minimap2 primary alignments",
-            )
-        elif wildcards.tpm_method == "nanosim":
-            my_get_tpm = functools.partial(
-                get_tpm,
-                key_col=0,
-                val_col=2,
-                header=True,
-            )
-            my_plot_tpm_func = functools.partial(
-                plot_tpm_func,
-                title="TPM using Nanosim abundance estimates",
-            )
-        elif wildcards.tpm_method == "liqa":
-            my_get_tpm = functools.partial(
-                get_tpm,
-                key_col=1,
-                val_col=2,
-                header=True,
-            )
-            my_plot_tpm_func = functools.partial(
-                plot_tpm_func,
-                title="TPM using LIQA abundance estimates",
-            )
-        elif wildcards.tpm_method == "tksm":
-            my_get_tpm = functools.partial(
-                get_tpm,
-                key_col=0,
-                val_col=1,
-                header=True,
-            )
-            my_plot_tpm_func = functools.partial(
-                plot_tpm_func,
-                title="TPM using TKSM abundance estimates",
-            )
+        if wildcards.merge_type == ".by_gene":
+            tid_to_gid = pickle.load(open(input.tid_to_gid, "rb"))
         else:
-            raise ValueError(f"Unknown tpm_method: {wildcards.tpm_method}")
+            tid_to_gid = None
+        my_get_tpm_args = {
+            **tpm_method_settings[wildcards.tpm_method]["get_tpm_args"],
+            **dict(tid_to_gid=tid_to_gid),
+        }
+        my_get_tpm = functools.partial(
+            get_tpm,
+            **my_get_tpm_args,
+        )
         X_tpm = my_get_tpm(input.tsvs[0])
         Y_tpms = list(map(my_get_tpm, input.tsvs[1:]))
         samples = wildcards.samples.split(".")
-        my_plot_tpm_func(
+        plot_tpm_func(
             X_tpm,
             Y_tpms,
             samples,
             output.png,
+            title=tpm_method_settings[wildcards.tpm_method]["title"],
         )
 
 
 def get_tpm(
-    tsv, min_tpm=0.01, min_val=0.0, key_col=0, val_col=1, header=True, sep="\t"
+    tsv,
+    min_tpm=0.01,
+    min_val=0.0,
+    key_col=0,
+    val_col=1,
+    header=True,
+    sep="\t",
+    tid_to_gid=None,
 ):
     tpm = Counter()
-    for line_num, line in enumerate(open(tsv, "r")):
+    if isinstance(key_col, int):
+        key_col = [key_col]
+    for line_num, line in tqdm(enumerate(open(tsv, "r")), desc=f"[get_tpm] Processing {tsv}"):
         if header and line_num == 0:
             continue
         line = line.rstrip().split(sep)
-        key = line[key_col]
+        if tid_to_gid is not None:
+            tid = line[key_col[0]]
+            tid = tid.split(".")[0]
+            gid = tid_to_gid.get(tid, tid)
+            key = tuple([gid] + [line[kc] for kc in key_col[1:]])
+        else:
+            key = tuple([line[kc] for kc in key_col])
         val = float(line[val_col])
         if val > min_val:
             tpm[key] = val
@@ -643,7 +716,7 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
     for sample, ax in zip(samples[1:], axs[:, 0]):
         ax.set_ylabel(f"TPM in {sample}", fontsize=28)
     for ax in axs[-1]:
-        ax.set_xlabel("TPM in input", fontsize=28)
+        ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
     X_tids = set(X_tpm.keys())
     for idx, (sample, Y_tpm) in enumerate(zip(samples[1:], Y_tpms)):
         Y_tids = set(Y_tpm.keys())
@@ -673,7 +746,6 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
             ax.set_yscale("log")
     fig.tight_layout()
     plt.savefig(outpath)
-
 
 
 rule NS_analysis:
@@ -746,24 +818,136 @@ rule NS_simulate:
         " --no_model_ir"
         " {params.other}"
 
+
 rule lr_cell_stats:
     input:
+        barcodes=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+        paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
         lr_matches=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
-        lr_bc=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
+        lr_br=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
     output:
-        tsv=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.tsv",
-    shell:
-        "touch"
-        " {output.tsv}"
+        pickle=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.pickle",
+    run:
+        # Get barcodes
+        complement = {"A": "T", "C": "G", "G": "C", "T": "A", "N": "N"}
+        barcode_to_bid = dict()
+        barcodes = list()
+        for bid, l in tqdm(enumerate(gzip.open(input.barcodes, "rt")), desc=f"Reading {input.barcodes}"):
+            barcode = dict(
+                bid=bid,
+                seq=l.strip().split("\t")[0],
+                rids=list(),
+            )
+            rc = "".join(complement.get(base, base) for base in reversed(barcode["seq"]))
+
+            assert barcode["seq"] not in barcode_to_bid and rc not in barcode_to_bid
+            barcode_to_bid[barcode["seq"]] = bid
+            barcode_to_bid[rc] = bid
+            barcodes.append(barcode)
+
+        # Get reads
+        rname_to_rid = dict()
+        reads = list()
+        for fastq in input.reads:
+            if fastq.endswith(".gz"):
+                opener = gzip.open(fastq, "rt")
+            else:
+                opener = open(fastq)
+            for idx,line in enumerate(tqdm(opener, desc=f"Processing {fastq}")):
+                if idx == 0:
+                    if line[0] == "@": # fastq
+                        mod = 4
+                    elif line[0] == ">": # fasta
+                        mod = 2
+                    else:
+                        raise ValueError("Unknown fastq/a format")
+                if idx % mod != 0:
+                    continue
+                read = dict(
+                    rid=len(rname_to_rid),
+                    name=line[1:].split(" ")[0],
+                    dist=-1,
+                    bids=list(),
+                    br_seg = (
+                        -1, # dist
+                        0, # loc
+                        "", # seg
+                    ),
+                    mappings=Counter(),
+
+                )
+                assert not read["name"] in rname_to_rid
+                rname_to_rid[read["name"]] = read["rid"]
+                reads.append(read)
+
+        # Add mappings
+        for line in tqdm(open(input.paf), desc=f"Processing {input.paf}"):
+            line = line.rstrip('\n').split('\t')
+            if not 'tp:A:P' in line:
+                continue
+            strand = line[4]
+            tid = line[5]
+            rid = rname_to_rid[line[0]]
+            reads[rid]["mappings"][(tid,strand)]+=1
+
+        # Add barcode segment
+        for line in tqdm(gzip.open(input.lr_br, "rt"), desc=f"Processing {input.lr_br}"):
+            line = line.rstrip('\n').split('\t')
+            rid = rname_to_rid[line[0]]
+            if line[2] == "NA":
+                continue
+            reads[rid]["br_seg"] = (
+                int(line[1]),
+                int(line[2]),
+                line[3],
+            )
+            
+        # Add matches
+        if input.lr_matches.endswith(".gz"):
+            opener = gzip.open(input.lr_matches, "rt")
+        else:
+            opener = open(input.lr_matches)
+        for line in tqdm(opener, desc=f"Processing {input.lr_matches}"):
+            line = line.rstrip('\n').split('\t')
+            rid = rname_to_rid[line[0]]
+            reads[rid]["dist"] = int(line[2])
+            reads[rid]["bids"] = [barcode_to_bid[b] for b in line[4].split(',')]
+                                
+            for bid in reads[rid]["bids"]:
+                barcodes[bid]["rids"].append((
+                    rid,
+                    reads[rid]["dist"],
+                    len(reads[rid]["bids"]),
+                ))
+
+        pickle.dump(
+            (barcodes, reads),
+            open(output.pickle, "wb+"),
+        )
+
 
 rule lr_cell_plot:
     input:
-        tsvs=lambda wc: [
-            f"{plots_d}/lr_cell_stats/{s}.lr_cell_stats.tsv"
+        pickles=lambda wc: [
+            f"{plots_d}/lr_cell_stats/{s}.lr_cell_stats.pickle"
             for s in wc.samples.split(".")
         ],
     output:
         f"{plots_d}/lr_cell_stats/{{samples}}.png",
-    shell:
-        "touch"
-        " {output}"
+    run:
+        samples = wildcards.samples.split(".")
+        for p, sample in zip(input.pickles, samples):
+            barcode_to_bid, rname_to_rid, bid_to_rids, rid_to_bids = pickle.load(
+                open(p, "rb")
+            )
+            plt.hist(
+                [len(v) for v in bid_to_rids.values()],
+                bins=range(1, 500, 5),
+                density=True,
+                label=sample,
+                alpha=0.3,
+            )
+        plt.legend()
+        plt.title("Cell barcode (X-axis) and their read counts (Y-axis)")
+        plt.savefig(output[0], dpi=300)
