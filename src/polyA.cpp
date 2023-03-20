@@ -140,13 +140,16 @@ public:
         if (poly_a_len > max_polya_len) {
             poly_a_len = max_polya_len;
         }
+
         molecule_descriptor new_md = md;
-        new_md.append_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, true});
+        if(poly_a_len > 0) {
+            new_md.append_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, true});
+        }
         return new_md;
     }
 
     auto polya_transformer(int min_length, int max_length, auto &dist) {
-        return std::ranges::views::transform([&](const auto &md) {
+        return std::ranges::views::transform([&, min_length, max_length, dist](const auto &md) {
             return std::visit([&](auto dist) { return add_polyA(md, dist, min_length, max_length); }, dist);
         });
     }
