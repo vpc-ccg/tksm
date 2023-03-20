@@ -132,22 +132,22 @@ public:
           args(parse(argc, argv)) {}
 
     template <class Distribution>
-    int add_polyA(molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len) {
-        int poly_a_len = static_cast<int>(dist(rand_gen));
+    molecule_descriptor add_polyA(const molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len) {
+        int poly_a_len = dist(rand_gen);
         if (poly_a_len < min_polya_len) {
             poly_a_len = min_polya_len;
         }
         if (poly_a_len > max_polya_len) {
             poly_a_len = max_polya_len;
         }
-        md.append_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, true});
-        return poly_a_len;
+        molecule_descriptor new_md = md;
+        new_md.append_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, true});
+        return new_md;
     }
 
-    auto polya_transformer(int min_length, int max_length, auto dist) {
-        return std::ranges::views::transform([&](auto &md) {
-            std::visit([&](auto dist) { add_polyA(md, dist, min_length, max_length); }, dist);
-            return md;
+    auto polya_transformer(int min_length, int max_length, auto &dist) {
+        return std::ranges::views::transform([&](const auto &md) {
+            return std::visit([&](auto dist) { return add_polyA(md, dist, min_length, max_length); }, dist);
         });
     }
     auto get_dist() -> std::variant<std::gamma_distribution<double>, std::poisson_distribution<int>,
@@ -171,7 +171,8 @@ public:
         return std::gamma_distribution<double>(1, 1);
     }
     auto operator()() {
-        return polya_transformer(args["min-length"].as<int>(), args["max-length"].as<int>(), get_dist());
+        auto dist =  get_dist();
+        return polya_transformer(args["min-length"].as<int>(), args["max-length"].as<int>(), dist);
     }
     int run() {
         if (process_utility_arguments(args)) {
@@ -213,7 +214,8 @@ public:
             return 1;
         }
 
-        for (const auto &md : stream_mdf(input, true) | polya_transformer(min_length, max_length, get_dist())) {
+        auto dist = get_dist();
+        for (const auto &md : stream_mdf(input, true) | polya_transformer(min_length, max_length, dist)) {
             output << md;
         }
 
