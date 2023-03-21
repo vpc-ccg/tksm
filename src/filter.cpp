@@ -205,8 +205,10 @@ public:
             bool removed = false;
             for(const auto &condition : conditions) {
 
-                if(!condition(md)) {
-                    output_files[1] << md;
+                if(!condition(md) ) {
+                    if(args["false-output"].count() > 0 ){
+                        output_files[1] << md;
+                    }
                     removed = true;
                 }
             }
