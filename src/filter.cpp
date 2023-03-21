@@ -94,25 +94,33 @@ class FilterCondition{
             // Check if the molecule has any segments within the given genomic range
             // Parse the genomic range
             const vector<string> range_fields = rsplit(condition_expression_str, ":");
-            if (range_fields.size() != 2) {
-                throw std::runtime_error("Invalid condition: " + condition);
-            }
-            const string chr = range_fields[0];
-            const string range_str = range_fields[1];
-            const vector<string> range = rsplit(range_str, "-");
-            if (range.size() != 2) {
-                throw std::runtime_error("Invalid condition: " + condition);
-            }
-            const int start = stoi(range[0]);
-            const int end = stoi(range[1]);
-            cond_func = [chr, start, end](const molecule_descriptor &md) {
-                for (const auto &seg : md.cget_segments()) {
-                    if (seg.chr == chr && seg.overlap({chr, start, end,true})>0) {
-                        return true;
+            if (range_fields.size() == 1) {//Only chr is provided
+                const string chr = range_fields[0];
+                cond_func = [chr](const molecule_descriptor &md) {
+                    for (const auto &seg : md.cget_segments()) {
+                        if (seg.chr == chr) {
+                            return true;
+                        }
                     }
-                }
-                return false;
-            };
+                    return false;
+                };
+            }
+            else{
+                const string chr = range_fields[0];
+                const string range_str = range_fields[1];
+                const vector<string> range = rsplit(range_str, "-");
+
+                const int start = stoi(range[0]);
+                const int end = range.size() == 1 ? start+1 : stoi(range[1]);
+                cond_func = [chr, start, end](const molecule_descriptor &md) {
+                    for (const auto &seg : md.cget_segments()) {
+                        if (seg.chr == chr && seg.overlap({chr, start, end,true})>0) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+            }
         }
 
     }
