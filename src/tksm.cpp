@@ -18,6 +18,7 @@
 #include "truncate.h"
 #include "tag.h"
 #include "strand_man.h"
+#include "filter.h"
 
 using std::set;
 using std::string;
@@ -133,6 +134,9 @@ main(int argc, char **argv) {
     }
     else if (kisim == "head") {
         return Head_module{argc - 1, argv + 1}.run();
+    }
+    else if (kisim == "filter") {
+        return Filter_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "model-errors") {
         fmt::print("Model errors\n");
