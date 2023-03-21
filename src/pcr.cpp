@@ -223,7 +223,6 @@ public:
         }
         ofstream output (output_file);
         return PCR{cycles, efficiency, error_rate, tksm_module::rand_gen}.perform(molecules, molecule_count, output);
-        return 0;
     }
 
     void describe_program() {

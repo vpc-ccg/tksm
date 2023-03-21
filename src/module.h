@@ -9,29 +9,28 @@ template <class RAND_GENERATOR>
 class tksm_submodule_base {
     string submodule_name;
     string submodule_description;
-    
+
 public:
-    
     RAND_GENERATOR &rand_gen;
-    enum class submodule_status{ RUN, DONT_RUN, ERROR} status;
-    
-    submodule_status update_status(submodule_status new_status){
+    enum class submodule_status { RUN, DONT_RUN, ERROR } status;
+
+    submodule_status update_status(submodule_status new_status) {
         status = new_status;
         return status;
     }
 
     tksm_submodule_base(string submodule_name, string submodule_description, RAND_GENERATOR &rand_gen)
-        : submodule_name(submodule_name), submodule_description(submodule_description), rand_gen(rand_gen), status{submodule_status::DONT_RUN}{}
+        : submodule_name(submodule_name),
+          submodule_description(submodule_description),
+          rand_gen(rand_gen),
+          status{submodule_status::DONT_RUN} {}
 
     virtual void add_options(cxxopts::Options &options) = 0;
 
-    virtual submodule_status receive_arguments(const cxxopts::ParseResult &args)                    = 0;
-    template<class TopModule>
-    int run(TopModule *top_module);
-    cxxopts::ParseResult args;
-    virtual ~tksm_submodule_base()                      = default;
-    virtual void describe_program()                     = 0;
+    virtual submodule_status receive_arguments(const cxxopts::ParseResult &args) = 0;
 
+    virtual ~tksm_submodule_base()  = default;
+    virtual void describe_program(const cxxopts::ParseResult &args) = 0;
 };
 using tksm_submodule = tksm_submodule_base<std::mt19937>;
 class tksm_module {
@@ -51,7 +50,7 @@ protected:
     std::mt19937 rand_gen;
 
     virtual int validate_arguments() = 0;
-    
+
 public:
     tksm_module(string program_name, string program_description)
         : program_name(program_name),
@@ -117,6 +116,5 @@ public:
     virtual int run()               = 0;
     virtual void describe_program() = 0;
 };
-
 
 #endif

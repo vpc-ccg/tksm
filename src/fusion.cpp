@@ -344,12 +344,8 @@ read_fusions(std::istream &fusion_file) {
 class Fusion_submodule : public tksm_submodule {
     void add_options(cxxopts::Options &options) override {
         // clang-format off
-        options.add_options("fusion")
+        options.add_options("submodule:fusion")
             (
-                "fusion-abundance",
-                "Fusion abundance file",
-                cxxopts::value<string>()
-            )(
                 "fusion-gtf",
                 "Path to output GTF annotation file",
                 cxxopts::value<string>()
@@ -364,10 +360,6 @@ class Fusion_submodule : public tksm_submodule {
             )(
                 "disable-deletions",
                 "Disables deletions (from fusions) that removes expression on the overlapping genes",
-                cxxopts::value<bool>()->default_value("false")->implicit_value("true")
-            )(
-                "use-whole-id",
-                "Use whole gene ids",
                 cxxopts::value<bool>()->default_value("false")->implicit_value("true")
             )(
                 "translocation-ratio",
@@ -525,52 +517,24 @@ class Fusion_submodule : public tksm_submodule {
     }
 
 public:
-    Fusion_submodule(std::mt19937 &rand_gen) : tksm_submodule{"fusion", "Fusion module", rand_gen} {}
+    Fusion_submodule(cxxopts::Options &opt, std::mt19937 &rand_gen) : tksm_submodule{"fusion", "Fusion module", rand_gen}{
+        add_options(opt);
+    }
     ~Fusion_submodule() = default;
     submodule_status receive_arguments(const cxxopts::ParseResult &args) override {
-        std::vector<string> mandatory        = {"abundance", "gtf"};  // Top module should provide abundance and gtf
-        std::vector<string> mandatory_fusion = {"fusion-abundance", "fusion-gtf"};
-        int missing_parameters               = 0;
-        for (string &param : mandatory_fusion) {
-            if (args.count(param) == 0) {
-                report_missing_parameter(param);
-                ++missing_parameters;
-            }
-        }
 
-        if (missing_parameters == int(mandatory_fusion.size())) {
-            logi("No fusion parameters specified, skipping fusion module");
-
+        if (args["fusion-count"].as<int>() == 0 && args["fusion-file"].count() == 0) {
             return update_status(submodule_status::DONT_RUN);
-        }
-        if (missing_parameters > 0) {
-            return update_status(submodule_status::ERROR);
-        }
-        for (string &param : mandatory) {
-            if (args.count(param) == 0) {
-                report_missing_parameter(param);
-                ++missing_parameters;
-            }
-        }
-        if (missing_parameters > 0) {
-            return update_status(submodule_status::ERROR);
-        }
-
-        if (args["fusion-count"].as<int>() == 0 && args["fusion-file"].as<string>().empty()) {
-            loge("Either fusion-file or fusion-count must be specified");
-            return update_status(submodule_status::ERROR);
         }
 
         return update_status(submodule_status::RUN);
     }
 
     template <class TopModule>
-    auto run(TopModule *top_module) -> std::pair<std::vector<transcript>, std::vector<gtf>> {
+    auto run(TopModule *top_module, vector<std::tuple<string,double, string>> &abundances) -> std::map<gtf, std::vector<transcript>> {
         cxxopts::ParseResult &args = top_module->args;
-        std::string gtf_file       = args["gtfi"].as<string>();
-        std::string abundance_file = args["abundance"].as<string>();
-        std::string output_file    = args["output"].as<string>();
 
+        string gtf_file = args["gtf"].as<string>();
         size_t fusion_count                     = args["fusion-count"].as<int>();
         double translocation_ratio              = args["translocation-ratio"].as<double>();
         [[maybe_unused]] bool disable_deletions = args["disable-deletions"].as<bool>();
@@ -636,12 +600,12 @@ public:
         fusion_tree.index();
         deletion_tree.index();
 
-        std::ifstream abundance_file_stream{abundance_file};
+
         string buffer;
-        std::getline(abundance_file_stream, buffer);  // Header
+
         std::map<chimeric_event, std::map<locus, vector<transcript>>> relevant_molecules;
         std::set<string> processed_transcripts;
-        std::ofstream output_file_stream{output_file};
+
 
         logi("Processing abundance file");
         int total_count = 0;
@@ -667,21 +631,12 @@ public:
         }
 
         map<string, double> tpm_saved_for_fusions;
-        while (std::getline(abundance_file_stream, buffer)) {
+        for( auto &[tid, tpm, comment] : abundances){
             ++total_count;
-            string tid;
-            double tpm;
-            string comment;
-            std::istringstream(buffer) >> tid >> tpm >> comment;
-
             format_annot_id(tid, !args["use-whole-id"].as<bool>());
             auto iter = transcripts_by_id.find(tid);
             if (iter == transcripts_by_id.end()) {
                 ++skipped;
-                continue;
-            }
-            if (processed_transcripts.find(tid) != processed_transcripts.end()) {
-                output_file_stream << buffer << "\n";
                 continue;
             }
             else {
@@ -692,8 +647,9 @@ public:
 
         logd("Skipped {} transcripts out of {}", skipped, total_count);
         logi("Creating fusion transcripts");
-        std::ofstream gtfo_file{args["gtfo"].as<string>()};
+        map<gtf, vector<transcript>> gene2transcripts_of_fusions;
         string current_gene = "";
+        gtf current_gene_obj;
         for (auto &[event, loci] : relevant_molecules) {
             for (auto &l : loci) {
                 for (auto &t : l.second) {
@@ -715,24 +671,34 @@ public:
             }
             auto transcript_vec = event.execute_event(loci, rand_gen);
             logd("Creating {} fusion transcripts on event {}", transcript_vec.size(), event);
+
             for (auto &t : transcript_vec) {
-                output_file_stream << t.to_abundance_str() << "\n";
                 if (t.info["gene_id"] != current_gene) {
                     current_gene              = t.info["gene_id"];
                     vector<string> gene_names = rsplit(current_gene, "::");
                     auto new_gene             = combine_gene_entries(genes.at(gene_names[0]), genes.at(gene_names[1]));
-                    gtfo_file << new_gene;
+                    current_gene_obj         = new_gene;
                 }
-                gtfo_file << t;
+                gene2transcripts_of_fusions[current_gene_obj].push_back(t);
             }
         }
-        return {};
+        if( args["fusion-gtf"].count() > 0){
+            std::ofstream fusion_gtf_file{args["fusion-gtf"].as<string>()};
+            for( auto &[gene, transcripts] : gene2transcripts_of_fusions){
+                fusion_gtf_file << gene;
+                for( auto &t : transcripts){
+                    fusion_gtf_file << t;
+                }
+            }
+        }
+        return gene2transcripts_of_fusions;;
     }
 
-    void describe_program() override {
+    void describe_program(const cxxopts::ParseResult &args) override {
+        if( status != submodule_status::RUN){
+            return;
+        }
         logi("Fusion submodule");
-        logi("Fusion GTF file: {}", args["fusion-gtf"].as<string>());
-        logi("Fusion abundance file: {}", args["fusion-abundance"].as<string>());
 
         if (args["fusion-file"].count() > 0) {
             logi("Fusion file: {}", args["fusion-file"].as<string>());
