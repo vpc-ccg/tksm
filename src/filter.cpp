@@ -42,9 +42,58 @@ class FilterCondition{
                 return true;
             };
         }
+        else if (condition_type_str == "size"){
+            //Parse integer comparison symbol first (can be 1 or 2 characters) and separate the following integer and save it to a variable
+            if(condition_expression_str.size() < 2) {
+                throw std::runtime_error("Invalid condition: " + condition);
+            }
+            string cmp_symb = [&condition_expression_str] () {
+                if(condition_expression_str[1] == '='){
+                    return condition_expression_str.substr(0,2);
+                }
+                return condition_expression_str.substr(0,1);
+            }();
+
+            unsigned cmp_val = stoi(condition_expression_str.substr(cmp_symb.size()));
+
+            if(cmp_symb == "<") {
+                cond_func = [cmp_val](const molecule_descriptor &md) {
+                    return md.size() < cmp_val;
+                };
+            }
+            else if(cmp_symb == "<=") {
+                cond_func = [cmp_val](const molecule_descriptor &md) {
+                    return md.size() <= cmp_val;
+                };
+            }
+            else if(cmp_symb == ">") {
+                cond_func = [cmp_val](const molecule_descriptor &md) {
+                    return md.size() > cmp_val;
+                };
+            }
+            else if(cmp_symb == ">=") {
+                cond_func = [cmp_val](const molecule_descriptor &md) {
+                    return md.size() >= cmp_val;
+                };
+            }
+            else if(cmp_symb == "==") {
+                cond_func = [cmp_val](const molecule_descriptor &md) {
+                    return md.size() == cmp_val;
+                };
+            }
+            else if(cmp_symb == "!=") {
+                cond_func = [cmp_val](const molecule_descriptor &md) {
+                    return md.size() != cmp_val;
+                };
+            }
+            else {
+                throw std::runtime_error("Invalid condition: " + condition);
+            }
+        }
+
     }
-    operator bool() const {
-        return true;
+    bool operator () (const molecule_descriptor &md) const {
+        return cond_func(md);
     }
 };
 
@@ -124,7 +173,7 @@ public:
             bool removed = false;
             for(const auto &condition : conditions) {
 
-                if(!condition.cond_func(md)) {
+                if(!condition(md)) {
                     output_files[1] << md;
                     removed = true;
                 }
