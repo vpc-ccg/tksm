@@ -84,7 +84,7 @@ public:
             const string &barcode_str   = md.get_comment("CB")[0];
             const string barcode_ctg_id = "CB_" + barcode_str;
             if (barcode_str != ".") {
-                md.prepend_segment(ginterval{barcode_ctg_id, 0, (int)barcode_str.size(), true});
+                md.append_segment(ginterval{barcode_ctg_id, 0, (int)barcode_str.size(), true});
                 if (used_barcodes.count(barcode_str) == 0) {
                     fastafile << ">" << barcode_ctg_id << "\n" << barcode_str << "\n";
                     used_barcodes.insert(barcode_str);
