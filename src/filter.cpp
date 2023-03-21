@@ -90,6 +90,30 @@ class FilterCondition{
                 throw std::runtime_error("Invalid condition: " + condition);
             }
         }
+        else if (condition_type_str == "locus"){
+            // Check if the molecule has any segments within the given genomic range
+            // Parse the genomic range
+            const vector<string> range_fields = rsplit(condition_expression_str, ":");
+            if (range_fields.size() != 2) {
+                throw std::runtime_error("Invalid condition: " + condition);
+            }
+            const string chr = range_fields[0];
+            const string range_str = range_fields[1];
+            const vector<string> range = rsplit(range_str, "-");
+            if (range.size() != 2) {
+                throw std::runtime_error("Invalid condition: " + condition);
+            }
+            const int start = stoi(range[0]);
+            const int end = stoi(range[1]);
+            cond_func = [chr, start, end](const molecule_descriptor &md) {
+                for (const auto &seg : md.cget_segments()) {
+                    if (seg.chr == chr && seg.overlap({chr, start, end,true})>0) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+        }
 
     }
     bool operator () (const molecule_descriptor &md) const {
