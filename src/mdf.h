@@ -94,7 +94,7 @@ stream_mdf(std::istream &ist, bool unroll = false) {
         }
         molecule_descriptor md{id, !segments[0].plus_strand};
         md.depth(depth)->assign_segments(segments)->comment(comment);
-        if (unroll) {
+        if (unroll && md.get_depth() > 1) {
             molecule_descriptor mdc = md;
             mdc.depth(1);
             for (int i = 0; i < md.get_depth(); ++i) {
@@ -148,7 +148,7 @@ stream_mdf(const string &filename, bool unroll = false) {
         }
         molecule_descriptor md{id, !segments[0].plus_strand};
         md.depth(depth)->assign_segments(segments)->comment(comment);
-        if (unroll) {
+        if (unroll && md.get_depth() > 1) {
             molecule_descriptor mdc = md;
             mdc.depth(1);
             for (int i = 0; i < md.get_depth(); ++i) {
