@@ -79,17 +79,20 @@ public:
                 ++missing_parameters;
             }
         }
-        // Other parameter checks here
-
-        if(args["flip-probability"].as<double>() < 0.0 || args["flip-probability"].as<double>() > 1.0){
-            loge("Flip probability must be between 0 and 1");
-            ++missing_parameters;
-        }
+        
 
         if (missing_parameters > 0) {
             fmt::print(stderr, "{}\n", options.help());
             return 1;
         }
+
+        // Other parameter checks here
+
+        if( args["flip-probability"].as<double>() < 0.0 || args["flip-probability"].as<double>() > 1.0){
+            loge("Flip probability must be between 0 and 1");
+            ++missing_parameters;
+        }
+
         return 0;
     }
     int run() {
