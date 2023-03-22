@@ -176,7 +176,7 @@ public:
                 outfile << md;
             }
 
-            for(auto [umi_seq, index] : umi_ctg_map){
+            for(const auto &[umi_seq, index] : umi_ctg_map){
                 string umi_ctg_name    = fmt::format("{}_{}", umi_ctg_prefix, index);
                 umifile << fmt::format(">{}\n", umi_ctg_name);
                 umifile << umi_seq << "\n";
