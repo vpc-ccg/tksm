@@ -1,102 +1,92 @@
 #include "filter.h"
+
 #include <cxxopts.hpp>
+#include <fstream>
 #include <random>
 #include <string>
 #include <vector>
-#include <fstream>
 
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
 #include "util.h"
 
-using std::string;
-using std::vector;
 using std::ifstream;
 using std::ofstream;
+using std::string;
+using std::vector;
 
 #include "pimpl.h"
 
-class FilterCondition{
-    public:
-        std::function<bool(const molecule_descriptor &)> cond_func;
+class FilterCondition {
+public:
+    std::function<bool(const molecule_descriptor &)> cond_func;
     FilterCondition(const string &condition) {
         const vector<string> fields = rsplit(condition, " ");
         if (fields.size() != 2) {
             throw std::runtime_error("Invalid condition: " + condition);
         }
-        const string condition_type_str = fields[0];
+        const string condition_type_str       = fields[0];
         const string condition_expression_str = fields[1];
-        if (condition_type_str == "info"){
+        if (condition_type_str == "info") {
             cond_func = [condition_expression_str](const molecule_descriptor &md) {
                 auto iter = md.meta.find(condition_expression_str);
-                if( iter == md.meta.end()) {
+                if (iter == md.meta.end()) {
                     return false;
                 }
-                if(iter->second.empty()){
+                if (iter->second.empty()) {
                     return false;
                 }
-                if(iter->second[0]== "."){
+                if (iter->second[0] == ".") {
                     return false;
                 }
                 return true;
             };
         }
-        else if (condition_type_str == "size"){
-            //Parse integer comparison symbol first (can be 1 or 2 characters) and separate the following integer and save it to a variable
-            if(condition_expression_str.size() < 2) {
+        else if (condition_type_str == "size") {
+            // Parse integer comparison symbol first (can be 1 or 2 characters) and separate the following integer and
+            // save it to a variable
+            if (condition_expression_str.size() < 2) {
                 throw std::runtime_error("Invalid condition: " + condition);
             }
-            string cmp_symb = [&condition_expression_str] () {
-                if(condition_expression_str[1] == '='){
-                    return condition_expression_str.substr(0,2);
+            string cmp_symb = [&condition_expression_str]() {
+                if (condition_expression_str[1] == '=') {
+                    return condition_expression_str.substr(0, 2);
                 }
-                return condition_expression_str.substr(0,1);
+                return condition_expression_str.substr(0, 1);
             }();
 
             unsigned cmp_val = stoi(condition_expression_str.substr(cmp_symb.size()));
 
-            if(cmp_symb == "<") {
-                cond_func = [cmp_val](const molecule_descriptor &md) {
-                    return md.size() < cmp_val;
-                };
+            if (cmp_symb == "<") {
+                cond_func = [cmp_val](const molecule_descriptor &md) { return md.size() < cmp_val; };
             }
-            else if(cmp_symb == "<=") {
-                cond_func = [cmp_val](const molecule_descriptor &md) {
-                    return md.size() <= cmp_val;
-                };
+            else if (cmp_symb == "<=") {
+                cond_func = [cmp_val](const molecule_descriptor &md) { return md.size() <= cmp_val; };
             }
-            else if(cmp_symb == ">") {
-                cond_func = [cmp_val](const molecule_descriptor &md) {
-                    return md.size() > cmp_val;
-                };
+            else if (cmp_symb == ">") {
+                cond_func = [cmp_val](const molecule_descriptor &md) { return md.size() > cmp_val; };
             }
-            else if(cmp_symb == ">=") {
-                cond_func = [cmp_val](const molecule_descriptor &md) {
-                    return md.size() >= cmp_val;
-                };
+            else if (cmp_symb == ">=") {
+                cond_func = [cmp_val](const molecule_descriptor &md) { return md.size() >= cmp_val; };
             }
-            else if(cmp_symb == "==") {
-                cond_func = [cmp_val](const molecule_descriptor &md) {
-                    return md.size() == cmp_val;
-                };
+            else if (cmp_symb == "==") {
+                cond_func = [cmp_val](const molecule_descriptor &md) { return md.size() == cmp_val; };
             }
-            else if(cmp_symb == "!=") {
-                cond_func = [cmp_val](const molecule_descriptor &md) {
-                    return md.size() != cmp_val;
-                };
+            else if (cmp_symb == "!=") {
+                cond_func = [cmp_val](const molecule_descriptor &md) { return md.size() != cmp_val; };
             }
             else {
                 throw std::runtime_error("Invalid condition: " + condition);
             }
         }
-        else if (condition_type_str == "locus"){
+        else if (condition_type_str == "locus") {
             // Check if the molecule has any segments within the given genomic range
             // Parse the genomic range
             const vector<string> range_fields = rsplit(condition_expression_str, ":");
-            if (range_fields.size() == 1) {//Only chr is provided
+            if (range_fields.size() == 1) {  // Only chr is provided
                 const string chr = range_fields[0];
-                cond_func = [chr](const molecule_descriptor &md) {
+                cond_func        = [chr](const molecule_descriptor &md) {
                     for (const auto &seg : md.cget_segments()) {
                         if (seg.chr == chr) {
                             return true;
@@ -105,16 +95,16 @@ class FilterCondition{
                     return false;
                 };
             }
-            else{
-                const string chr = range_fields[0];
-                const string range_str = range_fields[1];
+            else {
+                const string chr           = range_fields[0];
+                const string range_str     = range_fields[1];
                 const vector<string> range = rsplit(range_str, "-");
 
                 const int start = stoi(range[0]);
-                const int end = range.size() == 1 ? start+1 : stoi(range[1]);
-                cond_func = [chr, start, end](const molecule_descriptor &md) {
+                const int end   = range.size() == 1 ? start + 1 : stoi(range[1]);
+                cond_func       = [chr, start, end](const molecule_descriptor &md) {
                     for (const auto &seg : md.cget_segments()) {
-                        if (seg.chr == chr && seg.overlap({chr, start, end,true})>0) {
+                        if (seg.chr == chr && seg.overlap({chr, start, end, true}) > 0) {
                             return true;
                         }
                     }
@@ -122,11 +112,8 @@ class FilterCondition{
                 };
             }
         }
-
     }
-    bool operator () (const molecule_descriptor &md) const {
-        return cond_func(md);
-    }
+    bool operator()(const molecule_descriptor &md) const { return cond_func(md); }
 };
 
 class Filter_module::impl : public tksm_module {
@@ -158,7 +145,8 @@ class Filter_module::impl : public tksm_module {
     cxxopts::ParseResult args;
 
 public:
-    impl(int argc, char **argv) : tksm_module{"Filter", "Splits the input to 2 files w.r.t. condition"}, args(parse(argc, argv)) {}
+    impl(int argc, char **argv)
+        : tksm_module{"Filter", "Splits the input to 2 files w.r.t. condition"}, args(parse(argc, argv)) {}
 
     ~impl() = default;
 
@@ -188,35 +176,34 @@ public:
         }
         describe_program();
 
-        string input_file  = args["input"].as<string>();
+        string input_file = args["input"].as<string>();
 
         vector<ofstream> output_files;
         output_files.emplace_back(args["true-output"].as<string>());
-        if(args.count("false-output")) {
+        if (args.count("false-output")) {
             output_files.emplace_back(args["false-output"].as<string>());
         }
-        
+
         vector<FilterCondition> conditions;
-        for(const auto &condition : args["condition"].as<vector<string>>()) {
+        for (const auto &condition : args["condition"].as<vector<string>>()) {
             conditions.emplace_back(condition);
         }
 
-        for(auto &md : stream_mdf(input_file)) {
+        for (const auto &md : stream_mdf(input_file)) {
             bool removed = false;
-            for(const auto &condition : conditions) {
-
-                if(!condition(md) ) {
-                    if(args["false-output"].count() > 0 ){
+            for (const auto &condition : conditions) {
+                if (!condition(md)) {
+                    if (args["false-output"].count() > 0) {
                         output_files[1] << md;
                     }
                     removed = true;
                 }
             }
-            if(!removed) {
+            if (!removed) {
                 output_files[0] << md;
             }
         }
-        for(auto &output_file : output_files) {
+        for (auto &output_file : output_files) {
             output_file.close();
         }
         return 0;
@@ -226,11 +213,11 @@ public:
         logi("Running filter module");
         logi("Input file: {}", args["input"].as<string>());
         logi("True output file: {}", args["true-output"].as<string>());
-        if(args.count("false-output")) {
+        if (args.count("false-output")) {
             logi("False output file: {}", args["false-output"].as<string>());
         }
         logi("Conditions: {}", fmt::join(args["condition"].as<vector<string>>(), " and "));
-        //Other parameters logs are here
+        // Other parameters logs are here
         fmtlog::poll(true);
     }
 };
