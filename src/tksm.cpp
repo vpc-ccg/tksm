@@ -8,6 +8,7 @@
 
 // Import kisims
 #include "abundance.h"
+#include "filter.h"
 #include "head.h"
 #include "kde.h"
 #include "pcr.h"
@@ -15,10 +16,9 @@
 #include "sequencer.h"
 #include "single-cell-barcoder.h"
 #include "splicer.h"
-#include "truncate.h"
-#include "tag.h"
 #include "strand_man.h"
-#include "filter.h"
+#include "tag.h"
+#include "truncate.h"
 
 using std::set;
 using std::string;
@@ -29,23 +29,24 @@ using std::vector;
 #endif
 
 // clang-format off
-vector<string> kisims = {
-    "abundance",
-    "splicer",
-    "tag",
-    "polyA",
-    "single-cell-barcoder",
-    "pcr",
-    "flip",
-    "truncate",
-    "sequencer",
+vector<std::pair<string, string>> kisims = {
+    {"abundance", "Computes the abundance of a long read RNA-seq experiment"},
+    {"splicer", "Simulates RNA molecules given abundances"},
+    {"tag", "Simulates tagmentation"},
+    {"polyA", "Simulates polyA tailing"},
+    {"single-cell-barcoder", "Simulates single cell barcoding"},
+    {"pcr", "Simulates PCR"},
+    {"flip", "Simulates strand flipping"},
+    {"truncate", "Simulates read truncation"},
+    {"sequencer", "Simulates reads given molecules"},
 };
 
-vector<string> utility = {
-    "kde",
-    "head",
-    "model-errors",
-    "model-qscores"
+vector<std::pair<string,string>> utility = {
+    {"kde", "Kernel density estimation"},
+    {"head", "Prints the first n lines of a file"},
+    {"filter", "Filters a file based on a condition"},
+    {"model-errors", "Models sequencing errors"},
+    {"model-qscores", "Models sequencing quality scores"},
 };
 
 vector<string> info = {
@@ -59,13 +60,18 @@ help(char **argv, auto file) {
     fmt::print(file, "{}\n", ASCII_ART);
     fmt::print(file, "Usage: {} <module> [options]", argv[0]);
     fmt::print("\nAvailable modules: \n");
-    for (auto kisim : kisims) {
-        fmt::print("\t{}\t\t{}\n", kisim, "description");
+    for (const auto &[kisim, description] : kisims) {
+        fmt::print("\t{}\t\t{}\n", kisim, description);
     }
 
     fmt::print("\nAvailable utilities: \n");
-    for (auto util : utility) {
-        fmt::print("\t{}\t\t{}\n", util, "description");
+    for (auto [util, description] : utility) {
+        fmt::print("\t{}\t\t{}\n", util, description);
+    }
+
+    fmt::print("----------------\n");
+    for (auto info : info) {
+        fmt::print("\t{}\t\n", info);
     }
 }
 
@@ -78,8 +84,14 @@ main(int argc, char **argv) {
         return 1;
     }
 
-    set<string> all_kisims = set<string>(kisims.begin(), kisims.end());
-    all_kisims.insert(utility.begin(), utility.end());
+    set<string> all_kisims;
+    for (const auto &[kisim, description] : kisims) {
+        all_kisims.insert(kisim);
+    }
+    for (const auto &[util, description] : utility) {
+        all_kisims.insert(util);
+    }
+
     all_kisims.insert(info.begin(), info.end());
 
     if (all_kisims.find(argv[1]) == all_kisims.end()) {
