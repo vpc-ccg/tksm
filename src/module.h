@@ -29,30 +29,25 @@ public:
 
     virtual submodule_status receive_arguments(const cxxopts::ParseResult &args) = 0;
 
-    virtual ~tksm_submodule_base()  = default;
+    virtual ~tksm_submodule_base()                                  = default;
     virtual void describe_program(const cxxopts::ParseResult &args) = 0;
 };
-using tksm_submodule = tksm_submodule_base<std::mt19937>;
-class tksm_module {
-    // Pure abstract class for the modules
-    // The modules are the classes that will be used to
-    // implement the different functionalities of the tksm
-    // Each module will have private functions to parse the parameters
-    // using the cxxopts library and a function to validate the given parameters
-    // modules will be constructed using argc and argv from the main function
-    // and will be called using the run function which will be implemented
-    // in each module
 
+
+using tksm_submodule = tksm_submodule_base<std::mt19937>;
+
+template <class RAND_GENERATOR>
+class tksm_module_base {
 protected:
     string program_name;
     string program_description;
     cxxopts::Options options;
-    std::mt19937 rand_gen;
+    RAND_GENERATOR rand_gen;
 
     virtual int validate_arguments() = 0;
 
 public:
-    tksm_module(string program_name, string program_description)
+    tksm_module_base(const string &program_name, const string &program_description)
         : program_name(program_name),
           program_description(program_description),
           options{program_name, program_description} {
@@ -79,8 +74,8 @@ public:
             );
         // clang-format on
     };
-    virtual ~tksm_module() = default;
-    int process_utility_arguments(cxxopts::ParseResult &args) {
+    virtual ~tksm_module_base() = default;
+    int process_utility_arguments(const cxxopts::ParseResult &args) {
         int seed = args["seed"].as<int>();
         rand_gen.seed(seed);
 
@@ -100,7 +95,7 @@ public:
 
         return help_or_version_is_used(args);
     }
-    int help_or_version_is_used(cxxopts::ParseResult &args) {
+    int help_or_version_is_used(const cxxopts::ParseResult &args) const {
         // Used fmt to print
         if (args.count("help") > 0) {
             fmt::print("{}\n", options.help());
@@ -116,5 +111,7 @@ public:
     virtual int run()               = 0;
     virtual void describe_program() = 0;
 };
+
+using tksm_module = tksm_module_base<std::mt19937>;
 
 #endif
