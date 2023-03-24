@@ -132,7 +132,7 @@ public:
           args(parse(argc, argv)) {}
 
     template <class Distribution>
-    molecule_descriptor add_polyA(const molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len) {
+    static molecule_descriptor add_polyA(const molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len, auto &rand_gen) {
         int poly_a_len = dist(rand_gen);
         if (poly_a_len < min_polya_len) {
             poly_a_len = min_polya_len;
@@ -148,9 +148,9 @@ public:
         return new_md;
     }
 
-    auto polya_transformer(int min_length, int max_length, auto &dist) {
+    static auto polya_transformer(int min_length, int max_length, auto &dist, auto &rand_gen) {
         return std::ranges::views::transform([&, min_length, max_length, dist](const auto &md) {
-            return std::visit([&](auto dist) { return add_polyA(md, dist, min_length, max_length); }, dist);
+            return std::visit([&](auto dist) { return add_polyA(md, dist, min_length, max_length, rand_gen); }, dist);
         });
     }
     auto get_dist() -> std::variant<std::gamma_distribution<double>, std::poisson_distribution<int>,
@@ -175,7 +175,7 @@ public:
     }
     auto operator()() {
         auto dist =  get_dist();
-        return polya_transformer(args["min-length"].as<int>(), args["max-length"].as<int>(), dist);
+        return polya_transformer(args["min-length"].as<int>(), args["max-length"].as<int>(), dist, rand_gen);
     }
     int run() {
         if (process_utility_arguments(args)) {
@@ -205,12 +205,6 @@ public:
             output_polya_reference << polya_tail_string << "\n";
         } while (0);
 
-        std::ifstream input(input_file);
-        if (!input.is_open()) {
-            loge("Error: cannot open input file: {}", input_file);
-            return 1;
-        }
-
         std::ofstream output(output_file);
         if (!output.is_open()) {
             loge("Error: cannot open output file: {}", output_file);
@@ -218,7 +212,7 @@ public:
         }
 
         auto dist = get_dist();
-        for (const auto &md : stream_mdf(input, true) | polya_transformer(min_length, max_length, dist)) {
+        for (const auto &md : stream_mdf(input_file, true) | polya_transformer(min_length, max_length, dist, rand_gen)) {
             output << md;
         }
 
