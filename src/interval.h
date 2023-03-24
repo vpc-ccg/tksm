@@ -7,13 +7,13 @@
 #include <fmt/ostream.h>
 
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <map>
 #include <numeric>
 #include <ranges>
 #include <sstream>
 #include <string>
-#include <cassert>
 
 #include "cigar.h"
 #include "util.h"
@@ -279,14 +279,14 @@ struct gtf : public ginterval {
     gtf(const gtf &other) = default;
 
     gtf(const ginterval &pos, entry_type type, const std::map<string, string> &info)
-        : ginterval(pos), type(type), info(info), source{"TKSM"}{}
+        : ginterval(pos), type(type), info(info), source{"TKSM"} {}
     gtf(const ginterval &pos, entry_type type) : ginterval(pos), type(type), source{"TKSM"} {}
 
     gtf() = default;
     friend ostream &operator<<(ostream &os, const gtf &g) {
-
-        os << g.chr << "\t" << g.source << "\t"<< type_to_string(g.type) << "\t"
-         << g.start << "\t" << g.end << "\t" << (g.plus_strand?'+':'-') << "\t" << "." 
+        os << g.chr << "\t" << g.source << "\t" << type_to_string(g.type) << "\t" << g.start << "\t" << g.end << "\t"
+           << (g.plus_strand ? '+' : '-') << "\t"
+           << "."
            << "\t";
         for (auto iter = g.info.begin(); iter != g.info.end(); ++iter) {
             os << iter->first << " \"" << iter->second << "\";";
@@ -314,7 +314,7 @@ public:
 
     friend ostream &operator<<(ostream &os, const transcript &t) {
         os << static_cast<const gtf &>(t);
-        for(auto &exon : t.exons) {
+        for (auto &exon : t.exons) {
             os << exon;
         }
         return os;
@@ -353,7 +353,7 @@ public:
 
     string get_comment() const { return comment; }
 
-    auto operator ==(const transcript &other) const -> bool {
+    auto operator==(const transcript &other) const -> bool {
         return exons == other.exons && info.at("transcript_id") == other.info.at("transcript_id") &&
                info.at("gene_id") == other.info.at("gene_id") && info.at("gene_name") == other.info.at("gene_name") &&
                start == other.start && end == other.end && chr == other.chr && plus_strand == other.plus_strand;
@@ -461,10 +461,13 @@ operator<<(std::ostream &ost, const ginterval &ex) {
     return ost;
 }
 
-template <> struct fmt::formatter<interval> : ostream_formatter {};
+template <>
+struct fmt::formatter<interval> : ostream_formatter {};
 
-template <> struct fmt::formatter<ginterval> : ostream_formatter {};
-template <> struct fmt::formatter<transcript> : ostream_formatter {};
+template <>
+struct fmt::formatter<ginterval> : ostream_formatter {};
+template <>
+struct fmt::formatter<transcript> : ostream_formatter {};
 
 /*
 inline std::ostream &
@@ -699,10 +702,9 @@ public:
         assert(start >= 0);
         assert(end <= this->end - this->start);
         assert(start < end);
-        
-        this->start +=  start;
-        this->end   = this->start + (end - start);
-        
+
+        this->start += start;
+        this->end = this->start + (end - start);
 
         if (errors.size() == 0) {
             return;
@@ -747,9 +749,24 @@ public:
     molecule_descriptor() {}
 
     molecule_descriptor(const string &id, bool reversed) : _id(id), _reversed(reversed), _depth(1) {}
-    
+
     molecule_descriptor(const molecule_descriptor &other)
-        : _id(other._id), _reversed(other._reversed), _depth(other._depth), _segments(other._segments.begin(), other._segments.end()), meta{other.meta}{}
+        : _id(other._id),
+          _reversed(other._reversed),
+          _depth(other._depth),
+          _segments(other._segments.begin(), other._segments.end()),
+          meta{other.meta} {}
+
+    molecule_descriptor(const transcript &trans) : 
+        _id(trans.info.at("transcript_id")),
+        _reversed(!trans.plus_strand),
+        _depth(trans.get_abundance())
+    {
+        for(const gtf &gi : trans.cget_exons()){
+            append_segment(gi);
+        }
+    }
+
     /*
     molecule_descriptor(const isoform &iso)
         : _id(iso.transcript_id), _reversed(!iso.segments.back().plus_strand), _depth(iso.depth) {
