@@ -35,7 +35,6 @@ truncate(molecule_descriptor &md, int truncated_length, int min_val = 100) {
             ss << segments[j];
 
             md.add_comment("truncated", ss.str());
-
         }
         logd("Before resize: {}", md.cget_segments().size());
         segments.resize(i + 1);
@@ -259,21 +258,20 @@ public:
         }
     }
 
-    auto truncate_transformer( auto &disko) {
+    static auto truncate_transformer(auto &disko, auto &rand_gen) {
         return std::ranges::views::transform([&](auto &md) {
             auto truncate_length =
                 std::visit(overloaded{[&](auto &arg) { return arg(rand_gen); },
                                       [&](custom_distribution2D<> &arg) { return arg(rand_gen, md.size()); }},
                            disko);
             truncate(md, truncate_length);
-            logd("Truncated to {}", md.dump_comment());
             return md;
         });
     }
 
-    auto operator()(){
+    auto operator()() {
         auto dist = get_dist();
-        return truncate_transformer(dist);
+        return truncate_transformer(dist, rand_gen);
     }
 
     int run() {
@@ -289,9 +287,10 @@ public:
         string output_file_path{args["output"].as<string>()};
         std::ofstream output_file{output_file_path};
         auto disko = get_dist();
-//        auto file = std::ifstream{args["input"].as<string>()};
-        for (const auto &md : stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko)) {
-            logd("Writing {}", md.dump_comment());
+
+        //        std::ranges::copy( stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko),
+        //                std::ostream_iterator<molecule_descriptor>{output_file});
+        for (const auto &md : stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko, rand_gen)) {
             output_file << md;
         }
 
