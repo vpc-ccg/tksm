@@ -22,13 +22,13 @@ TS_experiments:
         pipeline:
             - Xpr_sc: ""
             - Spc: "--molecule-count 100000"
+            - Trc: ""
             - plA: "--normal=15,7.5"
             - Tag: "--format3 10 --contig-prefix umi_contig"
             - SCB: ""
             - Tag: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
             - Flp: "-p 0.5"
             - Tag: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT --contig-prefix lr_adaptor_contig"
-            - Trc: ""
             - Seq: "--skip-qual-compute"
     TS_2:
         sample: "N1"
@@ -60,8 +60,8 @@ plots:
             mapped_lengths,
             # substitution,
             # polyA,
-            tpm_plot_tksm,
-            tpm_plot_tksm.by_gene,
+            # tpm_plot_tksm,
+            # tpm_plot_tksm.by_gene,
             # tpm_plot_tksm_sc.by_gene,
             # tpm_plot_liqa,
             # tpm_plot_nanosim,
@@ -69,8 +69,8 @@ plots:
             lr_cell_stats,
         ],
         data: [
-            N1,
-            TS_2,
+            N1_chr21,
+            TS_2_chr21,
         ],
       }
     # - {

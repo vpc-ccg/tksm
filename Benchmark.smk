@@ -525,6 +525,22 @@ rule LIQA_refgene:
         " -out {output.refgen}"
         " -m 1"
 
+rule minimap_dna_paf:
+    input:
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+        ref=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["DNA"],
+    output:
+        paf=f"{preproc_d}/minimap2/{{sample}}.DNA.paf",
+    threads: 32
+    shell:
+        "minimap2"
+        " -t {threads}"
+        " -x splice"
+        " -c"
+        " {input.ref}"
+        " {input.reads}"
+        " > {output.paf}"
+
 
 rule minimap_dna:
     input:
@@ -862,25 +878,27 @@ rule lr_cell_stats:
                         mod = 2
                     else:
                         raise ValueError("Unknown fastq/a format")
-                if idx % mod != 0:
-                    continue
-                read = dict(
-                    rid=len(rname_to_rid),
-                    name=line[1:].split(" ")[0],
-                    dist=-1,
-                    bids=list(),
-                    br_seg = (
-                        -1, # dist
-                        0, # loc
-                        "", # seg
-                    ),
-                    mappings=Counter(),
-
-                )
-                assert not read["name"] in rname_to_rid
-                rname_to_rid[read["name"]] = read["rid"]
-                reads.append(read)
-
+                if idx % mod == 0:
+                    read = dict(
+                        rid=len(rname_to_rid),
+                        name=line[1:].split(" ")[0],
+                        dist=-1,
+                        bids=list(),
+                        br_seg = (
+                            -1, # dist
+                            0, # loc
+                            "", # seg
+                        ),
+                        mappings=Counter(),
+                        length=-1,
+                        seq = "",
+                    )
+                    assert not read["name"] in rname_to_rid
+                    rname_to_rid[read["name"]] = read["rid"]
+                    reads.append(read)
+                elif idx % mod == 1:
+                    read["length"] = len(line.strip())
+                    read["seq"] = line.strip()
         # Add mappings
         for line in tqdm(open(input.paf), desc=f"Processing {input.paf}"):
             line = line.rstrip('\n').split('\t')
@@ -889,7 +907,13 @@ rule lr_cell_stats:
             strand = line[4]
             tid = line[5]
             rid = rname_to_rid[line[0]]
-            reads[rid]["mappings"][(tid,strand)]+=1
+            qlen = int(line[1])
+            qstart = int(line[2])
+            qend = int(line[3])
+            tlen = int(line[6])
+            tstart = int(line[7])
+            tend = int(line[8])
+            reads[rid]["mappings"][(tid,strand,qstart,qend,qlen,tstart,tend,tlen)]+=1
 
         # Add barcode segment
         for line in tqdm(gzip.open(input.lr_br, "rt"), desc=f"Processing {input.lr_br}"):
