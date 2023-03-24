@@ -69,8 +69,6 @@ public:
         describe_program();
 
         string mdf_file_path{args["input"].as<string>()};
-        std::ifstream mdf_file{mdf_file_path};
-        auto streamer = stream_mdf(mdf_file);
 
         string outfile_name = args["output"].as<string>();
         logi("Adding barcodess and printing to: {}", outfile_name);
@@ -80,7 +78,7 @@ public:
         std::ofstream fastafile{fasta_file_name};
         std::unordered_set<string> used_barcodes;
 
-        for(auto &md : stream_mdf(mdf_file, true)){
+        for(auto &md : stream_mdf(mdf_file_path, true)){
             const string &barcode_str   = md.get_comment("CB")[0];
             const string barcode_ctg_id = "CB_" + barcode_str;
             if (barcode_str != ".") {
