@@ -91,7 +91,7 @@ public:
         string format3 = args["format3"].as<string>();
 
         string mdf_file_path{args["input"].as<string>()};
-        std::ifstream mdf_file{mdf_file_path};
+
 
 
 
@@ -122,7 +122,7 @@ public:
 
         if(args["skip-tag-hashing"].as<bool>()){
             int index = 0;
-            for(auto &md : stream_mdf(mdf_file, true)) {
+            for(auto &md : stream_mdf(mdf_file_path, true)) {
                 string umi_seq5        = make_seq5[rand_gen];
                 string umi_seq3        = make_seq3[rand_gen];
                 string umi_ctg_name    = fmt::format("{}_{}", umi_ctg_prefix, index);
@@ -158,7 +158,7 @@ public:
                 }
             };
 
-            for(auto &md : stream_mdf(mdf_file, true)) {
+            for(auto &md : stream_mdf(mdf_file_path, true)) {
                 string umi_seq5        = make_seq5[rand_gen];
 
                 string umi_seq3        = make_seq3[rand_gen];
