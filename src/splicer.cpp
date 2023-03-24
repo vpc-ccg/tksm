@@ -104,7 +104,7 @@ public:
         std::ofstream outfile{output_file};
 
         logi("Reading GTF file {}", gtf_file);
-        auto isoforms = read_gtf_transcripts(gtf_file, default_depth);
+        std::map<string, molecule_descriptor> isoforms = read_gtf_transcripts(gtf_file, default_depth);
 
         std::ifstream abundance_file_stream{abundance_file};
         std::string buffer;
@@ -132,6 +132,7 @@ public:
             for( auto &[gene, transcripts] : fusions){
                 for( auto &t : transcripts){
                     abundances.emplace_back(t.info.at("transcript_id"), t.get_abundance(), t.get_comment());
+                    isoforms.emplace(t.info.at("transcript_id"), t);
                 }
             }
         }
