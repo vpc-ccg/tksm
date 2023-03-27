@@ -1,17 +1,17 @@
 #include "splicer.h"
+
 #include <cxxopts.hpp>
 #include <random>
 #include <string>
 #include <vector>
 
-#include "pimpl.h"
+#include "fusion.cpp"
 #include "gtf.h"
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
+#include "pimpl.h"
 #include "util.h"
-#include "fusion.cpp"
-
 
 using std::string;
 using std::vector;
@@ -48,7 +48,12 @@ class Splicer_module::impl : public tksm_module {
             "default-depth",
             "Default depth for transcripts that are not in expression table",
             cxxopts::value<int>()->default_value("0")
-        );
+        )(
+            "molecule-prefix",
+            "Prefix for molecule names",
+            cxxopts::value<string>()->default_value("M")
+        )
+        ;
         // clang-format on
         return options.parse(argc, argv);
     }
@@ -57,8 +62,10 @@ class Splicer_module::impl : public tksm_module {
     cxxopts::ParseResult args;
 
     friend class Fusion_submodule;
+
 public:
-    impl(int argc, char** argv) : tksm_module{"Splicer", "RNA Splicing module"},fusion_submodule(options, rand_gen), args(parse(argc, argv)) {}
+    impl(int argc, char** argv)
+        : tksm_module{"Splicer", "RNA Splicing module"}, fusion_submodule(options, rand_gen), args(parse(argc, argv)) {}
 
     ~impl() = default;
 
@@ -71,14 +78,14 @@ public:
                 ++missing_parameters;
             }
         }
-        if(fusion_submodule.receive_arguments(args)==Fusion_submodule::submodule_status::ERROR){
+        if (fusion_submodule.receive_arguments(args) == Fusion_submodule::submodule_status::ERROR) {
             ++missing_parameters;
         }
         if (missing_parameters > 0) {
             fmt::print("{}\n", options.help());
             return 1;
         }
-        
+
         return 0;
     }
     int run() {
@@ -91,7 +98,6 @@ public:
         }
         describe_program();
 
-
         std::string gtf_file               = args["gtf"].as<string>();
         std::string abundance_file         = args["abundance"].as<string>();
         std::string output_file            = args["output"].as<string>();
@@ -99,6 +105,8 @@ public:
         [[maybe_unused]] bool use_whole_id = args["use-whole-id"].as<bool>();
         [[maybe_unused]] bool non_coding   = args["non-coding"].as<bool>();
         int default_depth                  = args["default-depth"].as<int>();
+        string molecule_prefix             = args["molecule-prefix"].as<string>();
+
 
         std::uniform_real_distribution<> dist(0, 1);
         std::ofstream outfile{output_file};
@@ -109,7 +117,7 @@ public:
         std::ifstream abundance_file_stream{abundance_file};
         std::string buffer;
         logi("Reading abundance file {} and printing simulated molecules to {}!", abundance_file, output_file);
-        if(!abundance_file_stream.is_open()){
+        if (!abundance_file_stream.is_open()) {
             loge("Could not open abundance file {}!", abundance_file);
             return 1;
         }
@@ -125,21 +133,21 @@ public:
         }
 
         auto fusion_status = fusion_submodule.receive_arguments(args);
-        if(fusion_status == Fusion_submodule::submodule_status::ERROR){
+        if (fusion_status == Fusion_submodule::submodule_status::ERROR) {
             return 1;
         }
-        else if (fusion_status == Fusion_submodule::submodule_status::RUN){
+        else if (fusion_status == Fusion_submodule::submodule_status::RUN) {
             auto fusions = fusion_submodule.run(this, abundances);
-            for( auto &[gene, transcripts] : fusions){
-                for( auto &t : transcripts){
+            for (auto& [gene, transcripts] : fusions) {
+                for (auto& t : transcripts) {
                     abundances.emplace_back(t.info.at("transcript_id"), t.get_abundance(), t.get_comment());
                     isoforms.emplace(t.info.at("transcript_id"), t);
                 }
             }
         }
-    
+
         size_t index = 0;
-        for(auto& [tid, tpm, comment] : abundances){
+        for (auto& [tid, tpm, comment] : abundances) {
             format_annot_id(tid, !args["use-whole-id"].as<bool>());
             auto md_ptr = isoforms.find(tid);
             if (md_ptr == isoforms.end()) {
@@ -147,21 +155,21 @@ public:
                 continue;
             }
             molecule_descriptor molecule = isoforms[tid];
-            double count = tpm * molecule_count / 1'000'000;
-            double carry = count - int(count);
+            double count                 = tpm * molecule_count / 1'000'000;
+            double carry                 = count - int(count);
 
             if (dist(rand_gen) < carry) {
                 count++;
             }
+            logd("Isoform {} has abundance {} and will be simulated {} times", tid, tpm, count);
             if (int(count) == 0) {
                 continue;
             }
 
-            molecule.
-                add_comment("tid", tid)->
-                add_comment("CB", comment)->
-                depth(count)->
-                id("Molecule_" + std::to_string(index++));
+            molecule.add_comment("tid", tid)
+                ->add_comment("CB", comment)
+                ->depth(count)
+                ->id(molecule_prefix + std::to_string(index++));
             outfile << molecule;
         }
         return 0;
@@ -176,6 +184,8 @@ public:
         logi("Use whole transcript id: {}", args["use-whole-id"].as<bool>());
         logi("Process non-coding genes/transcripts: {}", args["non-coding"].as<bool>());
         logi("Default depth: {}", args["default-depth"].as<int>());
+        logi("Molecule prefix: {}", args["molecule-prefix"].as<string>());
+
         fusion_submodule.describe_program(args);
         fmtlog::poll(true);
     }
