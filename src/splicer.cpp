@@ -120,6 +120,7 @@ public:
             double tpm     = 0;
             string comment = "";
             std::istringstream(buffer) >> tid >> tpm >> comment;
+            format_annot_id(tid, !use_whole_id);
             abundances.emplace_back(tid, tpm, comment);
         }
 
