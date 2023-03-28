@@ -60,35 +60,6 @@ def module_params(wildcards, rule_name):
         return step[rule_name]
 
 
-def get_pipeline_fastas(pipeline, path):
-    fastas = list()
-    prefix = list()
-    for step in pipeline:
-        rule_name = list(step.keys())[0]
-        prefix.append(rule_name)
-        prefix_str = ".".join(prefix)
-        if rule_name == "Spl":
-            fastas.extend(
-                get_pipeline_fastas(step["Spl"]["Spl_T"], f"{path}{prefix_str}/Spl_T.")
-            )
-            fastas.extend(
-                get_pipeline_fastas(step["Spl"]["Spl_F"], f"{path}{prefix_str}/Spl_F.")
-            )
-        if rule_name in ["plA", "SCB", "Tag"]:
-            fastas.append(f"{path}{prefix_str}.fasta")
-    return fastas
-
-
-def fastas_for_TS_sequence(wc):
-    fastas = list()
-    sample = exprmnt_sample(wc.exprmnt)
-    fastas.append(config["refs"][get_sample_ref(sample)]["DNA"])
-    pipeline = config["TS_experiments"][wc.exprmnt]["pipeline"]
-    path = f"{TS_d}/{wc.exprmnt}/"
-    fastas.extend(get_pipeline_fastas(pipeline, path))
-    return fastas
-
-
 def experiment_prefix(exprmnt):
     prefix = list()
     for component in config["TS_experiments"][exprmnt]["pipeline"]:
@@ -137,7 +108,7 @@ rule sequencer:
     input:
         obj=["build/obj/sequencer.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        fastas=fastas_for_TS_sequence,
+        fastas=config["refs"][get_sample_ref(sample)]["DNA"],
         qscore_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz",
         error_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.error.gz",
     output:
@@ -267,7 +238,6 @@ rule tag:
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.mdf"),
-        fasta=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.fasta"),
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Tag.benchmark"
     params:
@@ -279,7 +249,6 @@ rule tag:
         "{params.binary} tag"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " -f {output.fasta}"
         " {params.other}"
 
 
@@ -291,7 +260,6 @@ rule single_cell_barcoder:
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.mdf"),
-        fasta=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.fasta"),
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.SCB.benchmark"
     params:
@@ -303,7 +271,6 @@ rule single_cell_barcoder:
         "{params.binary} single-cell-barcoder"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " -f {output.fasta}"
         " {params.other}"
 
 
@@ -313,7 +280,6 @@ rule polyA:
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.plA.mdf"),
-        fasta=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.plA.fasta"),
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.plA.benchmark"
     params:
@@ -325,7 +291,6 @@ rule polyA:
         "{params.binary} polyA"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " -f {output.fasta}"
         " {params.other}"
 
 

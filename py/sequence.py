@@ -42,7 +42,7 @@ def parse_args():
         "--references",
         type=str,
         nargs="+",
-        required=True,
+        required=False,
         help="Reference FASTA files, space separated.",
     )
     parser.add_argument(
@@ -284,7 +284,7 @@ def mdf_to_seq(mdf, targets=dict()):
     molecule_id, intervals = mdf
     seq = list()
     for chrom, start, end, strand, modifications in intervals:
-        segment = reference_seqs[chrom][start:end].upper()
+        segment = reference_seqs.get(chrom, chrom)[start:end].upper()
         segment = apply_modifications(segment, modifications)
         if strand == "+":
             seq.append(segment)
