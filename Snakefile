@@ -22,7 +22,7 @@ if DEBUG:
 
 
 def exprmnt_sample(exprmnt):
-    return config["TS_experiments"][exprmnt]["sample"]
+    return config["TS_experiments"][exprmnt]["model"]
 
 
 def get_split_mdf(wc, SPL_K):
@@ -68,7 +68,7 @@ def get_sample_ref_name(sample):
     if sample in config["samples"]:
         return config["samples"][sample]["ref"]
     else:
-        return get_sample_ref_name(config["TS_experiments"][sample]["sample"])
+        return get_sample_ref_name(config["TS_experiments"][sample]["model"])
 
 
 def get_sample_ref(sample, ref_type):
@@ -87,6 +87,14 @@ def get_sample_fastqs(name):
         raise ValueError(f"Invalid experiment/sample name! {name}")
 
 
+def get_step_model_name(wc, rule_name):
+    pipeline = config["TS_experiments"][wc.exprmnt]["pipeline"]
+    prefix = [x.split(".") for x in f"{wc.prefix}.{rule_name}".split("/")]
+    step = get_step_pipeline(pipeline, prefix)
+    model_name = step[rule_name].get("model", config["TS_experiments"][wc.exprmnt]["model"])
+    return model_name
+
+
 rule all:
     input:
         [
@@ -103,14 +111,21 @@ rule make_binary:
     shell:
         "make {output}"
 
+def get_sequencer_models(wc, model_type):
+    model_name = get_step_model_name(wc, "Seq")
+    if model_name in config["samples"] or model_name in config["TS_experiments"]:
+        model = [f"{preproc_d}/models/badread/{model_name}.{model_type}.gz"]
+    else:
+        model = list()
+    return (model, model_name)
 
 rule sequencer:
     input:
         obj=["build/obj/sequencer.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        qscore_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz",
-        error_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.error.gz",
+        qscore_model=lambda wc: get_sequencer_models(wc, "qscore")[0],
+        error_model=lambda wc: get_sequencer_models(wc, "error")[0],
     output:
         fastq=f"{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq",
     benchmark:
@@ -172,9 +187,9 @@ rule truncate:
     input:
         obj=["build/obj/truncate.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        x=lambda wc: f"{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.X_idxs.npy",
-        y=lambda wc: f"{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.Y_idxs.npy",
-        g=lambda wc: f"{preproc_d}/truncate_kde/{exprmnt_sample(wc.exprmnt)}.grid.npy",
+        x=lambda wc: f"{preproc_d}/truncate_kde/{get_step_model_name(wc, 'Trc')}.X_idxs.npy",
+        y=lambda wc: f"{preproc_d}/truncate_kde/{get_step_model_name(wc, 'Trc')}.Y_idxs.npy",
+        g=lambda wc: f"{preproc_d}/truncate_kde/{get_step_model_name(wc, 'Trc')}.grid.npy",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Trc.mdf"),
     benchmark:

@@ -17,10 +17,11 @@ outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
 # Seq : sequence --> Must be last module
 TS_experiments:
     E1:
-        sample: "N1_chr21"
+        model: "N1_chr21"
         pipeline:
             - Xpr_sc:
                 params: ""
+                model: "N1_chr21"
             - Spc:
                 params: "--molecule-count 10000"
             - Spl:
@@ -37,8 +38,10 @@ TS_experiments:
                 params: "--cycles 3 -x Taq-setting1 --molecule-count 10000"
             - Trc:
                 params: ""
+                model: "N1_chr21"
             - Seq:
                 params: "--skip-qual-compute"
+                # model: "N1"
 
 exec:
     tksm: build/bin/tksm
