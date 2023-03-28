@@ -4,21 +4,28 @@ outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
 # Xpr : expression  --> Must be first module only
 # Xpr_sc : expression fpr single cells   --> Must be first module only
 # Spc : splice --> Must be second module
+# Spl : split --> 
+#### Must be a dictionary with three keys: params, Spl_T, Spl_F.
+#### Spl_T and Spl_F are lists of modules and params is a string
 # Fus : fusion
 # PCR : pcr
 # plA : polyA
 # SCB : single_cell
 # Tag : Tag/adapter tag
-# Flp : Flib the molecule strand  
+# Flp : Flib the molecule strand
 # Trc : truncate
 # Seq : sequence --> Must be last module
 TS_experiments:
-    small_sc_1:
+    E1:
         sample: "N1_chr21"
         pipeline:
             - Xpr_sc: ""
             - Spc: "--molecule-count 10000"
-            - plA: "--normal=40,10 --min-length=5"
+            - Spl:
+                params: "--c1 c1"
+                Spl_T:
+                    - plA: "--normal=40,10 --min-length=5"
+                Spl_F: []
             - SCB: ""
             - Tag: "--format5 10"
             - PCR: "--cycles 3 -x Taq-setting1 --molecule-count 10000"
