@@ -28,10 +28,6 @@ class TAG_module::impl : public tksm_module {
                 "output mdf file",
                 cxxopts::value<string>()
             )(
-                "f,umi-fasta",
-                "output umi fasta file",
-                cxxopts::value<string>()
-            )(
                 "5,format5",
                 "5' TAG format",
                 cxxopts::value<string>()->default_value("")
@@ -39,15 +35,7 @@ class TAG_module::impl : public tksm_module {
                 "3,format3",
                 "3' TAG format",
                 cxxopts::value<string>()->default_value("")
-            )(
-                "contig-prefix",
-                "Prefix of the umi contigs in the mdf and umi-fasta",
-                cxxopts::value<string>()->default_value("tksm_umi_ctg")
-            )(
-                "skip-tag-hashing",
-                "Skip hashing of the TAGs for saving space",
-                cxxopts::value<bool>()->default_value("false")->implicit_value("true")
-             );
+            );
         // clang-format on
         return options.parse(argc, argv);
     }
@@ -58,7 +46,7 @@ public:
     impl(int argc, char **argv) : tksm_module{"umi", "TAGging module"}, args(parse(argc, argv)) {}
     ~impl() = default;
     int validate_arguments() {
-        std::vector<string> mandatory = {"input", "output", "umi-fasta"};
+        std::vector<string> mandatory = {"input", "output"};
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
@@ -109,79 +97,32 @@ public:
         fmt2seq make_seq5(format5);
         fmt2seq make_seq3(format3);
 
-        string umi_ctg_prefix = args["contig-prefix"].as<string>();
+
 
         string outfile_name = args["output"].as<string>();
         logi("Adding TAGs and printing to: {}", outfile_name);
         fmtlog::poll(true);
         std::ofstream outfile{outfile_name};
-        std::string umi_ref_file = args["umi-fasta"].as<string>();
-        std::ofstream umifile{umi_ref_file};
+        
 
+        for(auto &md : stream_mdf(mdf_file_path, true)) {
+            string umi_seq5        = make_seq5[rand_gen];
 
+            string umi_seq3        = make_seq3[rand_gen];
 
-        if(args["skip-tag-hashing"].as<bool>()){
-            int index = 0;
-            for(auto &md : stream_mdf(mdf_file_path, true)) {
-                string umi_seq5        = make_seq5[rand_gen];
-                string umi_seq3        = make_seq3[rand_gen];
-                string umi_ctg_name    = fmt::format("{}_{}", umi_ctg_prefix, index);
-
-                umifile << fmt::format(">{}\n", umi_ctg_name);
-                umifile << umi_seq5 << umi_seq3 << "\n";
-
-                int len5 = static_cast<int>(umi_seq5.size());
-                int len3 = static_cast<int>(umi_seq3.size());
-                if (len5 > 0) {
-                    md.prepend_segment(ginterval{umi_ctg_name, 0, len5, true});
-                }
-                if (len3 > 0) {
-                    md.append_segment(ginterval{umi_ctg_name, len5, len5 + len3, true});
-                }
-                ++index;
-                outfile << md;
+            int len5 = static_cast<int>(umi_seq5.size());
+            int len3 = static_cast<int>(umi_seq3.size());
+            if (len5 > 0) {
+                md.prepend_segment(ginterval{umi_seq5, 0, len5, true});
             }
+            if (len3 > 0) {
+
+                md.append_segment(ginterval{umi_seq3, 0, len3, true});
+            }
+            outfile << md;
         }
-        else{
-            int index = 0;
-            std::unordered_map<string, int> umi_ctg_map;
-            auto find_ctg = [&umi_ctg_map, &index, umi_ctg_prefix] (string &umi_seq) {
-                auto it = umi_ctg_map.find(umi_seq);
-                if(it == umi_ctg_map.end()){
-                    umi_ctg_map[umi_seq] = index;
-                    string umi_ctg_name    = fmt::format("{}_{}", umi_ctg_prefix, index);
-                    ++index;
-                    return umi_ctg_name;
-                }
-                else{
-                    return fmt::format("{}_{}", umi_ctg_prefix, it->second);
-                }
-            };
 
-            for(auto &md : stream_mdf(mdf_file_path, true)) {
-                string umi_seq5        = make_seq5[rand_gen];
 
-                string umi_seq3        = make_seq3[rand_gen];
-
-                int len5 = static_cast<int>(umi_seq5.size());
-                int len3 = static_cast<int>(umi_seq3.size());
-                if (len5 > 0) {
-                    string umi_ctg_name5 = find_ctg(umi_seq5);
-                    md.prepend_segment(ginterval{umi_ctg_name5, 0, len5, true});
-                }
-                if (len3 > 0) {
-                    string umi_ctg_name3 = find_ctg(umi_seq3);
-                    md.append_segment(ginterval{umi_ctg_name3, len5, len5 + len3, true});
-                }
-                outfile << md;
-            }
-
-            for(const auto &[umi_seq, index] : umi_ctg_map){
-                string umi_ctg_name    = fmt::format("{}_{}", umi_ctg_prefix, index);
-                umifile << fmt::format(">{}\n", umi_ctg_name);
-                umifile << umi_seq << "\n";
-            }
-        }
         return 0;
     }
 
@@ -189,10 +130,10 @@ public:
         logi("Running TAGging module");
         logi("Input MDF: {}", args["input"].as<string>());
         logi("Output MDF: {}", args["output"].as<string>());
-        logi("Output TAG FASTA: {}", args["umi-fasta"].as<string>());
+
         logi("5' tag format: {}", args["format5"].as<string>());
         logi("3' tag format: {}", args["format3"].as<string>());
-        logi("Contig prefix: {}", args["contig-prefix"].as<string>());
+
         logi("Seed {}", args["seed"].as<int>());
         fmtlog::poll(true);
     }

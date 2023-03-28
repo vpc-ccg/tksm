@@ -9,8 +9,10 @@
 #include "pimpl.h"
 #include "util.h"
 
-#ifndef POLYA_REFERENCE_NAME
-#define POLYA_REFERENCE_NAME "tksm_polyA_reference"
+
+using namespace std::string_literals;
+#ifndef POLYA_REF_PREFIX
+#define POLYA_REF_PREFIX ""s
 #endif
 
 class PolyA_module::impl : public tksm_module {
@@ -25,10 +27,6 @@ private:
             )(
                 "o,output",
                 "Output file",
-                cxxopts::value<std::string>()
-            )(
-                "f,polya-reference",
-                "Output polyA reference file",
                 cxxopts::value<std::string>()
             )(
                 "gamma",
@@ -68,10 +66,6 @@ private:
         }
         if (!args.count("output")) {
             loge("Error: output file not specified");
-            exit(1);
-        }
-        if (!args.count("polya-reference")) {
-            loge("Error: output polyA reference file not specified");
             exit(1);
         }
         if (!args.count("gamma") && !args.count("poisson") && !args.count("weibull") && !args.count("normal")) {
@@ -125,14 +119,16 @@ private:
 
         return 0;
     }
-
+    string ctg;
 public:
     impl(int argc, char **argv)
         : tksm_module("polyA module", "Adds polyA tails to molecules with given size distribution"),
-          args(parse(argc, argv)) {}
+          args(parse(argc, argv)), ctg(args["max-length"].as<int>(), 'A'){
+
+    }
 
     template <class Distribution>
-    static molecule_descriptor add_polyA(const molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len, auto &rand_gen) {
+    static molecule_descriptor add_polyA(const molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len, const string &ctg,auto &rand_gen) {
         int poly_a_len = dist(rand_gen);
         if (poly_a_len < min_polya_len) {
             poly_a_len = min_polya_len;
@@ -143,14 +139,14 @@ public:
 
         molecule_descriptor new_md = md;
         if(poly_a_len > 0) {
-            new_md.append_segment(ginterval{POLYA_REFERENCE_NAME, 0, poly_a_len, true});
+            new_md.append_segment(ginterval{ctg, 0, poly_a_len, true});
         }
         return new_md;
     }
 
-    static auto polya_transformer(int min_length, int max_length, auto &dist, auto &rand_gen) {
+    static auto polya_transformer(int min_length, int max_length, const string &ctg, auto &dist, auto &rand_gen) {
         return std::ranges::views::transform([&, min_length, max_length, dist](const auto &md) {
-            return std::visit([&](auto dist) { return add_polyA(md, dist, min_length, max_length, rand_gen); }, dist);
+            return std::visit([&](auto dist) { return add_polyA(md, dist, min_length, max_length, ctg, rand_gen); }, dist);
         });
     }
     auto get_dist() -> std::variant<std::gamma_distribution<double>, std::poisson_distribution<int>,
@@ -175,7 +171,7 @@ public:
     }
     auto operator()() {
         auto dist =  get_dist();
-        return polya_transformer(args["min-length"].as<int>(), args["max-length"].as<int>(), dist, rand_gen);
+        return polya_transformer(args["min-length"].as<int>(), args["max-length"].as<int>(), ctg, dist, rand_gen);
     }
     int run() {
         if (process_utility_arguments(args)) {
@@ -192,19 +188,6 @@ public:
         std::string input_file  = args["input"].as<std::string>();
         std::string output_file = args["output"].as<std::string>();
 
-        std::string output_polya_reference_file = args["polya-reference"].as<std::string>();
-
-        do {
-            std::ofstream output_polya_reference(output_polya_reference_file);
-            if (!output_polya_reference.is_open()) {
-                loge("Error: cannot open output polyA reference file");
-                break;
-            }
-            output_polya_reference << ">" << POLYA_REFERENCE_NAME << "\n";
-            string polya_tail_string(max_length, 'A');
-            output_polya_reference << polya_tail_string << "\n";
-        } while (0);
-
         std::ofstream output(output_file);
         if (!output.is_open()) {
             loge("Error: cannot open output file: {}", output_file);
@@ -212,7 +195,7 @@ public:
         }
 
         auto dist = get_dist();
-        for (const auto &md : stream_mdf(input_file, true) | polya_transformer(min_length, max_length, dist, rand_gen)) {
+        for (const auto &md : stream_mdf(input_file, true) | polya_transformer(min_length, max_length, ctg, dist, rand_gen)) {
             output << md;
         }
 
@@ -223,7 +206,6 @@ public:
         logi("Running polyA module");
         logi("Input file: {}", args["input"].as<std::string>());
         logi("Output file: {}", args["output"].as<std::string>());
-        logi("Output polyA reference file: {}", args["polya-reference"].as<std::string>());
         logi("Minimum length of polyA: {}", std::to_string(args["min-length"].as<int>()));
         logi("Maximum length of polyA: {}", std::to_string(args["max-length"].as<int>()));
 

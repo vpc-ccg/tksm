@@ -24,10 +24,6 @@ class SingleCellBarcoder_module::impl : public tksm_module {
                 "output mdf file",
                 cxxopts::value<string>()
             )(
-                "f,barcode-fasta",
-                "output barcode fasta file",
-                cxxopts::value<string>()
-            )(
                 "keep-meta-barcodes",
                 "Keep the barcodes in the mdf metadata",
                 cxxopts::value<bool>()
@@ -44,7 +40,7 @@ public:
     ~impl() {}
 
     int validate_arguments() {
-        std::vector<string> mandatory = {"input", "output", "barcode-fasta"};
+        std::vector<string> mandatory = {"input", "output"};
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
@@ -74,19 +70,11 @@ public:
         logi("Adding barcodess and printing to: {}", outfile_name);
         fmtlog::poll(true);
         std::ofstream outfile{outfile_name};
-        std::string fasta_file_name = args["barcode-fasta"].as<string>();
-        std::ofstream fastafile{fasta_file_name};
-        std::unordered_set<string> used_barcodes;
 
         for(auto &md : stream_mdf(mdf_file_path, true)){
             const string &barcode_str   = md.get_comment("CB")[0];
-            const string barcode_ctg_id = "CB_" + barcode_str;
             if (barcode_str != ".") {
-                md.append_segment(ginterval{barcode_ctg_id, 0, (int)barcode_str.size(), true});
-                if (used_barcodes.count(barcode_str) == 0) {
-                    fastafile << ">" << barcode_ctg_id << "\n" << barcode_str << "\n";
-                    used_barcodes.insert(barcode_str);
-                }
+                md.append_segment(ginterval{barcode_str, 0, (int)barcode_str.size(), true});
             }
             if (!args["keep-meta-barcodes"].as<bool>()) {
                 md.drop_comment("CB");
@@ -100,7 +88,7 @@ public:
         logi("Running Single-cell barcoding module");
         logi("Input MDF: {}", args["input"].as<string>());
         logi("Output MDF: {}", args["output"].as<string>());
-        logi("Output barcode fasta: {}", args["barcode-fasta"].as<string>());
+
         fmtlog::poll(true);
     }
 };
