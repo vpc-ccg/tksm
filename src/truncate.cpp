@@ -221,7 +221,7 @@ public:
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
-                std::cerr << param << " is required!\n";
+                report_missing_parameter(param);
                 ++missing_parameters;
             }
         }

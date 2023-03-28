@@ -60,64 +60,67 @@ private:
     cxxopts::ParseResult args;
 
     int validate_arguments() {
-        if (!args.count("input")) {
-            loge("Error: input file not specified");
-            exit(1);
-        }
-        if (!args.count("output")) {
-            loge("Error: output file not specified");
-            exit(1);
+        vector<string> mandatory = {"input", "output"};
+        int missing_arguments = 0;
+        for (auto &arg : mandatory) {
+            if (!args.count(arg)) {
+                report_missing_parameter(arg);
+                missing_arguments++;
+            }
         }
         if (!args.count("gamma") && !args.count("poisson") && !args.count("weibull") && !args.count("normal")) {
-            loge("Error: no distribution specified");
-            exit(1);
+            loge("No distribution specified");
+            missing_arguments++;
         }
         if (args.count("gamma") + args.count("poisson") + args.count("weibull") + args.count("normal") > 1) {
-            loge("Error: multiple distributions specified");
-            exit(1);
+            loge("Multiple distributions specified");
+            missing_arguments++;
         }
         if (args.count("gamma")) {
             auto vec = args["gamma"].as<vector<double>>();
             if (vec.size() != 2) {
-                loge("Error: gamma distribution requires two parameters");
-                exit(1);
+                loge("Gamma distribution requires two parameters");
+                missing_arguments++;
             }
         }
         if (args.count("poisson")) {
             auto vec = args["poisson"].as<vector<double>>();
             if (vec.size() != 1) {
-                loge("Error: poisson distribution requires one parameter");
-                exit(1);
+                loge("Poisson distribution requires one parameter");
+                missing_arguments++;
             }
         }
         if (args.count("weibull")) {
             auto vec = args["weibull"].as<vector<double>>();
             if (vec.size() != 2) {
-                loge("Error: weibull distribution requires two parameters");
-                exit(1);
+                loge("Weibull distribution requires two parameters");
+                missing_arguments++;
             }
         }
         if (args.count("normal")) {
             auto vec = args["normal"].as<vector<double>>();
             if (vec.size() != 2) {
-                loge("Error: normal distribution requires two parameters");
-                exit(1);
+                loge("Normal distribution requires two parameters");
+                missing_arguments++;
             }
         }
         if (args["min-length"].as<int>() < 0) {
-            loge("Error: minimum length of polyA cannot be negative");
-            exit(1);
+            loge("Minimum length of polyA cannot be negative");
+            missing_arguments++;
         }
         if (args["max-length"].as<int>() < 0) {
-            loge("Error: maximum length of polyA cannot be negative");
-            exit(1);
+            loge("Maximum length of polyA cannot be negative");
+            missing_arguments++;
         }
         if (args["min-length"].as<int>() > args["max-length"].as<int>()) {
-            loge("Error: minimum length of polyA cannot be greater than maximum length of polyA");
-            exit(1);
+            loge("Minimum length of polyA cannot be greater than maximum length of polyA");
+            missing_arguments++;
         }
-
-        return 0;
+        if(missing_arguments > 0){
+            std::cerr << options.help() <<  std::endl;
+        }
+        fmtlog::poll(true);
+        return missing_arguments;
     }
     string ctg;
 public:
@@ -190,7 +193,7 @@ public:
 
         std::ofstream output(output_file);
         if (!output.is_open()) {
-            loge("Error: cannot open output file: {}", output_file);
+            loge("Cannot open output file: {}", output_file);
             return 1;
         }
 
