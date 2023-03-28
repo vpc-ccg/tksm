@@ -108,7 +108,7 @@ rule sequencer:
     input:
         obj=["build/obj/sequencer.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        fastas=config["refs"][get_sample_ref(sample)]["DNA"],
+        fastas=lambda wc: config["refs"][get_sample_ref(exprmnt_sample(wc.exprmnt))]["DNA"],
         qscore_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz",
         error_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.error.gz",
     output:
