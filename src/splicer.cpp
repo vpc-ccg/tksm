@@ -22,12 +22,12 @@ class Splicer_module::impl : public tksm_module {
         options.add_options("main")
         (
             "g,gtf",
-            "Path to gtf annotation file",
-            cxxopts::value<string>()
+            "Path to gtf annotation files",
+            cxxopts::value<vector<string>>()
         )(
             "a,abundance",
-            "Path to tab separated abundance table (formatted as transcript_id\\tpm\\cell-barcode)",
-            cxxopts::value<string>()
+            "Path to tab separated abundances tables (formatted as transcript_id\\tpm\\cell-barcode)",
+            cxxopts::value<vector<string>>()
         )(
             "use-whole-id",
             "Do not trim the transcript version",
@@ -52,17 +52,41 @@ class Splicer_module::impl : public tksm_module {
             "molecule-prefix",
             "Prefix for molecule names",
             cxxopts::value<string>()->default_value("M")
-        )
+        )(
+            "w,weights",
+            "Comma separated weights of each provided abundance file",
+            cxxopts::value<vector<double>>()->default_value("1")
+         )
         ;
         // clang-format on
         return options.parse(argc, argv);
     }
 
+    auto process_file_weights(const cxxopts::ParseResult&args){
+
+
+        const auto& v_strings  = args["weights"].as<vector<string>>();
+        if(v_strings.size() == 1){
+            return vector<double>(v_strings.size(), stod(v_strings[0])/args["abundance"].as<vector<string>>().size());
+        }
+        assert(v_strings.size() == args["abundance"].as<vector<string>>().size());
+
+        vector<double> W;
+        for(const auto& s : v_strings){
+            W.push_back(stod(s));
+        }
+        double sum = std::accumulate(W.begin(), W.end(), 0.0);
+        for(auto& w : W){
+            w /= sum;
+        }
+        return W;
+    }
+
+
     Fusion_submodule fusion_submodule;
     cxxopts::ParseResult args;
 
     friend class Fusion_submodule;
-
 public:
     impl(int argc, char** argv)
         : tksm_module{"Splicer", "RNA Splicing module"}, fusion_submodule(options, rand_gen), args(parse(argc, argv)) {}
@@ -98,87 +122,99 @@ public:
         }
         describe_program();
 
-        std::string gtf_file               = args["gtf"].as<string>();
-        std::string abundance_file         = args["abundance"].as<string>();
-        std::string output_file            = args["output"].as<string>();
+        vector<string> gtf_files               = args["gtf"].as<vector<string>>();
+        vector<string> abundance_files        = args["abundance"].as<vector<string>>();
+        string output_file            = args["output"].as<string>();
         int molecule_count                 = args["molecule-count"].as<int>();
         [[maybe_unused]] bool use_whole_id = args["use-whole-id"].as<bool>();
         [[maybe_unused]] bool non_coding   = args["non-coding"].as<bool>();
         int default_depth                  = args["default-depth"].as<int>();
         string molecule_prefix             = args["molecule-prefix"].as<string>();
-
+        vector<double> file_weights                =  process_file_weights(args);
 
         std::uniform_real_distribution<> dist(0, 1);
         std::ofstream outfile{output_file};
 
-        logi("Reading GTF file {}", gtf_file);
-        std::map<string, molecule_descriptor> isoforms = read_gtf_transcripts(gtf_file, default_depth);
+        logi("Reading GTF files {}", fmt::join(gtf_files, ", "));
+        std::map<string, molecule_descriptor> isoforms;
+        for(auto& gtf_file : gtf_files) {
+            isoforms.merge(read_gtf_transcripts(gtf_file, default_depth));
+        }
+        auto w_iter = file_weights.begin();
+        for(const string &abundance_file : abundance_files) {
+            double file_W = *w_iter;
+            ++w_iter;
+            std::ifstream abundance_file_stream{abundance_file};
+            std::string buffer;
+            logi("Reading abundance file {} and printing simulated molecules to {}!", abundance_file, output_file);
+            if (!abundance_file_stream.is_open()) {
+                loge("Could not open abundance file {}!", abundance_file);
+                return 1;
+            }
+            std::getline(abundance_file_stream, buffer);  // skip header
+            vector<std::tuple<string, double, string>> abundances;
+            while (std::getline(abundance_file_stream, buffer)) {
+                string tid     = "BEG";
+                double tpm     = 0;
+                string comment = "";
+                std::istringstream(buffer) >> tid >> tpm >> comment;
+                format_annot_id(tid, !use_whole_id);
+                abundances.emplace_back(tid, tpm, comment);
+            }
 
-        std::ifstream abundance_file_stream{abundance_file};
-        std::string buffer;
-        logi("Reading abundance file {} and printing simulated molecules to {}!", abundance_file, output_file);
-        if (!abundance_file_stream.is_open()) {
-            loge("Could not open abundance file {}!", abundance_file);
-            return 1;
-        }
-        std::getline(abundance_file_stream, buffer);  // skip header
-        vector<std::tuple<string, double, string>> abundances;
-        while (std::getline(abundance_file_stream, buffer)) {
-            string tid     = "BEG";
-            double tpm     = 0;
-            string comment = "";
-            std::istringstream(buffer) >> tid >> tpm >> comment;
-            format_annot_id(tid, !use_whole_id);
-            abundances.emplace_back(tid, tpm, comment);
-        }
-
-        auto fusion_status = fusion_submodule.receive_arguments(args);
-        if (fusion_status == Fusion_submodule::submodule_status::ERROR) {
-            return 1;
-        }
-        else if (fusion_status == Fusion_submodule::submodule_status::RUN) {
-            auto fusions = fusion_submodule.run(this, abundances);
-            for (auto& [gene, transcripts] : fusions) {
-                for (auto& t : transcripts) {
-                    abundances.emplace_back(t.info.at("transcript_id"), t.get_abundance(), t.get_comment());
-                    isoforms.emplace(t.info.at("transcript_id"), t);
+            auto fusion_status = fusion_submodule.receive_arguments(args);
+            if (fusion_status == Fusion_submodule::submodule_status::ERROR) {
+                return 1;
+            }
+            else if (fusion_status == Fusion_submodule::submodule_status::RUN) {
+                auto fusions = fusion_submodule.run(this, abundances);
+                for (auto& [gene, transcripts] : fusions) {
+                    for (auto& t : transcripts) {
+                        abundances.emplace_back(t.info.at("transcript_id"), t.get_abundance(), t.get_comment());
+                        isoforms.emplace(t.info.at("transcript_id"), t);
+                    }
                 }
             }
-        }
 
-        size_t index = 0;
-        for (auto& [tid, tpm, comment] : abundances) {
-            format_annot_id(tid, !args["use-whole-id"].as<bool>());
-            auto md_ptr = isoforms.find(tid);
-            if (md_ptr == isoforms.end()) {
-                logw("Isoform {} is not found in the input GTF {}!", tid, gtf_file);
-                continue;
-            }
-            molecule_descriptor molecule = isoforms[tid];
-            double count                 = tpm * molecule_count / 1'000'000;
-            double carry                 = count - int(count);
+            size_t index = 0;
 
-            if (dist(rand_gen) < carry) {
-                count++;
-            }
-            logd("Isoform {} has abundance {} and will be simulated {} times", tid, tpm, count);
-            if (int(count) == 0) {
-                continue;
-            }
+            double sum_tpm = std::accumulate(abundances.begin(), abundances.end(), 0.0, [](double sum, auto& t) {
+                return sum + std::get<1>(t);
+            });
 
-            molecule.add_comment("tid", tid)
-                ->add_comment("CB", comment)
-                ->depth(count)
-                ->id(molecule_prefix + std::to_string(index++));
-            outfile << molecule;
+            for (auto& [tid, tpm, comment] : abundances) {
+                format_annot_id(tid, !args["use-whole-id"].as<bool>());
+                auto md_ptr = isoforms.find(tid);
+                if (md_ptr == isoforms.end()) {
+                    logw("Isoform {} is not found in the input GTFs!", tid);
+                    continue;
+                }
+                molecule_descriptor molecule = isoforms[tid];
+                double count                 = file_W * tpm * molecule_count / sum_tpm;
+                double carry                 = count - int(count);
+
+                if (dist(rand_gen) < carry) {
+                    count++;
+                }
+                logd("Isoform {} has abundance {} and will be simulated {} times", tid, tpm, count);
+                if (int(count) == 0) {
+                    continue;
+                }
+
+                molecule.add_comment("tid", tid)
+                    ->add_comment("CB", comment)
+                    ->depth(count)
+                    ->id(molecule_prefix + std::to_string(index++));
+                outfile << molecule;
+            }
         }
         return 0;
     }
 
     void describe_program() {
         logi("Splicer module");
-        logi("Input GTF file: {}", args["gtf"].as<string>());
-        logi("Input abundance file: {}", args["abundance"].as<string>());
+        logi("Input GTF files: {}", fmt::join(args["gtf"].as<string>(), ", "));
+        logi("Input abundance files: {}", fmt::join(args["abundance"].as<string>(), ", "));
         logi("Output file: {}", args["output"].as<string>());
         logi("Molecule count: {}", args["molecule-count"].as<int>());
         logi("Use whole transcript id: {}", args["use-whole-id"].as<bool>());

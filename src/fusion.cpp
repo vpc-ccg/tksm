@@ -19,6 +19,7 @@
 
 using std::set;
 using std::string;
+using std::unordered_map;
 using std::vector;
 namespace sr = std::ranges;
 
@@ -288,7 +289,7 @@ public:
         auto end_locus = *it;
 
         auto &start_molecules = molecules.at(start_locus);
-        auto end_molecules   = molecules.at(end_locus);
+        auto end_molecules    = molecules.at(end_locus);
 
         std::uniform_real_distribution<double> dist(0, 1);
 
@@ -298,25 +299,25 @@ public:
 
         double total_tail_abundance = std::accumulate(end_molecules.begin(), end_molecules.end(), 0.0,
                                                       [](auto acc, const auto &t) { return acc + t.get_abundance(); });
-        if (total_tail_abundance <= 0){
+        if (total_tail_abundance <= 0) {
             logd("Total tail abundance is 0");
             logd("Generating uniform tail abundance");
 
             total_tail_abundance = end_molecules.size();
-            for (auto &t : end_molecules){
+            for (auto &t : end_molecules) {
                 t.set_abundance(1);
             }
         }
         for (const auto &start_molecule : start_molecules) {
-            if(start_molecule.get_abundance() <= 0){
+            if (start_molecule.get_abundance() <= 0) {
                 logd("Abundance is 0 skipping");
                 continue;
             }
             for (const auto &end_molecule : end_molecules) {
                 logd("Fusing {} and {}", start_molecule, end_molecule);
                 fmtlog::poll(true);
-                
-                if(end_molecule.get_abundance() <= 0){
+
+                if (end_molecule.get_abundance() <= 0) {
                     logd("Abundance is 0 skipping");
                     continue;
                 }
@@ -328,7 +329,6 @@ public:
                 logd("Total head_abundance: {}, head_abundance: {}, total_tail_abundance: {}, tail_abundance: {}",
                      total_head_abundance, start_molecule.get_abundance(), total_tail_abundance,
                      end_molecule.get_abundance());
-
 
                 fused_transcripts.back().set_abundance(abundance);
             }
@@ -515,6 +515,71 @@ class Fusion_submodule : public tksm_submodule {
         return fusions_so_far;
     }
 
+    auto index_fusions(const vector<chimeric_event> &fusions)
+        -> std::tuple<IITree<locus, chimeric_event>, IITree<locus, chimeric_event>> const {
+        IITree<locus, chimeric_event> fusion_tree;
+        IITree<locus, chimeric_event> deletion_tree;
+        int RANGE = 0;
+        logi("Indexing fusions");
+        for (const auto &fusion : fusions) {
+            fusion_tree.add(fusion.get_start() - RANGE, fusion.get_start() + RANGE, fusion);
+            fusion_tree.add(fusion.get_end() - RANGE, fusion.get_end() + RANGE, fusion);
+            fusion_tree.add(fusion.get_start(false) - RANGE, fusion.get_start(false) + RANGE, fusion);
+            fusion_tree.add(fusion.get_end(false) - RANGE, fusion.get_end(false) + RANGE, fusion);
+
+            if (fusion.event_type == EventType::DELETION) {
+                deletion_tree.add(fusion.get_start(), fusion.get_end(), fusion);
+                deletion_tree.add(fusion.get_start(false), fusion.get_end(false), fusion);
+            }
+        }
+        fusion_tree.index();
+        deletion_tree.index();
+        return {fusion_tree, deletion_tree};
+    }
+
+    auto get_fusions(const auto &genes,           // string->gtf map
+                     const auto &expression_map,  // string->double map
+                     const cxxopts::ParseResult &args) {
+        unsigned fusion_count      = args["fusion-count"].as<int>();
+        double translocation_ratio = args["translocation-ratio"].as<double>();
+
+        vector<chimeric_event> fusions;
+        if (args["fusion-file"].count() > 0) {
+            string fusion_file_path{args["fusion-file"].as<string>()};
+            std::ifstream fusion_file{fusion_file_path};
+            fusions = read_fusions(fusion_file);
+        }
+
+        logi("Generating fusions");
+        if (args["fallback-expression"].count() > 0) {
+            while (fusions.size() < fusion_count) {
+                logd("Generating fusions");
+                fmtlog::poll(true);
+                generate_fusions(fusions, fusion_count, genes, translocation_ratio);
+                logd("Generated {}/{} fusions", fusions.size(), fusion_count);
+                fmtlog::poll(true);
+            }
+            logi("Using expression fallback");
+        }
+        else {  // Only simulate fusions from expressed transcripts
+            while (fusions.size() < fusion_count) {
+                logd("Generating fusions");
+                fmtlog::poll(true);
+
+                map<string, gtf> expressed_genes;
+                for (const auto &[name, gene] : genes) {
+                    auto iter = expression_map.find(name);
+                    if (iter != expression_map.end() && iter->second > 0) {
+                        expressed_genes[name] = gene;
+                    }
+                }
+                generate_fusions(fusions, fusion_count, expressed_genes, translocation_ratio);
+                logd("Generated {}/{} fusions", fusions.size(), fusion_count);
+                fmtlog::poll(true);
+            }
+        }
+        return fusions;
+    }
     gtf combine_gene_entries(const gtf &gene1, const gtf &gene2) {
         gtf gene;
         gene.chr                  = gene1.chr;
@@ -551,10 +616,10 @@ public:
         -> std::map<gtf, std::vector<transcript>> {
         cxxopts::ParseResult &args = top_module->args;
 
-        string gtf_file                         = args["gtf"].as<string>();
-        size_t fusion_count                     = args["fusion-count"].as<int>();
-        double translocation_ratio              = args["translocation-ratio"].as<double>();
-        [[maybe_unused]] bool disable_deletions = args["disable-deletions"].as<bool>();
+        vector<string> gtf_files                       = args["gtf"].as<vector<string>>();
+        [[maybe_unused]] size_t fusion_count        = args["fusion-count"].as<int>();
+        [[maybe_unused]] double translocation_ratio = args["translocation-ratio"].as<double>();
+        [[maybe_unused]] bool disable_deletions     = args["disable-deletions"].as<bool>();
 
         bool do_fall_back_to_expression = args.count("expression-fallback") > 0;
 
@@ -567,23 +632,22 @@ public:
                     std::normal_distribution<>{0, 0}};
             }
         }();
-
-        vector<chimeric_event> fusions;
-        if (args["fusion-file"].count() > 0) {
-            string fusion_file_path{args["fusion-file"].as<string>()};
-            std::ifstream fusion_file{fusion_file_path};
-            fusions = read_fusions(fusion_file);
-        }
-
-        vector<transcript> transcripts = read_gtf_transcripts_deep(gtf_file);
+        vector<transcript> transcripts;
         map<string, gtf> genes;
-        for (const gtf &g : read_gtf_genes(gtf_file)) {
-            genes[g.info.at("gene_id")] = g;
+        for(const string&gtf_file : gtf_files){
+            for(const transcript &t : read_gtf_transcripts_deep(gtf_file)){
+                transcripts.emplace_back(t);
+            }
+
+            for (const gtf &g : read_gtf_genes(gtf_file)) {
+                genes[g.info.at("gene_id")] = g;
+            }
         }
-        map<string, transcript> transcripts_by_id;
-        for (auto &transcript : transcripts) {
-            transcripts_by_id.emplace(transcript.info["transcript_id"], transcript);
+        unordered_map<string, transcript> transcripts_by_id;
+        for (const auto &transcript : transcripts) {
+            transcripts_by_id.emplace(transcript.info.at("transcript_id"), transcript);
         }
+
 
         map<string, double> expression_map;
         for (const auto &[tid, tpm, comment] : abundances) {
@@ -593,59 +657,10 @@ public:
                 expression_map[iter->second.info["gene_id"]] += tpm;
             }
         }
-
-        logi("Generating fusions");
-        if (do_fall_back_to_expression) {
-            while (fusions.size() < fusion_count) {
-                logd("Generating fusions");
-                fmtlog::poll(true);
-                generate_fusions(fusions, fusion_count, genes, translocation_ratio);
-                logd("Generated {}/{} fusions", fusions.size(), fusion_count);
-                fmtlog::poll(true);
-            }
-            logi("Using expression fallback");
-        }
-        else {  // Only simulate fusions from expressed transcripts
-            while (fusions.size() < fusion_count) {
-                logd("Generating fusions");
-                fmtlog::poll(true);
-
-                map<string, gtf> expressed_genes;
-                for (const auto &[name, gene] : genes) {
-                    auto iter = expression_map.find(name);
-                    if (iter != expression_map.end() && iter->second > 0) {
-                        expressed_genes[name] = gene;
-                    }
-                }
-                generate_fusions(fusions, fusion_count, expressed_genes, translocation_ratio);
-                logd("Generated {}/{} fusions", fusions.size(), fusion_count);
-                fmtlog::poll(true);
-            }
-        }
-
-        IITree<locus, chimeric_event> fusion_tree;
-        IITree<locus, chimeric_event> deletion_tree;
-        int RANGE = 0;
-        logi("Indexing fusions");
-        for (auto &fusion : fusions) {
-            fusion_tree.add(fusion.get_start() - RANGE, fusion.get_start() + RANGE, fusion);
-            fusion_tree.add(fusion.get_end() - RANGE, fusion.get_end() + RANGE, fusion);
-            fusion_tree.add(fusion.get_start(false) - RANGE, fusion.get_start(false) + RANGE, fusion);
-            fusion_tree.add(fusion.get_end(false) - RANGE, fusion.get_end(false) + RANGE, fusion);
-
-            if (fusion.event_type == EventType::DELETION) {
-                deletion_tree.add(fusion.get_start(), fusion.get_end(), fusion);
-                deletion_tree.add(fusion.get_start(false), fusion.get_end(false), fusion);
-            }
-        }
-        fusion_tree.index();
-        deletion_tree.index();
-
-        string buffer;
+        vector<chimeric_event> fusions = get_fusions(genes, expression_map, args);
+        auto [fusion_tree, deletion_tree] = index_fusions(fusions);
 
         std::map<chimeric_event, std::map<locus, vector<transcript>>> relevant_molecules;
-        std::set<string> processed_transcripts;
-
         int total_count = 0;
         int skipped     = 0;
 
@@ -663,24 +678,8 @@ public:
             }
             if (overlaps.size() > 0) {
                 logd("Found {} overlaps, for {}:{}-{}", overlaps.size(), t.chr, t.start, t.end);
-                processed_transcripts.insert(t.info.at("transcript_id"));
             }
             overlaps.clear();
-        }
-
-        map<string, double> tpm_saved_for_fusions;
-        for (auto &[tid, tpm, comment] : abundances) {
-            ++total_count;
-            format_annot_id(tid, !args["use-whole-id"].as<bool>());
-            auto iter = transcripts_by_id.find(tid);
-            if (iter == transcripts_by_id.end()) {
-                ++skipped;
-                continue;
-            }
-            else {
-                tpm_saved_for_fusions[tid] = tpm;
-                logd("Saving tpm={} for {}", tpm, tid);
-            }
         }
 
         logd("Skipped {} transcripts out of {}", skipped, total_count);
@@ -690,9 +689,9 @@ public:
         gtf current_gene_obj;
         for (auto &[event, loci] : relevant_molecules) {
             for (auto &l : loci) {
-                for (auto &t : l.second) {
-                    const auto &it = tpm_saved_for_fusions.find(t.info.at("transcript_id"));
-                    if (it != tpm_saved_for_fusions.end()) {
+                for (transcript &t : l.second) {
+                    const auto &it = expression_map.find(t.info.at("transcript_id"));
+                    if (it != expression_map.end()) {
                         t.set_abundance(it->second);
                         logd("Found tpm={} for {}", it->second, t.info.at("transcript_id"));
                     }
