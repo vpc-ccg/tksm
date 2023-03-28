@@ -19,18 +19,26 @@ TS_experiments:
     E1:
         sample: "N1_chr21"
         pipeline:
-            - Xpr_sc: ""
-            - Spc: "--molecule-count 10000"
+            - Xpr_sc:
+                params: ""
+            - Spc:
+                params: "--molecule-count 10000"
             - Spl:
                 params: "--c1 c1"
                 Spl_T:
-                    - plA: "--normal=40,10 --min-length=5"
+                    - plA:
+                        params: "--normal=40,10 --min-length=5"
                 Spl_F: []
-            - SCB: ""
-            - Tag: "--format5 10"
-            - PCR: "--cycles 3 -x Taq-setting1 --molecule-count 10000"
-            - Trc: ""
-            - Seq: "--skip-qual-compute"
+            - SCB:
+                params: ""
+            - Tag:
+                params: "--format5 10"
+            - PCR:
+                params: "--cycles 3 -x Taq-setting1 --molecule-count 10000"
+            - Trc:
+                params: ""
+            - Seq:
+                params: "--skip-qual-compute"
 
 exec:
     tksm: build/bin/tksm

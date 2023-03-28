@@ -54,10 +54,7 @@ def module_params(wildcards, rule_name):
     pipeline = config["TS_experiments"][wildcards.exprmnt]["pipeline"]
     prefix = [x.split(".") for x in f"{wildcards.prefix}.{rule_name}".split("/")]
     step = get_step_pipeline(pipeline, prefix)
-    if rule_name == "Spl":
-        return step[rule_name]["params"]
-    else:
-        return step[rule_name]
+    return step[rule_name]["params"]
 
 
 def experiment_prefix(exprmnt):
