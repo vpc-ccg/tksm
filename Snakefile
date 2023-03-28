@@ -297,7 +297,7 @@ rule polyA:
 rule splicer:
     input:
         obj=["build/obj/splicer.o", "build/obj/tksm.o"] if DEBUG else list(),
-        tsv=f"{TS_d}/{{exprmnt}}/{{prefix}}.tsv",
+        tsv=lambda wc: f"{preproc_d}/tskm_abundance/{exprmnt_sample(wc.exprmnt)}.{wc.prefix}.tsv",
         gtf=lambda wc: get_sample_ref(wc.exprmnt, "GTF"),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spc.mdf"),
@@ -316,14 +316,15 @@ rule splicer:
         " {params.other}"
 
 
+### Preprocessing rules ###
 rule abundance:
     input:
         obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
-        paf=lambda wc: f"{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf",
+        paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     output:
-        tsv=f"{TS_d}/{{exprmnt}}/Xpr.tsv",
+        tsv=f"{preproc_d}/tskm_abundance/{{sample}}.Xpr.tsv",
     benchmark:
-        f"{time_d}/{{exprmnt}}/Xpr.benchmark"
+        f"{time_d}/{{sample}}/Xpr.benchmark"
     params:
         binary=config["exec"]["tksm"],
     shell:
@@ -335,12 +336,12 @@ rule abundance:
 rule abundance_sc:
     input:
         obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
-        paf=lambda wc: f"{preproc_d}/minimap2/{exprmnt_sample(wc.exprmnt)}.cDNA.paf",
-        lr_matches=lambda wc: f"{preproc_d}/scTagger/{exprmnt_sample(wc.exprmnt)}/{exprmnt_sample(wc.exprmnt)}.lr_matches.tsv.gz",
+        paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
+        lr_matches=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
     output:
-        tsv=f"{TS_d}/{{exprmnt}}/Xpr_sc.tsv",
+        tsv=f"{preproc_d}/tskm_abundance/{{sample}}.Xpr_sc.tsv",
     benchmark:
-        f"{time_d}/{{exprmnt}}/Xpr_sc.benchmark"
+        f"{time_d}/{{sample}}/Xpr_sc.benchmark"
     params:
         binary=config["exec"]["tksm"],
     shell:
@@ -374,7 +375,7 @@ rule truncate_kde:
 rule minimap_cdna:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),        
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
     output:
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     benchmark:
@@ -440,7 +441,7 @@ rule scTagger_lr_seg:
 rule minimap_cdna_for_badread_models:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),        
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
     output:
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     benchmark:
@@ -459,7 +460,7 @@ rule minimap_cdna_for_badread_models:
 rule badread_error_model:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),        
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     output:
         model=f"{preproc_d}/models/badread/{{sample}}.error.gz",
@@ -475,7 +476,7 @@ rule badread_error_model:
 rule badread_qscore_model:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),        
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     output:
         model=f"{preproc_d}/models/badread/{{sample}}.qscore.gz",
