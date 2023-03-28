@@ -64,13 +64,16 @@ def experiment_prefix(exprmnt):
     return ".".join(prefix)
 
 
-def get_sample_ref(name):
-    if name in config["samples"]:
-        return config["samples"][name]["ref"]
-    elif name in config["TS_experiments"]:
-        return get_sample_ref(config["TS_experiments"][name]["sample"])
+def get_sample_ref_name(sample):
+    if sample in config["samples"]:
+        return config["samples"][sample]["ref"]
     else:
-        raise ValueError(f"Invalid experiment/sample name! {name}")
+        return get_sample_ref_name(config["TS_experiments"][sample]["sample"])
+
+
+def get_sample_ref(sample, ref_type):
+    ref_name = get_sample_ref_name(sample)
+    return config["refs"][ref_name][ref_type]
 
 
 def get_sample_fastqs(name):
@@ -105,7 +108,7 @@ rule sequencer:
     input:
         obj=["build/obj/sequencer.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        fastas=lambda wc: config["refs"][get_sample_ref(exprmnt_sample(wc.exprmnt))]["DNA"],
+        fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
         qscore_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz",
         error_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.error.gz",
     output:
@@ -295,7 +298,7 @@ rule splicer:
     input:
         obj=["build/obj/splicer.o", "build/obj/tksm.o"] if DEBUG else list(),
         tsv=f"{TS_d}/{{exprmnt}}/{{prefix}}.tsv",
-        gtf=lambda wc: config["refs"][get_sample_ref(exprmnt_sample(wc.exprmnt))]["GTF"],
+        gtf=lambda wc: get_sample_ref(wc.exprmnt, "GTF"),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spc.mdf"),
     benchmark:
@@ -371,7 +374,7 @@ rule truncate_kde:
 rule minimap_cdna:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["cDNA"],
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),        
     output:
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     benchmark:
@@ -437,7 +440,7 @@ rule scTagger_lr_seg:
 rule minimap_cdna_for_badread_models:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["cDNA"],
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),        
     output:
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     benchmark:
@@ -456,7 +459,7 @@ rule minimap_cdna_for_badread_models:
 rule badread_error_model:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["cDNA"],
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),        
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     output:
         model=f"{preproc_d}/models/badread/{{sample}}.error.gz",
@@ -472,7 +475,7 @@ rule badread_error_model:
 rule badread_qscore_model:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["cDNA"],
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),        
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     output:
         model=f"{preproc_d}/models/badread/{{sample}}.qscore.gz",
