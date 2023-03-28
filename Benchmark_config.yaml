@@ -23,10 +23,22 @@ TS_experiments:
             - Xpr_sc: ""
             - Spc: "--molecule-count 100000"
             - Trc: ""
-            - plA: "--normal=15,7.5"
-            - Tag: "--format3 10 --contig-prefix umi_contig"
-            - SCB: ""
-            - Tag: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
+            - Spl:
+                params: "--c1 c1"
+                Spl_T:
+                    - plA: "--normal=15,7.5"
+                    - Tag: "--format3 10 --contig-prefix umi_contig"
+                    - SCB: ""
+                    - Tag: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
+                    - Spl:
+                        params: "--c1 c1"
+                        Spl_T:
+                            - plA: "--normal=15,7.5"
+                            - Tag: "--format3 10 --contig-prefix umi_contig"
+                            - SCB: ""
+                            - Tag: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
+                        Spl_F: []
+                Spl_F: []
             - Flp: "-p 0.5"
             - Tag: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT --contig-prefix lr_adaptor_contig"
             - Seq: "--skip-qual-compute"

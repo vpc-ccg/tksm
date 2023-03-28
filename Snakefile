@@ -1,4 +1,5 @@
 import sys
+import re
 
 if len(config) == 0:
 
@@ -24,27 +25,36 @@ def exprmnt_sample(exprmnt):
     return config["TS_experiments"][exprmnt]["sample"]
 
 
-def component_idx(prefix):
-    return len(prefix.split("."))
+def get_split_mdf(wc, SPL_K):
+    pipeline = config["TS_experiments"][wc.exprmnt]["pipeline"]
+    prefix = f"{wc.prefix}.Spl"
+    step = get_step_pipeline(pipeline, [x.split(".") for x in prefix.split("/")])
+    step = step["Spl"][SPL_K]
+    suffix = ".".join([list(x.keys())[0] for x in step])
+    if step == list():
+        return list()
+    return f"{TS_d}/{wc.exprmnt}/{prefix}/{SPL_K}.{suffix}.mdf"
 
 
-def fastas_for_TS_sequence(wc):
-    fastas = list()
-    sample = exprmnt_sample(wc.exprmnt)
-    fastas.append(config["refs"][get_sample_ref(sample)]["DNA"])
-    for idx, component in enumerate(config["TS_experiments"][wc.exprmnt]["pipeline"]):
-        component = list(component.keys())[0]
-        if component in ["plA", "SCB", "Tag"]:
-            prefix = ".".join(
-                [
-                    list(c.keys())[0]
-                    for c in config["TS_experiments"][wc.exprmnt]["pipeline"][: idx + 1]
-                ]
-            )
-            fastas.append(
-                f"{TS_d}/{wc.exprmnt}/{prefix}.fasta",
-            )
-    return fastas
+def get_step_pipeline(pipeline, prefix):
+    if isinstance(pipeline, dict):
+        pipeline = pipeline[prefix[0][0]]
+        prefix[0] = prefix[0][1:]
+    pipeline_idx = len(prefix[0]) - 1
+    assert len(prefix) > 0
+    assert pipeline_idx >= 0
+
+    if len(prefix) == 1:
+        return pipeline[pipeline_idx]
+    else:
+        return get_step_pipeline(pipeline[pipeline_idx]["Spl"], prefix[1:])
+
+
+def module_params(wildcards, rule_name):
+    pipeline = config["TS_experiments"][wildcards.exprmnt]["pipeline"]
+    prefix = [x.split(".") for x in f"{wildcards.prefix}.{rule_name}".split("/")]
+    step = get_step_pipeline(pipeline, prefix)
+    return step[rule_name]["params"]
 
 
 def experiment_prefix(exprmnt):
@@ -60,8 +70,7 @@ def get_sample_ref(name):
     elif name in config["TS_experiments"]:
         return get_sample_ref(config["TS_experiments"][name]["sample"])
     else:
-        print(f"Invalid experiment/sample name! {name}")
-        1 / 0
+        raise ValueError(f"Invalid experiment/sample name! {name}")
 
 
 def get_sample_fastqs(name):
@@ -72,8 +81,7 @@ def get_sample_fastqs(name):
         exprmnt = name
         return [f"{TS_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq"]
     else:
-        print(f"Invalid experiment/sample name! {name}")
-        1 / 0
+        raise ValueError(f"Invalid experiment/sample name! {name}")
 
 
 rule all:
@@ -97,7 +105,7 @@ rule sequencer:
     input:
         obj=["build/obj/sequencer.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        fastas=fastas_for_TS_sequence,
+        fastas=lambda wc: config["refs"][get_sample_ref(exprmnt_sample(wc.exprmnt))]["DNA"],
         qscore_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.qscore.gz",
         error_model=lambda wc: f"{preproc_d}/models/badread/{exprmnt_sample(wc.exprmnt)}.error.gz",
     output:
@@ -106,10 +114,10 @@ rule sequencer:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Seq.benchmark"
     threads: 32
     params:
-        other=lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
-            component_idx(wc.prefix)
-        ]["Seq"],
+        other=lambda wc: module_params(wc, "Seq"),
         binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
     shell:
         "{params.binary} sequencer"
         " -i {input.mdf}"
@@ -118,6 +126,42 @@ rule sequencer:
         " --threads {threads}"
         " --badread-error-model={input.error_model}"
         " --badread-qscore-model={input.qscore_model}"
+        " {params.other}"
+
+
+rule split_merge:
+    input:
+        mdf_f=lambda wc: get_split_mdf(wc, "Spl_T"),
+        mdf_t=lambda wc: get_split_mdf(wc, "Spl_F"),
+    output:
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spl.mdf"),
+    benchmark:
+        f"{time_d}/{{exprmnt}}/{{prefix}}.Spl.benchmark"
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+    shell:
+        "cat {input.mdf_f} {input.mdf_t} > {output.mdf}"
+
+
+rule split:
+    input:
+        obj=["build/obj/filter.o", "build/obj/tksm.o"] if DEBUG else list(),
+        mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
+    output:
+        mdf_f=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spl/Spl_T.mdf"),
+        mdf_t=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spl/Spl_F.mdf"),
+    benchmark:
+        f"{time_d}/{{exprmnt}}/{{prefix}}.Spl.benchmark"
+    params:
+        other=lambda wc: module_params(wc, "Spl"),
+        binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+    shell:
+        "{params.binary} filter"
+        " -i {input.mdf}"
+        " -t {output.mdf_t}"
+        " -f {output.mdf_f}"
         " {params.other}"
 
 
@@ -133,16 +177,16 @@ rule truncate:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Trc.benchmark"
     params:
-        lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
-            component_idx(wc.prefix)
-        ]["Trc"],
+        other=lambda wc: module_params(wc, "Trc"),
         binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
     shell:
         "{params.binary} truncate"
         " -i {input.mdf}"
         " --kde={input.g},{input.x},{input.y}"
         " -o {output.mdf}"
-        " {params}"
+        " {params.other}"
 
 
 rule flip:
@@ -154,15 +198,15 @@ rule flip:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Flp.benchmark"
     params:
-        lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
-            component_idx(wc.prefix)
-        ]["Flp"],
+        other=lambda wc: module_params(wc, "Flp"),
         binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
     shell:
         "{params.binary} flip"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params}"
+        " {params.other}"
 
 
 rule pcr:
@@ -174,15 +218,15 @@ rule pcr:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.PCR.benchmark"
     params:
-        lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
-            component_idx(wc.prefix)
-        ]["PCR"],
+        other=lambda wc: module_params(wc, "PCR"),
         binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
     shell:
         "{params.binary} pcr"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params}"
+        " {params.other}"
 
 
 rule tag:
@@ -191,42 +235,40 @@ rule tag:
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.mdf"),
-        fasta=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.fasta"),
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Tag.benchmark"
     params:
-        lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
-            component_idx(wc.prefix)
-        ]["Tag"],
+        other=lambda wc: module_params(wc, "Tag"),
         binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
     shell:
         "{params.binary} tag"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " -f {output.fasta}"
-        " {params}"
+        " {params.other}"
 
 
 rule single_cell_barcoder:
     input:
-        obj=["build/obj/single-cell-barcoder.o", "build/obj/tksm.o"] if DEBUG else list(),
+        obj=["build/obj/single-cell-barcoder.o", "build/obj/tksm.o"]
+        if DEBUG
+        else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.mdf"),
-        fasta=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.fasta"),
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.SCB.benchmark"
     params:
-        lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
-            component_idx(wc.prefix)
-        ]["SCB"],
+        other=lambda wc: module_params(wc, "SCB"),
         binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
     shell:
         "{params.binary} single-cell-barcoder"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " -f {output.fasta}"
-        " {params}"
+        " {params.other}"
 
 
 rule polyA:
@@ -235,20 +277,18 @@ rule polyA:
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.plA.mdf"),
-        fasta=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.plA.fasta"),
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.plA.benchmark"
     params:
-        lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
-            component_idx(wc.prefix)
-        ]["plA"],
+        other=lambda wc: module_params(wc, "plA"),
         binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
     shell:
         "{params.binary} polyA"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " -f {output.fasta}"
-        " {params}"
+        " {params.other}"
 
 
 rule splicer:
@@ -261,16 +301,16 @@ rule splicer:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Spc.benchmark"
     params:
-        lambda wc: config["TS_experiments"][wc.exprmnt]["pipeline"][
-            component_idx(wc.prefix)
-        ]["Spc"],
+        other=lambda wc: module_params(wc, "Spc"),
         binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
     shell:
         "{params.binary} splicer"
         " -a {input.tsv}"
         " -g {input.gtf}"
         " -o {output.mdf}"
-        " {params}"
+        " {params.other}"
 
 
 rule abundance:
