@@ -10,6 +10,7 @@ outpath = config["outpath"]
 preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
 time_d = f"{outpath}/time"
+exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 DEBUG = True
 
 if DEBUG:
@@ -21,59 +22,54 @@ if DEBUG:
         return X
 
 
-def exprmnt_sample(exprmnt):
-    return config["TS_experiments"][exprmnt]["model"]
-
-
-def get_split_mdf(wc, SPL_K):
-    pipeline = config["TS_experiments"][wc.exprmnt]["pipeline"]
-    prefix = f"{wc.prefix}.Spl"
-    step = get_step_pipeline(pipeline, [x.split(".") for x in prefix.split("/")])
-    step = step["Spl"][SPL_K]
-    suffix = ".".join([list(x.keys())[0] for x in step])
-    if step == list():
-        return list()
-    return f"{TS_d}/{wc.exprmnt}/{prefix}/{SPL_K}.{suffix}.mdf"
-
-
-def get_step_pipeline(pipeline, prefix):
-    if isinstance(pipeline, dict):
-        pipeline = pipeline[prefix[0][0]]
-        prefix[0] = prefix[0][1:]
-    pipeline_idx = len(prefix[0]) - 1
-    assert len(prefix) > 0
-    assert pipeline_idx >= 0
-
-    if len(prefix) == 1:
-        return pipeline[pipeline_idx]
+def exprmnt_final_file(exprmnt):
+    prefix = [list(step)[0] for step in config["TS_experiments"][exprmnt]["pipeline"]]
+    if prefix[-1] in ["Seq"]:
+        prefix.append("fastq")
+    elif prefix[-1] in [
+        "Spc",
+        "Flt",
+        "PCR",
+        "plA",
+        "SCB",
+        "Tag",
+        "Flp",
+        "Trc",
+    ]:
+        prefix.append("mdf")
     else:
-        return get_step_pipeline(pipeline[pipeline_idx]["Spl"], prefix[1:])
+        raise ValueError(f"Invalid terminal pipeline step! {prefix[-1]}")
+    prefix = ".".join(prefix)
+    final_file = f"{TS_d}/{exprmnt}/{prefix}"
+    return final_file
 
 
-def module_params(wildcards, rule_name):
-    pipeline = config["TS_experiments"][wildcards.exprmnt]["pipeline"]
-    prefix = [x.split(".") for x in f"{wildcards.prefix}.{rule_name}".split("/")]
-    step = get_step_pipeline(pipeline, prefix)
-    return step[rule_name]["params"]
-
-
-def experiment_prefix(exprmnt):
-    prefix = list()
-    for component in config["TS_experiments"][exprmnt]["pipeline"]:
-        prefix.append(list(component)[0])
-    return ".".join(prefix)
-
-
-def get_sample_ref_name(sample):
+def get_sample_ref_names(sample):
+    # Check if sample is real
     if sample in config["samples"]:
-        return config["samples"][sample]["ref"]
-    else:
-        return get_sample_ref_name(config["TS_experiments"][sample]["model"])
+        return [config["samples"][sample]["ref"]]
+    # If not, then sample must be a TS experiment
+    step = config["TS_experiments"][sample]["pipeline"][0]
+    rule_name = list(step)[0]
+    step = step[rule_name]
+    # If 1st step is splicer, then return its model's reference
+    if rule_name == "Spc":
+        return get_sample_ref_names(step["model"])
+    # If 1st step is merge, then return the references of its sources
+    if rule_name == "Mrg":
+        ref_names = set()
+        for source in step["sources"]:
+            ref_names.update(get_sample_ref_names(source))
+        ref_names = sorted(ref_names)
+        return ref_names
+    raise ValueError(f"Invalid 1st rule ({rule_name}) for sample ({sample})!")
 
 
-def get_sample_ref(sample, ref_type):
-    ref_name = get_sample_ref_name(sample)
-    return config["refs"][ref_name][ref_type]
+def get_sample_refs(sample, ref_type):
+    refs = list()
+    for ref_name in get_sample_ref_names(sample):
+        refs.append(config["refs"][ref_name][ref_type])
+    return refs
 
 
 def get_sample_fastqs(name):
@@ -82,64 +78,76 @@ def get_sample_fastqs(name):
         return config["samples"][sample]["fastq"]
     elif name in config["TS_experiments"]:
         exprmnt = name
-        return [f"{TS_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq"]
+        fastq = exprmnt_final_file(exprmnt)
+        assert fastq.endswith(".fastq")
+        return [fastq]
     else:
         raise ValueError(f"Invalid experiment/sample name! {name}")
 
 
-def get_step_model_name(wc, rule_name):
-    pipeline = config["TS_experiments"][wc.exprmnt]["pipeline"]
-    prefix = [x.split(".") for x in f"{wc.prefix}.{rule_name}".split("/")]
-    step = get_step_pipeline(pipeline, prefix)
-    model_name = step[rule_name].get("model", config["TS_experiments"][wc.exprmnt]["model"])
-    return model_name
+def get_step(exprmnt, prefix):
+    idx = len(prefix.split(".")) - 1
+    step = config["TS_experiments"][exprmnt]["pipeline"][idx]
+    rule_name = list(step)[0]
+    return step[rule_name]
+
+
+def get_merge_mdf_input(wc):
+    step = get_step(wc.exprmnt, "Mrg")
+    mdfs = list()
+    for source in step["sources"]:
+        mdf = exprmnt_final_file(source)
+        assert mdf.endswith(".mdf")
+        mdfs.append(mdf)
+    return mdfs
+
+
+def get_sequencer_model_input(wc, model_type):
+    step = get_step(wc.exprmnt, f"{wc.prefix}.Seq")
+    model = step["model"]
+    if model in config["samples"] or model in config["TS_experiments"]:
+        return f"{preproc_d}/models/badread/{model}.{model_type}.gz"
+    else:
+        return list()
+
+
+def get_kde_model_input(wc):
+    step = get_step(wc.exprmnt, f"{wc.prefix}.Kde")
+    model = step["model"]
+    kde_input = [
+        f"{preproc_d}/truncate_kde/{model}.{x}.npy"
+        for x in ["grid", "X_idxs", "Y_idxs"]
+    ]
+    return kde_input
 
 
 rule all:
     input:
-        [
-            f"{TS_d}/{exprmnt}/{experiment_prefix(exprmnt)}.fastq"
-            for exprmnt in config["TS_experiments"]
-        ],
+        [exprmnt_final_file(exprmnt) for exprmnt in config["TS_experiments"]],
 
-
-rule make_binary:
-    input:
-        "src/{prefix}.cpp",
-    output:
-        "build/{prefix}",
-    shell:
-        "make {output}"
-
-def get_sequencer_models(wc, model_type):
-    model_name = get_step_model_name(wc, "Seq")
-    if model_name in config["samples"] or model_name in config["TS_experiments"]:
-        model = [f"{preproc_d}/models/badread/{model_name}.{model_type}.gz"]
-    else:
-        model = list()
-    return (model, model_name)
 
 rule sequencer:
     input:
         obj=["build/obj/sequencer.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        qscore_model=lambda wc: get_sequencer_models(wc, "qscore")[0],
-        error_model=lambda wc: get_sequencer_models(wc, "error")[0],
+        fastas=lambda wc: get_sample_refs(wc.exprmnt, "DNA"),
+        qscore_model=lambda wc: get_sequencer_model_input(wc, "qscore"),
+        error_model=lambda wc: get_sequencer_model_input(wc, "error"),
     output:
         fastq=f"{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq",
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Seq.benchmark"
     threads: 32
     params:
-        other=lambda wc: module_params(wc, "Seq"),
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Seq")["params"],
         binary=config["exec"]["tksm"],
+        fastas=lambda wc: ",".join(get_sample_refs(wc.exprmnt, "DNA")),
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} sequencer"
         " -i {input.mdf}"
-        " --references {input.fastas}"
+        " --references {params.fastas}"
         " -o {output.fastq}"
         " --threads {threads}"
         " --badread-error-model={input.error_model}"
@@ -147,39 +155,23 @@ rule sequencer:
         " {params.other}"
 
 
-rule split_merge:
-    input:
-        mdf_f=lambda wc: get_split_mdf(wc, "Spl_T"),
-        mdf_t=lambda wc: get_split_mdf(wc, "Spl_F"),
-    output:
-        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spl.mdf"),
-    benchmark:
-        f"{time_d}/{{exprmnt}}/{{prefix}}.Spl.benchmark"
-    wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
-    shell:
-        "cat {input.mdf_f} {input.mdf_t} > {output.mdf}"
-
-
-rule split:
+rule filter:
     input:
         obj=["build/obj/filter.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
-        mdf_f=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spl/Spl_T.mdf"),
-        mdf_t=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spl/Spl_F.mdf"),
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flt.mdf"),
     benchmark:
-        f"{time_d}/{{exprmnt}}/{{prefix}}.Spl.benchmark"
+        f"{time_d}/{{exprmnt}}/{{prefix}}.Flt.benchmark"
     params:
-        other=lambda wc: module_params(wc, "Spl"),
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Flt")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} filter"
         " -i {input.mdf}"
-        " -t {output.mdf_t}"
-        " -f {output.mdf_f}"
+        " -t {output.mdf}"
         " {params.other}"
 
 
@@ -187,22 +179,21 @@ rule truncate:
     input:
         obj=["build/obj/truncate.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        x=lambda wc: f"{preproc_d}/truncate_kde/{get_step_model_name(wc, 'Trc')}.X_idxs.npy",
-        y=lambda wc: f"{preproc_d}/truncate_kde/{get_step_model_name(wc, 'Trc')}.Y_idxs.npy",
-        g=lambda wc: f"{preproc_d}/truncate_kde/{get_step_model_name(wc, 'Trc')}.grid.npy",
+        kde=get_kde_model_input,
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Trc.mdf"),
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Trc.benchmark"
     params:
-        other=lambda wc: module_params(wc, "Trc"),
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Trc")["params"],
+        kde=lambda wc: ",".join(get_kde_model_input(wc)),
         binary=config["exec"]["tksm"],
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} truncate"
         " -i {input.mdf}"
-        " --kde={input.g},{input.x},{input.y}"
+        " --kde={params.kde}"
         " -o {output.mdf}"
         " {params.other}"
 
@@ -216,10 +207,10 @@ rule flip:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Flp.benchmark"
     params:
-        other=lambda wc: module_params(wc, "Flp"),
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Flp")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} flip"
         " -i {input.mdf}"
@@ -236,10 +227,10 @@ rule pcr:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.PCR.benchmark"
     params:
-        other=lambda wc: module_params(wc, "PCR"),
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.PCR")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} pcr"
         " -i {input.mdf}"
@@ -256,10 +247,10 @@ rule tag:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.Tag.benchmark"
     params:
-        other=lambda wc: module_params(wc, "Tag"),
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Tag")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} tag"
         " -i {input.mdf}"
@@ -278,10 +269,10 @@ rule single_cell_barcoder:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.SCB.benchmark"
     params:
-        other=lambda wc: module_params(wc, "SCB"),
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.SCB")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} single-cell-barcoder"
         " -i {input.mdf}"
@@ -298,10 +289,10 @@ rule polyA:
     benchmark:
         f"{time_d}/{{exprmnt}}/{{prefix}}.plA.benchmark"
     params:
-        other=lambda wc: module_params(wc, "plA"),
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.plA")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} polyA"
         " -i {input.mdf}"
@@ -309,26 +300,37 @@ rule polyA:
         " {params.other}"
 
 
+### Entry rules ###
 rule splicer:
     input:
         obj=["build/obj/splicer.o", "build/obj/tksm.o"] if DEBUG else list(),
-        tsv=lambda wc: f"{preproc_d}/tskm_abundance/{exprmnt_sample(wc.exprmnt)}.{wc.prefix}.tsv",
-        gtf=lambda wc: get_sample_ref(wc.exprmnt, "GTF"),
+        tsv=lambda wc: f"{preproc_d}/tskm_abundance/{get_step(wc.exprmnt, 'Spc')['model']}.{get_step(wc.exprmnt, 'Spc')['mode']}.tsv",
+        gtfs=lambda wc: get_sample_refs(wc.exprmnt, "GTF"),
     output:
-        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Spc.mdf"),
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/Spc.mdf"),
     benchmark:
-        f"{time_d}/{{exprmnt}}/{{prefix}}.Spc.benchmark"
+        f"{time_d}/{{exprmnt}}/Spc.benchmark"
     params:
-        other=lambda wc: module_params(wc, "Spc"),
+        other=lambda wc: get_step(wc.exprmnt, f"Spc")["params"],
+        gtfs=lambda wc: ",".join(get_sample_refs(wc.exprmnt, "GTF")),
         binary=config["exec"]["tksm"],
     wildcard_constraints:
-        exprmnt="|".join([re.escape(x) for x in config["TS_experiments"]]),
+        exprmnt=exprmnts_re,
     shell:
         "{params.binary} splicer"
         " -a {input.tsv}"
-        " -g {input.gtf}"
+        " -g {params.gtfs}"
         " -o {output.mdf}"
         " {params.other}"
+
+
+rule merge:
+    input:
+        mdfs=get_merge_mdf_input,
+    output:
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/Mrg.mdf"),
+    shell:
+        "cat {input.mdfs} > {output.mdf}"
 
 
 ### Preprocessing rules ###
@@ -390,7 +392,7 @@ rule truncate_kde:
 rule minimap_cdna:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        refs=lambda wc: get_sample_refs(wc.sample, "cDNA"),
     output:
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     benchmark:
@@ -402,7 +404,7 @@ rule minimap_cdna:
         " -x map-ont"
         " -c --eqx"
         " -o {output.paf}"
-        " {input.ref}"
+        " <(cat {input.refs})"
         " {input.reads}"
 
 
@@ -456,7 +458,7 @@ rule scTagger_lr_seg:
 rule minimap_cdna_for_badread_models:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        refs=lambda wc: get_sample_refs(wc.sample, "cDNA"),
     output:
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     benchmark:
@@ -468,21 +470,21 @@ rule minimap_cdna_for_badread_models:
         " -x map-ont"
         " -c"
         " -o {output.paf}"
-        " {input.ref}"
+        " <(cat {input.refs})"
         " {input.reads}"
 
 
 rule badread_error_model:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        refs=lambda wc: get_sample_refs(wc.sample, "cDNA"),
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     output:
         model=f"{preproc_d}/models/badread/{{sample}}.error.gz",
     shell:
         "badread error_model"
         " --reads {input.reads}"
-        " --reference {input.ref}"
+        " --reference <(cat {input.refs})"
         " --alignment {input.paf}"
         " --max_alignments 250000"
         " > {output.model}"
@@ -491,14 +493,14 @@ rule badread_error_model:
 rule badread_qscore_model:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        refs=lambda wc: get_sample_refs(wc.sample, "cDNA"),
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     output:
         model=f"{preproc_d}/models/badread/{{sample}}.qscore.gz",
     shell:
         "badread qscore_model"
         " --reads {input.reads}"
-        " --reference {input.ref}"
+        " --reference <(cat {input.refs})"
         " --alignment {input.paf}"
         " --max_alignments 250000"
         " > {output.model}"
