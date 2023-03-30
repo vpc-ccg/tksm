@@ -2,59 +2,33 @@ outpath: /groups/hachgrp/projects/dev-tksm/analysis/paper
 
 TS_experiments:
     TS_1:
-        sample: "MCF7-sgnex"
         pipeline:
-            - Xpr: ""
-            - Spc: "--molecule-count 5000000"
-            - plA: "--normal=15,7.5"
-            - Trc: ""
-            - Seq: "--skip-qual-compute"
+            - Spc:
+                params: "--molecule-count 10000"
+                model: "MCF7-sgnex"
+                mode: Xpr
+            - plA:
+                params: "--normal=15,7.5"
+            - Trc:
+                params: ""
+                model: "MCF7-sgnex"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
     TS_1_chr21:
-        sample: "MCF7-sgnex_chr21"
         pipeline:
-            - Xpr: ""
-            - Spc: "--molecule-count 100000"
-            - plA: "--normal=15,7.5"
-            - Trc: ""
-            - Seq: "--skip-qual-compute"
-    TS_2_chr21:
-        sample: "N1_chr21"
-        pipeline:
-            - Xpr_sc: ""
-            - Spc: "--molecule-count 100000"
-            - Trc: ""
-            - Spl:
-                params: "--c1 c1"
-                Spl_T:
-                    - plA: "--normal=15,7.5"
-                    - Tag: "--format3 10 --contig-prefix umi_contig"
-                    - SCB: ""
-                    - Tag: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
-                    - Spl:
-                        params: "--c1 c1"
-                        Spl_T:
-                            - plA: "--normal=15,7.5"
-                            - Tag: "--format3 10 --contig-prefix umi_contig"
-                            - SCB: ""
-                            - Tag: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
-                        Spl_F: []
-                Spl_F: []
-            - Flp: "-p 0.5"
-            - Tag: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT --contig-prefix lr_adaptor_contig"
-            - Seq: "--skip-qual-compute"
-    TS_2:
-        sample: "N1"
-        pipeline:
-            - Xpr_sc: ""
-            - Spc: "--molecule-count 250000"
-            - plA: "--normal=15,7.5"
-            - Tag: "--format3 10 --contig-prefix umi_contig"
-            - SCB: ""
-            - Tag: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
-            - Flp: "-p 0.5"
-            - Tag: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT --contig-prefix lr_adaptor_contig"
-            - Trc: ""
-            - Seq: "--skip-qual-compute"
+            - Spc:
+                params: "--molecule-count 10000"
+                model: "MCF7-sgnex_chr21"
+                mode: Xpr
+            - plA:
+                params: "--normal=15,7.5"
+            - Trc:
+                params: ""
+                model: "MCF7-sgnex_chr21"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex_chr21"
 
 NS_experiments:
     NS_1:
@@ -65,26 +39,6 @@ NS_experiments:
         simulation_params: "-n 100000 --seed 42"
 
 plots:
-    - {
-        rules: [
-            # raw_lengths,
-            # mapped_raw_lengths,
-            mapped_lengths,
-            # substitution,
-            # polyA,
-            # tpm_plot_tksm,
-            # tpm_plot_tksm.by_gene,
-            # tpm_plot_tksm_sc.by_gene,
-            # tpm_plot_liqa,
-            # tpm_plot_nanosim,
-            # tpm_plot_minimap2,
-            lr_cell_stats,
-        ],
-        data: [
-            N1_chr21,
-            TS_2_chr21,
-        ],
-      }
     # - {
     #     rules: [
     #         raw_lengths,
@@ -93,16 +47,36 @@ plots:
     #         substitution,
     #         polyA,
     #         tpm_plot_tksm,
+    #         tpm_plot_tksm.by_gene,
+    #         tpm_plot_tksm_sc.by_gene,
     #         tpm_plot_liqa,
-    #         tpm_plot_minimap2,
     #         tpm_plot_nanosim,
+    #         tpm_plot_minimap2,
+    #         lr_cell_stats,
     #     ],
     #     data: [
-    #         MCF7-sgnex,
-    #         NS_1,
-    #         TS_1,
+    #         N1_chr21,
+    #         TS_2_chr21,
     #     ],
-    # }
+    #   }
+    - {
+        rules: [
+            raw_lengths,
+            mapped_raw_lengths,
+            mapped_lengths,
+            substitution,
+            polyA,
+            tpm_plot_tksm,
+            tpm_plot_liqa,
+            tpm_plot_minimap2,
+            tpm_plot_nanosim,
+        ],
+        data: [
+            MCF7-sgnex,
+            NS_1,
+            TS_1,
+        ],
+    }
 
 exec:
     tksm: build/bin/tksm

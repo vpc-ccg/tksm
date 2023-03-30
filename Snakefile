@@ -49,20 +49,22 @@ def get_sample_ref_names(sample):
     if sample in config["samples"]:
         return [config["samples"][sample]["ref"]]
     # If not, then sample must be a TS experiment
-    step = config["TS_experiments"][sample]["pipeline"][0]
-    rule_name = list(step)[0]
-    step = step[rule_name]
-    # If 1st step is splicer, then return its model's reference
-    if rule_name == "Spc":
-        return get_sample_ref_names(step["model"])
-    # If 1st step is merge, then return the references of its sources
-    if rule_name == "Mrg":
-        ref_names = set()
-        for source in step["sources"]:
-            ref_names.update(get_sample_ref_names(source))
-        ref_names = sorted(ref_names)
-        return ref_names
-    raise ValueError(f"Invalid 1st rule ({rule_name}) for sample ({sample})!")
+    if sample in config["TS_experiments"]:
+        step = config["TS_experiments"][sample]["pipeline"][0]
+        rule_name = list(step)[0]
+        step = step[rule_name]
+        # If 1st step is splicer, then return its model's reference
+        if rule_name == "Spc":
+            return get_sample_ref_names(step["model"])
+        # If 1st step is merge, then return the references of its sources
+        if rule_name == "Mrg":
+            ref_names = set()
+            for source in step["sources"]:
+                ref_names.update(get_sample_ref_names(source))
+            ref_names = sorted(ref_names)
+            return ref_names
+        raise ValueError(f"Invalid 1st rule ({rule_name}) for sample ({sample})!")
+    raise ValueError(f"Invalid sample ({sample})!")
 
 
 def get_sample_refs(sample, ref_type):
@@ -76,13 +78,12 @@ def get_sample_fastqs(name):
     if name in config["samples"]:
         sample = name
         return config["samples"][sample]["fastq"]
-    elif name in config["TS_experiments"]:
+    if name in config["TS_experiments"]:
         exprmnt = name
         fastq = exprmnt_final_file(exprmnt)
         assert fastq.endswith(".fastq")
         return [fastq]
-    else:
-        raise ValueError(f"Invalid experiment/sample name! {name}")
+    raise ValueError(f"Invalid experiment/sample name! {name}")
 
 
 def get_step(exprmnt, prefix):
