@@ -861,7 +861,7 @@ rule lr_cell_stats:
     output:
         pickle=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.pickle",
     shell:
-        "{input.script}"
+        "python3 {input.script}"
         " -b {input.barcodes}"
         " -r {input.reads}"
         " -p {input.paf}"
