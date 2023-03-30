@@ -135,7 +135,9 @@ def get_sample_ref_names(sample):
         return TS_smk.get_sample_ref_names(sample)
     except ValueError:
         if sample in config["NS_experiments"]:
-            return TS_smk.get_sample_ref_names(config["NS_experiments"][sample]["sample"])
+            return TS_smk.get_sample_ref_names(
+                config["NS_experiments"][sample]["sample"]
+            )
         raise ValueError(f"Invalid sample name! {sample}")
 
 
@@ -850,6 +852,7 @@ rule NS_simulate:
 
 rule lr_cell_stats:
     input:
+        script=config["exec"]["lr_cell_stats"],
         barcodes=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
         reads=lambda wc: get_sample_fastqs(wc.sample),
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
@@ -857,116 +860,14 @@ rule lr_cell_stats:
         lr_br=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
     output:
         pickle=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.pickle",
-    run:
-        # Get barcodes
-        complement = {"A": "T", "C": "G", "G": "C", "T": "A", "N": "N"}
-        barcode_to_bid = dict()
-        barcodes = list()
-        for bid, l in tqdm(
-            enumerate(gzip.open(input.barcodes, "rt")), desc=f"Reading {input.barcodes}"
-        ):
-            barcode = dict(
-                bid=bid,
-                seq=l.strip().split("\t")[0],
-                rids=list(),
-            )
-            rc = "".join(
-                complement.get(base, base) for base in reversed(barcode["seq"])
-            )
-
-            assert barcode["seq"] not in barcode_to_bid and rc not in barcode_to_bid
-            barcode_to_bid[barcode["seq"]] = bid
-            barcode_to_bid[rc] = bid
-            barcodes.append(barcode)
-
-        # Get reads
-        rname_to_rid = dict()
-        reads = list()
-        for fastq in input.reads:
-            if fastq.endswith(".gz"):
-                opener = gzip.open(fastq, "rt")
-            else:
-                opener = open(fastq)
-            for idx, line in enumerate(tqdm(opener, desc=f"Processing {fastq}")):
-                if idx == 0:
-                    if line[0] == "@":  # fastq
-                        mod = 4
-                    elif line[0] == ">":  # fasta
-                        mod = 2
-                    else:
-                        raise ValueError("Unknown fastq/a format")
-                if idx % mod == 0:
-                    read = dict(
-                        rid=len(rname_to_rid),
-                        name=line[1:].split(" ")[0],
-                        dist=-1,
-                        bids=list(),
-                        br_seg = (
-                            -1, # dist
-                            0, # loc
-                            "", # seg
-                        ),
-                        mappings=Counter(),
-                        length=-1,
-                        seq = "",
-                    )
-                    assert not read["name"] in rname_to_rid
-                    rname_to_rid[read["name"]] = read["rid"]
-                    reads.append(read)
-                elif idx % mod == 1:
-                    read["length"] = len(line.strip())
-                    read["seq"] = line.strip()
-        # Add mappings
-        for line in tqdm(open(input.paf), desc=f"Processing {input.paf}"):
-            line = line.rstrip('\n').split('\t')
-            if not 'tp:A:P' in line:
-                continue
-            strand = line[4]
-            tid = line[5]
-            rid = rname_to_rid[line[0]]
-            qlen = int(line[1])
-            qstart = int(line[2])
-            qend = int(line[3])
-            tlen = int(line[6])
-            tstart = int(line[7])
-            tend = int(line[8])
-            reads[rid]["mappings"][(tid,strand,qstart,qend,qlen,tstart,tend,tlen)]+=1
-
-        # Add barcode segment
-        for line in tqdm(gzip.open(input.lr_br, "rt"), desc=f"Processing {input.lr_br}"):
-            line = line.rstrip('\n').split('\t')
-            rid = rname_to_rid[line[0]]
-            if line[2] == "NA":
-                continue
-            reads[rid]["br_seg"] = (
-                int(line[1]),
-                int(line[2]),
-                line[3],
-            )
-            
-        # Add matches
-        if input.lr_matches.endswith(".gz"):
-            opener = gzip.open(input.lr_matches, "rt")
-        else:
-            opener = open(input.lr_matches)
-        for line in tqdm(opener, desc=f"Processing {input.lr_matches}"):
-            line = line.rstrip("\n").split("\t")
-            rid = rname_to_rid[line[0]]
-            reads[rid]["dist"] = int(line[1])
-            reads[rid]["bids"] = [barcode_to_bid[b] for b in line[4].split(",")]
-            for bid in reads[rid]["bids"]:
-                barcodes[bid]["rids"].append(
-                    (
-                    rid,
-                    reads[rid]["dist"],
-                    len(reads[rid]["bids"]),
-                    )
-                )
-
-        pickle.dump(
-            (barcodes, reads),
-            open(output.pickle, "wb+"),
-        )
+    shell:
+        "{input.script}"
+        " -b {input.barcodes}"
+        " -r {input.reads}"
+        " -p {input.paf}"
+        " -m {input.lr_matches}"
+        " -l {input.lr_br}"
+        " -o {output.pickle}"
 
 
 rule lr_cell_plot:
