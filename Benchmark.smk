@@ -44,7 +44,7 @@ use rule * from TS_smk as TS_*
 use rule minimap_cdna from TS_smk as TS_minimap_cdna with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["cDNA"],
+        refs=lambda wc: get_sample_refs(wc.sample, "cDNA"),
 
 
 use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
@@ -129,29 +129,33 @@ def reverse_complement(seq):
     return "".join(complement.get(base, base) for base in reversed(seq))
 
 
-def get_sample_ref(name):
-    if name in config["samples"]:
-        return config["samples"][name]["ref"]
-    elif name in config["TS_experiments"]:
-        return get_sample_ref(config["TS_experiments"][name]["sample"])
-    elif name in config["NS_experiments"]:
-        return get_sample_ref(config["NS_experiments"][name]["sample"])
-    else:
-        raise Exception(f"Invalid experiment/sample name! {name}")
+def get_sample_ref_names(sample):
+    try:
+        # Try should work for TS and real samples
+        return TS_smk.get_sample_ref_names(sample)
+    except ValueError:
+        if sample in config["NS_experiments"]:
+            return TS_smk.get_sample_ref_names(
+                config["NS_experiments"][sample]["sample"]
+            )
+        raise ValueError(f"Invalid sample name! {sample}")
+
+
+def get_sample_refs(sample, ref_type):
+    refs = list()
+    for ref_name in get_sample_ref_names(sample):
+        refs.append(config["refs"][ref_name][ref_type])
+    return refs
 
 
 def get_sample_fastqs(name):
-    if name in config["samples"]:
-        sample = name
-        return config["samples"][sample]["fastq"]
-    elif name in config["TS_experiments"]:
-        exprmnt = name
-        return [f"{TS_d}/{exprmnt}/{TS_smk.experiment_prefix(exprmnt)}.fastq"]
-    elif name in config["NS_experiments"]:
-        exprmnt = name
-        return [f"{NS_d}/{exprmnt}/simulation_aligned_reads.fasta"]
-    else:
-        raise Exception(f"Invalid experiment/sample name! {name}")
+    try:
+        return TS_smk.get_sample_fastqs(name)
+    except ValueError:
+        if name in config["NS_experiments"]:
+            exprmnt = name
+            return [f"{NS_d}/{exprmnt}/simulation_aligned_reads.fasta"]
+        raise ValueError(f"Invalid experiment/sample name! {name}")
 
 
 def NS_exprmnt_sample(exprmnt):
@@ -525,10 +529,11 @@ rule LIQA_refgene:
         " -out {output.refgen}"
         " -m 1"
 
+
 rule minimap_dna_paf:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["DNA"],
+        refs=lambda wc: get_sample_refs(wc.sample, "cDNA"),
     output:
         paf=f"{preproc_d}/minimap2/{{sample}}.DNA.paf",
     threads: 32
@@ -537,7 +542,7 @@ rule minimap_dna_paf:
         " -t {threads}"
         " -x splice"
         " -c"
-        " {input.ref}"
+        " <(cat {input.refs})"
         " {input.reads}"
         " > {output.paf}"
 
@@ -545,7 +550,7 @@ rule minimap_dna_paf:
 rule minimap_dna:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["DNA"],
+        refs=lambda wc: get_sample_refs(wc.sample, "DNA"),
     output:
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
         bai=f"{preproc_d}/minimap2/{{sample}}.DNA.bam.bai",
@@ -557,7 +562,7 @@ rule minimap_dna:
         " -t {threads}"
         " -x splice"
         " -a"
-        " {input.ref}"
+        " <(cat {input.refs})"
         " {input.reads}"
         " | samtools sort "
         " -T {output.bam}.tmp"
@@ -569,7 +574,9 @@ rule minimap_dna:
 
 rule LIQA_quantify:
     input:
-        refgen=lambda wildcards: f"{config['refs'][get_sample_ref(wildcards.sample)]['GTF']}.refgene",
+        refgens=lambda wc: [
+            f"{ref}.refgene" for ref in get_sample_refs(wc.sample, "GTF")
+        ],
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
     output:
         tsv=f"{plots_d}/expression_stats/{{sample}}.liqa.tsv",
@@ -577,7 +584,7 @@ rule LIQA_quantify:
     shell:
         "python3 extern/LIQA/liqa_src/liqa.py"
         " -task quantify"
-        " -refgene {input.refgen}"
+        " -refgene <(cat {input.refgens})"
         " -bam {input.bam}"
         " -out {output.tsv}"
         " -max_distance 20"
@@ -644,7 +651,11 @@ rule tpm_plot:
             f"{plots_d}/expression_stats/{s}.{wc.tpm_method}.tsv"
             for s in wc.samples.split(".")
         ],
-        tid_to_gid=lambda wc: f"{config['refs'][get_sample_ref(wc.samples.split('.')[0])]['GTF']}.tid_to_gid.pickle",
+        tid_to_gid_list=lambda wc: [
+            f"{gtf}.tid_to_gid.pickle"
+            for s in wc.samples.split(".")
+            for gtf in get_sample_refs(s, "GTF")
+        ],
     output:
         png=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.png",
     wildcard_constraints:
@@ -652,7 +663,9 @@ rule tpm_plot:
         merge_type=".by_gene|",
     run:
         if wildcards.merge_type == ".by_gene":
-            tid_to_gid = pickle.load(open(input.tid_to_gid, "rb"))
+            tid_to_gid = dict()
+            for tid_to_gid_file in input.tid_to_gid_list:
+                tid_to_gid.update(pickle.load(open(tid_to_gid_file, "rb")))
         else:
             tid_to_gid = None
         my_get_tpm_args = {
@@ -688,7 +701,9 @@ def get_tpm(
     tpm = Counter()
     if isinstance(key_col, int):
         key_col = [key_col]
-    for line_num, line in tqdm(enumerate(open(tsv, "r")), desc=f"[get_tpm] Processing {tsv}"):
+    for line_num, line in tqdm(
+        enumerate(open(tsv, "r")), desc=f"[get_tpm] Processing {tsv}"
+    ):
         if header and line_num == 0:
             continue
         line = line.rstrip().split(sep)
@@ -766,10 +781,10 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
 
 rule NS_analysis:
     input:
-        reads=lambda wildcards: config["samples"][wildcards.sample]["fastq"],
-        dna=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["DNA"],
-        cdna=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["cDNA"],
-        gtf=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["GTF"],
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+        dna=lambda wc: get_sample_refs(wc.sample, "DNA"),
+        cdna=lambda wc: get_sample_refs(wc.sample, "cDNA"),
+        gtf=lambda wc: get_sample_refs(wc.sample, "GTF"),
     output:
         analysis_dir=directory(f"{NS_d}/{{sample}}/analysis"),
     benchmark:
@@ -796,7 +811,7 @@ rule NS_quantify:
     benchmark:
         f"{time_d}/{{sample}}/NS_quantify.benchmark"
     params:
-        cdna=lambda wildcards: config["refs"][get_sample_ref(wildcards.sample)]["cDNA"],
+        cdna=lambda wc: get_sample_refs(wc.sample, "cDNA"),
         output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
     threads: 32
     shell:
@@ -812,8 +827,8 @@ rule NS_simulate:
     input:
         analysis_dir=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis",
         quantify_tsv=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv",
-        dna=lambda wildcards: config["refs"][get_sample_ref(wildcards.exprmnt)]["DNA"],
-        cdna=lambda wildcards: config["refs"][get_sample_ref(wildcards.exprmnt)]["cDNA"],
+        dna=lambda wc: get_sample_refs(wc.exprmnt, "DNA"),
+        cdna=lambda wc: get_sample_refs(wc.exprmnt, "cDNA"),
     output:
         fasta=f"{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta",
     benchmark:
@@ -837,6 +852,7 @@ rule NS_simulate:
 
 rule lr_cell_stats:
     input:
+        script=config["exec"]["lr_cell_stats"],
         barcodes=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
         reads=lambda wc: get_sample_fastqs(wc.sample),
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
@@ -844,110 +860,14 @@ rule lr_cell_stats:
         lr_br=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
     output:
         pickle=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.pickle",
-    run:
-        # Get barcodes
-        complement = {"A": "T", "C": "G", "G": "C", "T": "A", "N": "N"}
-        barcode_to_bid = dict()
-        barcodes = list()
-        for bid, l in tqdm(enumerate(gzip.open(input.barcodes, "rt")), desc=f"Reading {input.barcodes}"):
-            barcode = dict(
-                bid=bid,
-                seq=l.strip().split("\t")[0],
-                rids=list(),
-            )
-            rc = "".join(complement.get(base, base) for base in reversed(barcode["seq"]))
-
-            assert barcode["seq"] not in barcode_to_bid and rc not in barcode_to_bid
-            barcode_to_bid[barcode["seq"]] = bid
-            barcode_to_bid[rc] = bid
-            barcodes.append(barcode)
-
-        # Get reads
-        rname_to_rid = dict()
-        reads = list()
-        for fastq in input.reads:
-            if fastq.endswith(".gz"):
-                opener = gzip.open(fastq, "rt")
-            else:
-                opener = open(fastq)
-            for idx,line in enumerate(tqdm(opener, desc=f"Processing {fastq}")):
-                if idx == 0:
-                    if line[0] == "@": # fastq
-                        mod = 4
-                    elif line[0] == ">": # fasta
-                        mod = 2
-                    else:
-                        raise ValueError("Unknown fastq/a format")
-                if idx % mod == 0:
-                    read = dict(
-                        rid=len(rname_to_rid),
-                        name=line[1:].split(" ")[0],
-                        dist=-1,
-                        bids=list(),
-                        br_seg = (
-                            -1, # dist
-                            0, # loc
-                            "", # seg
-                        ),
-                        mappings=Counter(),
-                        length=-1,
-                        seq = "",
-                    )
-                    assert not read["name"] in rname_to_rid
-                    rname_to_rid[read["name"]] = read["rid"]
-                    reads.append(read)
-                elif idx % mod == 1:
-                    read["length"] = len(line.strip())
-                    read["seq"] = line.strip()
-        # Add mappings
-        for line in tqdm(open(input.paf), desc=f"Processing {input.paf}"):
-            line = line.rstrip('\n').split('\t')
-            if not 'tp:A:P' in line:
-                continue
-            strand = line[4]
-            tid = line[5]
-            rid = rname_to_rid[line[0]]
-            qlen = int(line[1])
-            qstart = int(line[2])
-            qend = int(line[3])
-            tlen = int(line[6])
-            tstart = int(line[7])
-            tend = int(line[8])
-            reads[rid]["mappings"][(tid,strand,qstart,qend,qlen,tstart,tend,tlen)]+=1
-
-        # Add barcode segment
-        for line in tqdm(gzip.open(input.lr_br, "rt"), desc=f"Processing {input.lr_br}"):
-            line = line.rstrip('\n').split('\t')
-            rid = rname_to_rid[line[0]]
-            if line[2] == "NA":
-                continue
-            reads[rid]["br_seg"] = (
-                int(line[1]),
-                int(line[2]),
-                line[3],
-            )
-            
-        # Add matches
-        if input.lr_matches.endswith(".gz"):
-            opener = gzip.open(input.lr_matches, "rt")
-        else:
-            opener = open(input.lr_matches)
-        for line in tqdm(opener, desc=f"Processing {input.lr_matches}"):
-            line = line.rstrip('\n').split('\t')
-            rid = rname_to_rid[line[0]]
-            reads[rid]["dist"] = int(line[1])
-            reads[rid]["bids"] = [barcode_to_bid[b] for b in line[4].split(',')]
-            for bid in reads[rid]["bids"]:
-                barcodes[bid]["rids"].append((
-                    rid,
-                    reads[rid]["dist"],
-                    len(reads[rid]["bids"]),
-                ))
-
-        pickle.dump(
-            (barcodes, reads),
-            open(output.pickle, "wb+"),
-        )
+    shell:
+        "python3 {input.script}"
+        " -b {input.barcodes}"
+        " -r {input.reads}"
+        " -p {input.paf}"
+        " -m {input.lr_matches}"
+        " -l {input.lr_br}"
+        " -o {output.pickle}"
 
 
 rule lr_cell_plot:

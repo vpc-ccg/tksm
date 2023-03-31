@@ -1,34 +1,50 @@
 outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
 
-### Pipeline modules
-# Xpr : expression  --> Must be first module only
-# Xpr_sc : expression fpr single cells   --> Must be first module only
-# Spc : splice --> Must be second module
-# Spl : split --> 
-#### Must be a dictionary with three keys: params, Spl_T, Spl_F.
-#### Spl_T and Spl_F are lists of modules and params is a string
-# Fus : fusion
-# PCR : pcr
-# plA : polyA
-# SCB : single_cell
-# Tag : Tag/adapter tag
-# Flp : Flib the molecule strand
-# Trc : truncate
-# Seq : sequence --> Must be last module
+# Pipeline modules
+
+# Entry point for the pipeline
+## Mrg :
+### Merge the output of multiple pipelines into a single MDF and use it as input.
+### Takes sources key-value pair whose value is a list of pipeline names to merge.
+### The multiple pipelines can have different models and different references.
+### Must include params key-value as a list (not string) of pipeline names to merge.
+## Spc : 
+### Splice the genome. Generates transcripts based on the model expression.
+### Must include mode (either Xpr or Xpr_sc) and model (sample name) key-value pairs.
+### Allows for params key-value pair
+
+# Modules with MDF as input and MDF as output. All these modules take params key-value pair
+# Flt : Filters molecules out molecules that fail the given conditions
+# PCR : PCR amplification
+# plA : polyA tailing
+# SCB : Single-cell barcoding of molecules (from tags added by Spc module with Xpr_sc mode)
+# Tag : Tag the molecules with on 5' or 3' end with specified FASTA pattern
+# Flp : Flib the molecule strands with a given probability
+# Trc : Truncate the molecules. Takes model (sample name) key-value pair
+
+# Model with FASTQ/A as output
+# Seq : 
+### Sequence the molecules. Can only be last module. 
+### Takes model (sample name or TKSM error/qscore model name) key-value pair.
 TS_experiments:
-    E1:
-        sample: "N1_chr21"
+    P1:
         pipeline:
-            - Xpr_sc:
-                params: ""
             - Spc:
                 params: "--molecule-count 10000"
-            - Spl:
+                model: "MCF7-sgnex_chr21"
+                mode: Xpr
+    P2:
+        pipeline:
+            - Spc:
+                params: "--molecule-count 10000"
+                model: "N1_chr21"
+                mode: Xpr_sc
+    E1:
+        pipeline:
+            - Mrg:
+                sources: ["P1", "P2"]
+            - Flt:
                 params: "--c1 c1"
-                Spl_T:
-                    - plA:
-                        params: "--normal=40,10 --min-length=5"
-                Spl_F: []
             - SCB:
                 params: ""
             - Tag:
@@ -37,8 +53,10 @@ TS_experiments:
                 params: "--cycles 3 -x Taq-setting1 --molecule-count 10000"
             - Trc:
                 params: ""
+                model: "N1_chr21"
             - Seq:
                 params: "--skip-qual-compute"
+                model: "N1"
 
 exec:
     tksm: build/bin/tksm
