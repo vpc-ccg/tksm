@@ -136,6 +136,10 @@ class Filter_module::impl : public tksm_module {
                 "c,condition",
                 "Comma separated conditions to filter (and)",
                 cxxopts::value<vector<string>>()
+             )(
+                "v,negate",
+                "Negate the conjuction of the condition(s)",
+                cxxopts::value<bool>()->default_value("false")
              )
             ;
         // clang-format on
@@ -190,17 +194,20 @@ public:
         }
 
         for (const auto &md : stream_mdf(input_file)) {
-            bool removed = false;
+            bool flag = true;
             for (const auto &condition : conditions) {
                 if (!condition(md)) {
-                    if (args["false-output"].count() > 0) {
-                        output_files[1] << md;
-                    }
-                    removed = true;
+                    flag = false;
+                    break;
                 }
             }
-            if (!removed) {
+            if (args["negate"].as<bool>()) {
+                flag = !flag;
+            }
+            if (flag) {
                 output_files[0] << md;
+            } else if (args.count("false-output")) {
+                output_files[1] << md;
             }
         }
         for (auto &output_file : output_files) {
