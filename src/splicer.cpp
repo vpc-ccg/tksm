@@ -65,16 +65,13 @@ class Splicer_module::impl : public tksm_module {
     auto process_file_weights(const cxxopts::ParseResult&args){
 
 
-        const auto& v_strings  = args["weights"].as<vector<string>>();
-        if(v_strings.size() == 1){
-            return vector<double>(v_strings.size(), stod(v_strings[0])/args["abundance"].as<vector<string>>().size());
+        auto W  = args["weights"].as<vector<double>>();
+        if(W.size() == 1){
+            return vector<double>(W.size(), W[0]/args["abundance"].as<vector<string>>().size());
         }
         assert(v_strings.size() == args["abundance"].as<vector<string>>().size());
+    
 
-        vector<double> W;
-        for(const auto& s : v_strings){
-            W.push_back(stod(s));
-        }
         double sum = std::accumulate(W.begin(), W.end(), 0.0);
         for(auto& w : W){
             w /= sum;
@@ -213,8 +210,8 @@ public:
 
     void describe_program() {
         logi("Splicer module");
-        logi("Input GTF files: {}", fmt::join(args["gtf"].as<string>(), ", "));
-        logi("Input abundance files: {}", fmt::join(args["abundance"].as<string>(), ", "));
+        logi("Input GTF files: {}", fmt::join(args["gtf"].as<vector<string>>(), ", "));
+        logi("Input abundance files: {}", fmt::join(args["abundance"].as<vector<string>>(), ", "));
         logi("Output file: {}", args["output"].as<string>());
         logi("Molecule count: {}", args["molecule-count"].as<int>());
         logi("Use whole transcript id: {}", args["use-whole-id"].as<bool>());

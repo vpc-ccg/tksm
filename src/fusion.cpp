@@ -551,7 +551,7 @@ class Fusion_submodule : public tksm_submodule {
         }
 
         logi("Generating fusions");
-        if (args["fallback-expression"].count() > 0) {
+        if (args["expression-fallback"].count() > 0) {
             while (fusions.size() < fusion_count) {
                 logd("Generating fusions");
                 fmtlog::poll(true);
@@ -597,59 +597,34 @@ class Fusion_submodule : public tksm_submodule {
         return gene;
     }
 
-public:
-    Fusion_submodule(cxxopts::Options &opt, std::mt19937 &rand_gen)
-        : tksm_submodule{"fusion", "Fusion module", rand_gen} {
-        add_options(opt);
-    }
-    ~Fusion_submodule() = default;
-    submodule_status receive_arguments(const cxxopts::ParseResult &args) override {
-        if (args["fusion-count"].as<int>() == 0 && args["fusion-file"].count() == 0) {
-            return update_status(submodule_status::DONT_RUN);
-        }
-
-        return update_status(submodule_status::RUN);
-    }
-
-    template <class TopModule>
-    auto run(TopModule *top_module, vector<std::tuple<string, double, string>> &abundances)
-        -> std::map<gtf, std::vector<transcript>> {
-        cxxopts::ParseResult &args = top_module->args;
-
-        vector<string> gtf_files                       = args["gtf"].as<vector<string>>();
-        [[maybe_unused]] size_t fusion_count        = args["fusion-count"].as<int>();
-        [[maybe_unused]] double translocation_ratio = args["translocation-ratio"].as<double>();
-        [[maybe_unused]] bool disable_deletions     = args["disable-deletions"].as<bool>();
-
-        bool do_fall_back_to_expression = args.count("expression-fallback") > 0;
-
-        auto tpm_dist = [&]() {
-            if (do_fall_back_to_expression) {
-                return process_expression_parameters(args["expression-fallback"].as<vector<string>>());
-            }
-            else {
-                return std::variant<std::uniform_real_distribution<>, std::normal_distribution<>>{
-                    std::normal_distribution<>{0, 0}};
-            }
-        }();
-        vector<transcript> transcripts;
+    auto read_genes(const vector<string> &gtf_files) -> map<string, gtf> {
         map<string, gtf> genes;
-        for(const string&gtf_file : gtf_files){
-            for(const transcript &t : read_gtf_transcripts_deep(gtf_file)){
-                transcripts.emplace_back(t);
-            }
-
+        for (const string &gtf_file : gtf_files) {
             for (const gtf &g : read_gtf_genes(gtf_file)) {
                 genes[g.info.at("gene_id")] = g;
             }
         }
+        return genes;
+    }
+
+    auto read_transcripts(const vector<string> &gtf_files) -> vector<transcript> {
+        vector<transcript> transcripts;
+
+        for (const string &gtf_file : gtf_files) {
+            for (const transcript &t : read_gtf_transcripts_deep(gtf_file)) {
+                transcripts.emplace_back(t);
+            }
+        }
+        return transcripts;
+    }
+
+    auto count_expressions(auto &abundances, auto &transcripts) {
+        map<string, double> expression_map;
         unordered_map<string, transcript> transcripts_by_id;
         for (const auto &transcript : transcripts) {
             transcripts_by_id.emplace(transcript.info.at("transcript_id"), transcript);
         }
 
-
-        map<string, double> expression_map;
         for (const auto &[tid, tpm, comment] : abundances) {
             auto iter = transcripts_by_id.find(tid);
             if (iter != transcripts_by_id.end()) {
@@ -657,13 +632,11 @@ public:
                 expression_map[iter->second.info["gene_id"]] += tpm;
             }
         }
-        vector<chimeric_event> fusions = get_fusions(genes, expression_map, args);
-        auto [fusion_tree, deletion_tree] = index_fusions(fusions);
+        return expression_map;
+    }
 
-        std::map<chimeric_event, std::map<locus, vector<transcript>>> relevant_molecules;
-        int total_count = 0;
-        int skipped     = 0;
-
+    auto find_relevant_molecules(const auto &transcripts, const auto &fusion_tree) {
+        map<chimeric_event, map<locus, vector<transcript>>> relevant_molecules;
         for (const auto &t : transcripts) {
             locus start{t.chr, t.start, t.plus_strand};
             locus end{t.chr, t.end, t.plus_strand};
@@ -682,8 +655,21 @@ public:
             overlaps.clear();
         }
 
-        logd("Skipped {} transcripts out of {}", skipped, total_count);
-        logi("Creating fusion transcripts");
+        return relevant_molecules;
+    }
+
+    auto compute_fusion_transcripts( map<chimeric_event, map<locus, vector<transcript>>> &relevant_molecules, const auto &genes, const auto &expression_map,
+                                    const auto &args) -> map<gtf, vector<transcript>> {
+        bool do_fall_back_to_expression = args.count("expression-fallback") > 0;
+        auto tpm_dist                   = [&]() {
+            if (do_fall_back_to_expression) {
+                return process_expression_parameters(args["expression-fallback"].template as<vector<string>>());
+            }
+            else {
+                return std::variant<std::uniform_real_distribution<>, std::normal_distribution<>>{
+                    std::normal_distribution<>{0, 0}};
+            }
+        }();
         map<gtf, vector<transcript>> gene2transcripts_of_fusions;
         string current_gene = "";
         gtf current_gene_obj;
@@ -713,13 +699,54 @@ public:
                 if (t.info["gene_id"] != current_gene) {
                     current_gene              = t.info["gene_id"];
                     vector<string> gene_names = rsplit(current_gene, "::");
-                    auto new_gene             = combine_gene_entries(genes.at(gene_names[0]), genes.at(gene_names[1]));
-                    current_gene_obj          = new_gene;
+                    current_gene_obj          = combine_gene_entries(genes.at(gene_names[0]), genes.at(gene_names[1]));
                 }
                 gene2transcripts_of_fusions[current_gene_obj].push_back(t);
             }
         }
-        if (args["fusion-gtf"].count() > 0) {
+
+        return gene2transcripts_of_fusions;
+    }
+
+public:
+    Fusion_submodule(cxxopts::Options &opt, std::mt19937 &rand_gen)
+        : tksm_submodule{"fusion", "Fusion module", rand_gen} {
+        add_options(opt);
+    }
+    ~Fusion_submodule() = default;
+    submodule_status receive_arguments(const cxxopts::ParseResult &args) override {
+        if (args["fusion-count"].as<int>() == 0 && args["fusion-file"].count() == 0) {
+            return update_status(submodule_status::DONT_RUN);
+        }
+
+        return update_status(submodule_status::RUN);
+    }
+
+    template <class TopModule>
+    auto run(TopModule *top_module, vector<std::tuple<string, double, string>> &abundances)
+        -> std::map<gtf, std::vector<transcript>> {
+        cxxopts::ParseResult &args = top_module->args;
+
+        vector<string> gtf_files                    = args["gtf"].as<vector<string>>();
+        [[maybe_unused]] size_t fusion_count        = args["fusion-count"].as<int>();
+        [[maybe_unused]] double translocation_ratio = args["translocation-ratio"].as<double>();
+        [[maybe_unused]] bool disable_deletions     = args["disable-deletions"].as<bool>();
+
+        auto transcripts                   = read_transcripts(gtf_files);
+        auto genes                         = read_genes(gtf_files);
+        map<string, double> expression_map = count_expressions(abundances, transcripts);
+
+        vector<chimeric_event> fusions    = get_fusions(genes, expression_map, args);
+        auto [fusion_tree, deletion_tree] = index_fusions(fusions);
+
+        std::map<chimeric_event, std::map<locus, vector<transcript>>> relevant_molecules =
+            find_relevant_molecules(transcripts, fusion_tree);
+
+        logi("Creating fusion transcripts");
+        map<gtf, vector<transcript>> gene2transcripts_of_fusions =
+            compute_fusion_transcripts(relevant_molecules, genes, expression_map, args);
+
+        if (args["fusion-gtf"].count() > 0) {  // Print fusion gtf if requested
             std::ofstream fusion_gtf_file{args["fusion-gtf"].as<string>()};
             for (auto &[gene, transcripts] : gene2transcripts_of_fusions) {
                 fusion_gtf_file << gene;
