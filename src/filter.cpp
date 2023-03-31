@@ -139,7 +139,7 @@ class Filter_module::impl : public tksm_module {
              )(
                 "v,negate",
                 "Negate the conjuction of the condition(s)",
-                cxxopts::value<bool>()->default_value("false")
+                cxxopts::value<bool>()->default_value("false")->implicit_value("true")
              )
             ;
         // clang-format on
