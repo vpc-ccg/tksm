@@ -305,7 +305,7 @@ rule polyA:
 rule splicer:
     input:
         obj=["build/obj/splicer.o", "build/obj/tksm.o"] if DEBUG else list(),
-        tsv=lambda wc: f"{preproc_d}/tskm_abundance/{get_step(wc.exprmnt, 'Spc')['model']}.{get_step(wc.exprmnt, 'Spc')['mode']}.tsv",
+        tsv=lambda wc: f"{preproc_d}/tksm_abundance/{get_step(wc.exprmnt, 'Spc')['model']}.{get_step(wc.exprmnt, 'Spc')['mode']}.tsv",
         gtfs=lambda wc: get_sample_refs(wc.exprmnt, "GTF"),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/Spc.mdf"),
@@ -340,7 +340,7 @@ rule abundance:
         obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     output:
-        tsv=f"{preproc_d}/tskm_abundance/{{sample}}.Xpr.tsv",
+        tsv=f"{preproc_d}/tksm_abundance/{{sample}}.Xpr.tsv",
     benchmark:
         f"{time_d}/{{sample}}/Xpr.benchmark"
     params:
@@ -357,7 +357,7 @@ rule abundance_sc:
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
         lr_matches=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
     output:
-        tsv=f"{preproc_d}/tskm_abundance/{{sample}}.Xpr_sc.tsv",
+        tsv=f"{preproc_d}/tksm_abundance/{{sample}}.Xpr_sc.tsv",
     benchmark:
         f"{time_d}/{{sample}}/Xpr_sc.benchmark"
     params:
