@@ -64,7 +64,7 @@ public:
                 "random seed",
                 cxxopts::value<int>()->default_value("42")
             )(
-                "v,verbosity",
+                "verbosity",
                 fmt::format("Verbosity level to choosen from [{}]",LogLevels::log_choices()),
                 cxxopts::value<string>()->default_value("INFO")
             )(

@@ -137,7 +137,7 @@ class Filter_module::impl : public tksm_module {
                 "Comma separated conditions to filter (and)",
                 cxxopts::value<vector<string>>()
              )(
-                "v,negate",
+                "negate",
                 "Negate the conjuction of the condition(s)",
                 cxxopts::value<bool>()->default_value("false")->implicit_value("true")
              )
@@ -206,7 +206,8 @@ public:
             }
             if (flag) {
                 output_files[0] << md;
-            } else if (args.count("false-output")) {
+            }
+            else if (args.count("false-output")) {
                 output_files[1] << md;
             }
         }
