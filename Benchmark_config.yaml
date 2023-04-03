@@ -4,31 +4,59 @@ TS_experiments:
     TS_1:
         pipeline:
             - Spc:
-                params: "--molecule-count 10000"
+                params: "--molecule-count 100000"
                 model: "MCF7-sgnex"
                 mode: Xpr
             - plA:
                 params: "--normal=15,7.5"
+            - Flp:
+                params: "-p 0.5"
             - Trc:
                 params: ""
                 model: "MCF7-sgnex"
             - Seq:
                 params: "--skip-qual-compute"
                 model: "MCF7-sgnex"
-    TS_1_chr21:
+    TS_2_head:
         pipeline:
             - Spc:
-                params: "--molecule-count 10000"
-                model: "MCF7-sgnex_chr21"
-                mode: Xpr
-            - plA:
-                params: "--normal=15,7.5"
+                params: "--molecule-count 100000"
+                model: "N1"
+                mode: Xpr_sc
+    TS_2_p1:
+        pipeline:
+            - Mrg:
+                sources: ["TS_2_head",]
+            - Flt:
+                params: "--info CB"
             - Trc:
                 params: ""
-                model: "MCF7-sgnex_chr21"
+                model: "N1"
+            - plA:
+                params: "--normal=15,7.5"
+            - Tag: 
+                params: "--format3 10 --contig-prefix umi_contig"
+            - SCB: 
+                params: ""
+            - Tag:
+                params: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
+    TS_2_p2:
+        pipeline:
+            - Mrg:
+                sources: ["TS_2_head",]
+            - Flt:
+                params: "--info CB --negate"
+    TS_2:
+        pipeline:
+            - Mrg:
+                sources: ["TS_2_p1", "TS_2_p2"]
+            - Flp:
+                params: "-p 0.5"
+            - Tag:
+                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT --contig-prefix lr_adaptor_contig"
             - Seq:
                 params: "--skip-qual-compute"
-                model: "MCF7-sgnex_chr21"
+                model: "N1"
 
 NS_experiments:
     NS_1:
@@ -39,26 +67,6 @@ NS_experiments:
         simulation_params: "-n 100000 --seed 42"
 
 plots:
-    # - {
-    #     rules: [
-    #         raw_lengths,
-    #         mapped_raw_lengths,
-    #         mapped_lengths,
-    #         substitution,
-    #         polyA,
-    #         tpm_plot_tksm,
-    #         tpm_plot_tksm.by_gene,
-    #         tpm_plot_tksm_sc.by_gene,
-    #         tpm_plot_liqa,
-    #         tpm_plot_nanosim,
-    #         tpm_plot_minimap2,
-    #         lr_cell_stats,
-    #     ],
-    #     data: [
-    #         N1_chr21,
-    #         TS_2_chr21,
-    #     ],
-    #   }
     - {
         rules: [
             raw_lengths,
@@ -67,7 +75,27 @@ plots:
             substitution,
             polyA,
             tpm_plot_tksm,
-            tpm_plot_liqa,
+            tpm_plot_tksm.by_gene,
+            tpm_plot_tksm_sc.by_gene,
+            # tpm_plot_liqa,
+            tpm_plot_nanosim,
+            tpm_plot_minimap2,
+            lr_cell_stats,
+        ],
+        data: [
+            N1_chr,
+            TS_2_chr,
+        ],
+      }
+    - {
+        rules: [
+            raw_lengths,
+            mapped_raw_lengths,
+            mapped_lengths,
+            substitution,
+            polyA,
+            tpm_plot_tksm,
+            # tpm_plot_liqa,
             tpm_plot_minimap2,
             tpm_plot_nanosim,
         ],
