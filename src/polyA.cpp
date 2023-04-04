@@ -142,7 +142,7 @@ public:
 
         molecule_descriptor new_md = md;
         if(poly_a_len > 0) {
-            new_md.append_segment(ginterval{ctg, 0, poly_a_len, true});
+            new_md.append_segment(ginterval{ctg.substr(0,poly_a_len), 0, poly_a_len, true});
         }
         return new_md;
     }
