@@ -307,6 +307,7 @@ class transcript : public gtf {
     string comment;
 
 public:
+    transcript(const transcript &other) : gtf{other}, abundance{other.abundance}, exons{other.exons}, comment{other.comment}  {}
     transcript(const gtf &entry) : gtf(entry), abundance(0.0) {}
     transcript(const gtf &entry, double abundance) : gtf(entry), abundance(abundance) {}
     transcript(const gtf &entry, double abundance, const string &comment)

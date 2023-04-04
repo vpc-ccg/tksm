@@ -133,9 +133,9 @@ public:
         std::ofstream outfile{output_file};
 
         logi("Reading GTF files {}", fmt::join(gtf_files, ", "));
-        std::map<string, molecule_descriptor> isoforms;
+        std::unordered_map<string, transcript> isoforms;
         for(auto& gtf_file : gtf_files) {
-            isoforms.merge(read_gtf_transcripts(gtf_file, default_depth));
+            isoforms.merge(read_gtf_transcripts_deep(gtf_file, default_depth));
         }
         auto w_iter = file_weights.begin();
         for(const string &abundance_file : abundance_files) {
@@ -164,13 +164,7 @@ public:
                 return 1;
             }
             else if (fusion_status == Fusion_submodule::submodule_status::RUN) {
-                auto fusions = fusion_submodule.run(this, abundances);
-                for (auto& [gene, transcripts] : fusions) {
-                    for (auto& t : transcripts) {
-                        abundances.emplace_back(t.info.at("transcript_id"), t.get_abundance(), t.get_comment());
-                        isoforms.emplace(t.info.at("transcript_id"), t);
-                    }
-                }
+                fusion_submodule.run(this, abundances, isoforms);
             }
 
             size_t index = 0;
@@ -186,7 +180,7 @@ public:
                     logw("Isoform {} is not found in the input GTFs!", tid);
                     continue;
                 }
-                molecule_descriptor molecule = isoforms[tid];
+                molecule_descriptor molecule = md_ptr->second;
                 double count                 = file_W * tpm * molecule_count / sum_tpm;
                 double carry                 = count - int(count);
 
@@ -210,8 +204,10 @@ public:
 
     void describe_program() {
         logi("Splicer module");
-        logi("Input GTF files: {}", fmt::join(args["gtf"].as<vector<string>>(), ", "));
-        logi("Input abundance files: {}", fmt::join(args["abundance"].as<vector<string>>(), ", "));
+        string gtf_files = fmt::format("{}",fmt::join(args["gtf"].as<vector<string>>(), ", "));
+        logi("Input GTF files: {}", gtf_files);
+        string abundance_files = fmt::format("{}",fmt::join(args["abundance"].as<vector<string>>(), ", "));
+        logi("Input abundance files: {}", abundance_files);
         logi("Output file: {}", args["output"].as<string>());
         logi("Molecule count: {}", args["molecule-count"].as<int>());
         logi("Use whole transcript id: {}", args["use-whole-id"].as<bool>());
