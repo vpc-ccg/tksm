@@ -252,23 +252,14 @@ public:
                  [](const auto &t1, const auto &t2) { return t1.info.at("gene_id") < t2.info.at("gene_id"); });
     }
 
-    auto execute_event(const map<locus, vector<transcript>> &molecules, auto &rand_gen) const -> vector<transcript> {
+    auto execute_event(const map<locus, vector<string>> &relavant_transcripts_by_loci, auto &rand_gen,
+                       const auto &tid_to_tpcm, const auto &transcript_templates) const -> vector<transcript> {
         set<locus> loci;
-        for (const auto &[loc, transcripts] : molecules) {
+        for (const auto &[loc, transcripts] : relavant_transcripts_by_loci) {
             loci.insert(loc);
         }
         auto it = loci.lower_bound(get_start());
         if (it == loci.end()) {
-            for (const auto &l : loci) {
-                logd("{}", l);
-            }
-            logd("----------------");
-            for (const auto &m : molecules) {
-                for (const auto &t : m.second) {
-                    logd("{} - {}", m.first, t);
-                }
-            }
-
             throw runtime_error("Could not find start locus");
         }
         auto start_locus = *it;
@@ -277,60 +268,84 @@ public:
             for (const auto &l : loci) {
                 logd("{}", l);
             }
-            logd("----------------");
-            for (const auto &m : molecules) {
-                for (const auto &t : m.second) {
-                    logd("{} - {}", m.first, t);
-                }
-            }
-
             throw runtime_error("Could not find end locus");
         }
         auto end_locus = *it;
 
-        auto &start_molecules = molecules.at(start_locus);
-        auto end_molecules    = molecules.at(end_locus);
+        auto &start_molecules = relavant_transcripts_by_loci.at(start_locus);
+        auto &end_molecules   = relavant_transcripts_by_loci.at(end_locus);
 
         std::uniform_real_distribution<double> dist(0, 1);
 
         vector<transcript> fused_transcripts;
-        double total_head_abundance = std::accumulate(start_molecules.begin(), start_molecules.end(), 0.0,
-                                                      [](auto acc, const auto &t) { return acc + t.get_abundance(); });
 
-        double total_tail_abundance = std::accumulate(end_molecules.begin(), end_molecules.end(), 0.0,
-                                                      [](auto acc, const auto &t) { return acc + t.get_abundance(); });
-        if (total_tail_abundance <= 0) {
+        double total_head_abundance = 0;
+        for (const auto &t : start_molecules) {
+            auto iter = tid_to_tpcm.find(t);
+            if (iter == tid_to_tpcm.end()) {
+                continue;
+            }
+            for (const auto &cell_and_abundance : iter->second) {
+                total_head_abundance += cell_and_abundance.second;
+            }
+        }
+
+        double total_tail_abundance = 0;
+
+        map<string, double> tail_abundance_flat;
+        for (const auto &t : end_molecules) {
+            auto iter = tid_to_tpcm.find(t);
+            if (iter == tid_to_tpcm.end()) {
+                continue;
+            }
+            for (const auto &cell_and_abundance : iter->second) {
+                tail_abundance_flat[t] += cell_and_abundance.second;
+                total_tail_abundance += cell_and_abundance.second;
+            }
+        }
+
+        if (total_tail_abundance <= 0) {  // If tail abundance is 0 we will generate a uniform distribution
             logd("Total tail abundance is 0");
             logd("Generating uniform tail abundance");
-
             total_tail_abundance = end_molecules.size();
-            for (auto &t : end_molecules) {
-                t.set_abundance(1);
+            for (auto &t : tail_abundance_flat) {
+                t.second = 1;
             }
         }
         for (const auto &start_molecule : start_molecules) {
-            if (start_molecule.get_abundance() <= 0) {
-                logd("Abundance is 0 skipping");
+            auto sm_iter = tid_to_tpcm.find(start_molecule);
+            if (sm_iter == tid_to_tpcm.end()) {
+                logd("Could not find start molecule {} abundance", start_molecule);
                 continue;
             }
-            for (const auto &end_molecule : end_molecules) {
-                logd("Fusing {} and {}", start_molecule, end_molecule);
-                fmtlog::poll(true);
-
-                if (end_molecule.get_abundance() <= 0) {
-                    logd("Abundance is 0 skipping");
+            const auto sm_per_cell = sm_iter->second;
+            for (const auto &cell_and_abundance : sm_per_cell) {
+                double sma = cell_and_abundance.second;
+                if (sma <= 0) {
+                    logd("Head abundance is 0 skipping");
                     continue;
                 }
-                double abundance = total_head_abundance * (start_molecule.get_abundance() / total_head_abundance) *
-                                   (end_molecule.get_abundance() / total_tail_abundance);
+                for (const auto &end_molecule : end_molecules) {
+                    double ema = tail_abundance_flat[end_molecule];
+                    logd("Fusing {} and {}", start_molecule, end_molecule);
+                    fmtlog::poll(true);
 
-                fused_transcripts.push_back(fuse_transcripts(start_molecule, end_molecule, rand_gen));
-                // Log all abundance values
-                logd("Total head_abundance: {}, head_abundance: {}, total_tail_abundance: {}, tail_abundance: {}",
-                     total_head_abundance, start_molecule.get_abundance(), total_tail_abundance,
-                     end_molecule.get_abundance());
+                    if (ema <= 0) {
+                        logd("Tail abundance is 0 skipping");
+                        continue;
+                    }
+                    double abundance =
+                        total_head_abundance * (sma / total_head_abundance) * (ema / total_tail_abundance);
 
-                fused_transcripts.back().set_abundance(abundance);
+                    fused_transcripts.push_back(fuse_transcripts(transcript_templates.at(start_molecule),
+                                                                 transcript_templates.at(end_molecule), rand_gen));
+                    logd(
+                        "Total head_abundance: {}, head_abundance: {}, total_tail_abundance: {}, tail_abundance: {}, "
+                        "abundance: {}",
+                        total_head_abundance, sma, total_tail_abundance, ema, abundance);
+                    fused_transcripts.back().set_abundance(abundance);
+                    fused_transcripts.back().info["CB"] = cell_and_abundance.first;
+                }
             }
         }
         crunch_fusions(fused_transcripts);
@@ -420,11 +435,13 @@ class Fusion_submodule : public tksm_submodule {
     }
 
     auto generate_fusions(vector<chimeric_event> &fusions_so_far, uint64_t total_fusion_count,
-                          const map<string, gtf> &genes, double translocation_ratio) -> vector<chimeric_event> {
+                          const map<string, std::pair<gtf, vector<gtf>>> &genes, double translocation_ratio)
+        -> vector<chimeric_event> {
         // Convert genes vector to a map of chr -> vector<gtf>
 
         std::map<string, vector<gtf>> genes_by_chr;
-        for (auto &[gene_id, gene] : genes) {
+        for (auto &[gene_id, gene_pair] : genes) {
+            const auto &gene = gene_pair.first;
             genes_by_chr[gene.chr].push_back(gene);
         }
         uint64_t fusion_count = total_fusion_count - fusions_so_far.size();
@@ -446,12 +463,12 @@ class Fusion_submodule : public tksm_submodule {
             auto &chr = gp.first;
 
             fusion_count_per_chr[chr] = std::round(static_cast<double>(fusion_count) * chr_size[chr] / total_size);
-            logi("Fusion count for chr {} is {}", chr, fusion_count_per_chr[chr]);
+            logd("Fusion count for chr {} is {}", chr, fusion_count_per_chr[chr]);
         }
         uint64_t calculated_fusions = std::accumulate(fusion_count_per_chr.begin(), fusion_count_per_chr.end(), 0UL,
                                                       [](uint64_t a, const auto &b) { return a + b.second; });
         if (fusion_count > calculated_fusions) {
-            logi("Adding {} fusions to random chromosomes", fusion_count - calculated_fusions);
+            logd("Adding {} fusions to random chromosomes", fusion_count - calculated_fusions);
 
             for (uint64_t i = 0; i < fusion_count - calculated_fusions; i++) {
                 std::vector<std::pair<string, int>> v;
@@ -507,7 +524,7 @@ class Fusion_submodule : public tksm_submodule {
                 locus g2 = generate_random_breakpoint(gene2);
                 chimeric_event fusion{g1.get_chr(), g1.get_position(), g2.get_position(),
                                       g1.is_plus_strand() ? "+" : "-", event_type};
-                logi("Generated fusion: {}, on genes {} and {}", fusion, gene1.info["gene_name"],
+                logd("Generated fusion: {}, on genes {} and {}", fusion, gene1.info["gene_name"],
                      gene2.info["gene_name"]);
                 fusions_so_far.push_back(fusion);
             }
@@ -566,7 +583,7 @@ class Fusion_submodule : public tksm_submodule {
                 logd("Generating fusions");
                 fmtlog::poll(true);
 
-                map<string, gtf> expressed_genes;
+                map<string, std::pair<gtf, vector<gtf>>> expressed_genes;
                 for (const auto &[name, gene] : genes) {
                     auto iter = expression_map.find(name);
                     if (iter != expression_map.end() && iter->second > 0) {
@@ -597,49 +614,45 @@ class Fusion_submodule : public tksm_submodule {
         return gene;
     }
 
-    auto read_genes(const vector<string> &gtf_files) -> map<string, gtf> {
-        map<string, gtf> genes;
+    auto read_genes(const vector<string> &gtf_files) -> map<string, std::pair<gtf, vector<gtf>>> {
+        map<string, std::pair<gtf, vector<gtf>>> genes;
         for (const string &gtf_file : gtf_files) {
-            for (const gtf &g : read_gtf_genes(gtf_file)) {
-                genes[g.info.at("gene_id")] = g;
+            for (const auto &[g, trans_vec] : read_gtf_genes(gtf_file, true, false)) {
+                genes[g.info.at("gene_id")] = {g, trans_vec};
             }
         }
         return genes;
     }
 
-    auto read_transcripts(const vector<string> &gtf_files) -> vector<transcript> {
-        vector<transcript> transcripts;
-
-        for (const string &gtf_file : gtf_files) {
-            for (const transcript &t : read_gtf_transcripts_deep(gtf_file)) {
-                transcripts.emplace_back(t);
-            }
-        }
-        return transcripts;
-    }
-
-    auto count_expressions(auto &abundances, auto &transcripts) {
+    auto count_expressions(auto &abundances, auto &transcript_templates, const auto &tid_to_gene)
+        -> std::pair<map<string, double>, unordered_map<string, unordered_map<string, double>>> {
         map<string, double> expression_map;
-        unordered_map<string, transcript> transcripts_by_id;
-        for (const auto &transcript : transcripts) {
-            transcripts_by_id.emplace(transcript.info.at("transcript_id"), transcript);
-        }
-
+        unordered_map<string, unordered_map<string, double>> transcript_cell_to_abundance;
         for (const auto &[tid, tpm, comment] : abundances) {
-            auto iter = transcripts_by_id.find(tid);
-            if (iter != transcripts_by_id.end()) {
-                iter->second.set_abundance(tpm);
-                expression_map[iter->second.info["gene_id"]] += tpm;
+            auto iter = transcript_templates.find(tid);
+            if (iter != transcript_templates.end()) {
+                //                iter->second->set_abundance(tpm);
+                //                transcript cpy            = *iter->second;
+                //                cpy.info["transcript_id"] = tid;
+                //                cpy.info["CB"]            = comment;
+                //                transcripts.emplace_back(cpy);
+                const auto &gene                           = tid_to_gene.at(tid);
+                transcript_cell_to_abundance[tid][comment] = tpm;
+                expression_map[gene.info.at("gene_id")] += tpm;
             }
         }
-        return expression_map;
+        return {expression_map, transcript_cell_to_abundance};
     }
 
     auto find_relevant_molecules(const auto &transcripts, const auto &fusion_tree) {
-        map<chimeric_event, map<locus, vector<transcript>>> relevant_molecules;
-        for (const auto &t : transcripts) {
-            locus start{t.chr, t.start, t.plus_strand};
-            locus end{t.chr, t.end, t.plus_strand};
+        //        map<chimeric_event, map<locus, vector<transcript>>> relevant_molecules;
+        map<chimeric_event, map<locus, vector<string>>> relevant_molecules_indices;
+        for (const auto &[name, t] : transcripts) {
+            string chr       = t.chr;
+            bool plus_strand = t.plus_strand;
+            locus start      = {chr, t.start, plus_strand};
+            locus end        = {chr, t.end, plus_strand};
+
             vector<size_t> overlaps;
             fusion_tree.overlap(start, end, overlaps);
 
@@ -647,19 +660,23 @@ class Fusion_submodule : public tksm_submodule {
                 const chimeric_event &event       = fusion_tree.data(overlap);
                 const locus &start                = fusion_tree.start(overlap);
                 [[maybe_unused]] const locus &end = fusion_tree.end(overlap);
-                relevant_molecules[event][start].push_back(t);
+                relevant_molecules_indices[event][start].push_back(name);
+                //                relevant_molecules[event][start].push_back(t);
             }
             if (overlaps.size() > 0) {
-                logd("Found {} overlaps, for {}:{}-{}", overlaps.size(), t.chr, t.start, t.end);
+                logd("Found {} overlaps, for {}:{}-{}", overlaps.size(), chr, start, end);
             }
             overlaps.clear();
         }
 
-        return relevant_molecules;
+        return relevant_molecules_indices;
     }
 
-    auto compute_fusion_transcripts( map<chimeric_event, map<locus, vector<transcript>>> &relevant_molecules, const auto &genes, const auto &expression_map,
-                                    const auto &args) -> map<gtf, vector<transcript>> {
+    auto compute_fusion_transcripts(map<chimeric_event, map<locus, vector<string>>> &relevant_molecules,
+                                    const auto &genes, auto &gene_expression_map,
+                                    const unordered_map<string, unordered_map<string, double>> &tid_to_tpm,
+                                    const auto &tid_to_gene, const auto &transcript_templates, const auto &args)
+        -> generator<transcript> {
         bool do_fall_back_to_expression = args.count("expression-fallback") > 0;
         auto tpm_dist                   = [&]() {
             if (do_fall_back_to_expression) {
@@ -674,38 +691,33 @@ class Fusion_submodule : public tksm_submodule {
         string current_gene = "";
         gtf current_gene_obj;
         for (auto &[event, loci] : relevant_molecules) {
-            for (auto &l : loci) {
-                for (transcript &t : l.second) {
-                    const auto &it = expression_map.find(t.info.at("transcript_id"));
-                    if (it != expression_map.end()) {
-                        t.set_abundance(it->second);
-                        logd("Found tpm={} for {}", it->second, t.info.at("transcript_id"));
-                    }
-                    else {
-                        logd("Could not find tpm for {}", t.info.at("transcript_id"));
-                        if (do_fall_back_to_expression) {
+            if (do_fall_back_to_expression) {
+                for (auto &l : loci) {
+                    for (const string &tid : l.second) {
+                        const string &gene_id = tid_to_gene.at(tid).info.at("gene_id");
+                        const auto &it        = gene_expression_map.find(gene_id);
+                        if (it == gene_expression_map.end()) {
+                            logd("Could not find tpm for {}", tid);
                             double tpm = std::visit([&](auto &&arg) { return arg(rand_gen); }, tpm_dist);
                             logd("Using fallback tpm={}", tpm);
-
-                            t.set_abundance(tpm);
+                            gene_expression_map[gene_id] = tpm;
                         }
                     }
                 }
             }
-            auto transcript_vec = event.execute_event(loci, rand_gen);
+            auto transcript_vec = event.execute_event(loci, rand_gen, tid_to_tpm, transcript_templates);
             logd("Creating {} fusion transcripts on event {}", transcript_vec.size(), event);
 
             for (auto &t : transcript_vec) {
                 if (t.info["gene_id"] != current_gene) {
                     current_gene              = t.info["gene_id"];
                     vector<string> gene_names = rsplit(current_gene, "::");
-                    current_gene_obj          = combine_gene_entries(genes.at(gene_names[0]), genes.at(gene_names[1]));
+                    current_gene_obj =
+                        combine_gene_entries(genes.at(gene_names[0]).first, genes.at(gene_names[1]).first);
                 }
-                gene2transcripts_of_fusions[current_gene_obj].push_back(t);
+                co_yield t;
             }
         }
-
-        return gene2transcripts_of_fusions;
     }
 
 public:
@@ -723,8 +735,8 @@ public:
     }
 
     template <class TopModule>
-    auto run(TopModule *top_module, vector<std::tuple<string, double, string>> &abundances)
-        -> std::map<gtf, std::vector<transcript>> {
+    auto run(TopModule *top_module, vector<std::tuple<string, double, string>> &abundances,
+             unordered_map<string, transcript> &transcript_templates) -> int{
         cxxopts::ParseResult &args = top_module->args;
 
         vector<string> gtf_files                    = args["gtf"].as<vector<string>>();
@@ -732,30 +744,31 @@ public:
         [[maybe_unused]] double translocation_ratio = args["translocation-ratio"].as<double>();
         [[maybe_unused]] bool disable_deletions     = args["disable-deletions"].as<bool>();
 
-        auto transcripts                   = read_transcripts(gtf_files);
-        auto genes                         = read_genes(gtf_files);
-        map<string, double> expression_map = count_expressions(abundances, transcripts);
+        auto genes                                        = read_genes(gtf_files);
+        unordered_map<string, gtf> transcript_id_to_genes;
 
-        vector<chimeric_event> fusions    = get_fusions(genes, expression_map, args);
-        auto [fusion_tree, deletion_tree] = index_fusions(fusions);
-
-        std::map<chimeric_event, std::map<locus, vector<transcript>>> relevant_molecules =
-            find_relevant_molecules(transcripts, fusion_tree);
-
-        logi("Creating fusion transcripts");
-        map<gtf, vector<transcript>> gene2transcripts_of_fusions =
-            compute_fusion_transcripts(relevant_molecules, genes, expression_map, args);
-
-        if (args["fusion-gtf"].count() > 0) {  // Print fusion gtf if requested
-            std::ofstream fusion_gtf_file{args["fusion-gtf"].as<string>()};
-            for (auto &[gene, transcripts] : gene2transcripts_of_fusions) {
-                fusion_gtf_file << gene;
-                for (auto &t : transcripts) {
-                    fusion_gtf_file << t;
-                }
+        for (auto &[gene, trans_vec] : genes) {
+            for (auto &transcript : trans_vec.second) {
+                transcript_id_to_genes[transcript.info.at("transcript_id")] = trans_vec.first;
             }
         }
-        return gene2transcripts_of_fusions;
+
+        auto [gene_expression_map, transcript_to_tpcm] =
+            count_expressions(abundances, transcript_templates, transcript_id_to_genes);
+        vector<chimeric_event> fusions    = get_fusions(genes, gene_expression_map, args);
+        auto [fusion_tree, deletion_tree] = index_fusions(fusions);
+
+        std::map<chimeric_event, std::map<locus, vector<string>>> relevant_molecules =
+            find_relevant_molecules(transcript_templates, fusion_tree);
+
+        logi("Creating fusion transcripts");
+        for( const transcript &t : 
+            compute_fusion_transcripts(relevant_molecules, genes, gene_expression_map, transcript_to_tpcm,
+                                       transcript_id_to_genes, transcript_templates, args)){
+            abundances.emplace_back(t.info.at("transcript_id"), t.get_abundance(), t.info.at("CB"));
+            transcript_templates.emplace(t.info.at("transcript_id"),t);
+        }
+        return 0;
     }
 
     void describe_program(const cxxopts::ParseResult &args) override {
