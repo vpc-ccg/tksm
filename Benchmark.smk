@@ -808,18 +808,20 @@ rule NS_analysis:
 rule NS_quantify:
     input:
         reads=lambda wildcards: get_sample_fastqs(wildcards.sample),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
     output:
         quantify_tsv=f"{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv",
     benchmark:
         f"{time_d}/{{sample}}/NS_quantify.benchmark"
     params:
-        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
         output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
     threads: 32
+    resources:
+        time=60 * 6 - 1,
     shell:
         "read_analysis.py quantify"
         " -i {input.reads} "
-        " -rt {params.cdna}"
+        " -rt {input.cdna}"
         " -o {params.output_prefix}"
         " -t {threads}"
         " -e trans"
@@ -883,7 +885,7 @@ rule lr_cell_plot:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/lr_cell_stats/{{samples}}.png",
+        f"{plots_d}/lr_sr_adapt/{{samples}}.png",
     run:
         samples = wildcards.samples.split(".")
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))

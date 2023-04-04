@@ -4,7 +4,7 @@ TS_experiments:
     TS_1:
         pipeline:
             - Spc:
-                params: "--molecule-count 100000"
+                params: "--molecule-count 1000000"
                 model: "MCF7-sgnex"
                 mode: Xpr
             - Trc:
@@ -20,12 +20,12 @@ TS_experiments:
     TS_2_head:
         pipeline:
             - Spc:
-                params: "--molecule-count 100000"
-                model: "N1_chr21"
+                params: "--molecule-count 5000000"
+                model: "N1"
                 mode: Xpr_sc
             - Trc:
                 params: ""
-                model: "N1_chr21"
+                model: "N1"
     TS_2_p1:
         pipeline:
             - Mrg:
@@ -56,7 +56,7 @@ TS_experiments:
                 params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
             - Seq:
                 params: "--skip-qual-compute"
-                model: "N1_chr21"
+                model: "N1"
 
 NS_experiments:
     NS_1:
@@ -78,12 +78,11 @@ plots:
             tpm_plot_tksm.by_gene,
             tpm_plot_tksm_sc.by_gene,
             # tpm_plot_liqa,
-            tpm_plot_nanosim,
             tpm_plot_minimap2,
-            lr_cell_stats,
+            lr_sr_adapt,
         ],
         data: [
-            N1_chr21,
+            N1,
             TS_2,
         ],
       }
