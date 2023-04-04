@@ -44,7 +44,7 @@ use rule * from TS_smk as TS_*
 use rule minimap_cdna from TS_smk as TS_minimap_cdna with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        refs=lambda wc: get_sample_refs(wc.sample, "cDNA"),
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
 
 
 use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
@@ -141,11 +141,16 @@ def get_sample_ref_names(sample):
         raise ValueError(f"Invalid sample name! {sample}")
 
 
-def get_sample_refs(sample, ref_type):
-    refs = list()
-    for ref_name in get_sample_ref_names(sample):
-        refs.append(config["refs"][ref_name][ref_type])
-    return refs
+def get_sample_ref(sample, ref_type):
+    ref_names = get_sample_ref_names(sample)
+    ref_name = ":".join(ref_names)
+    if ref_type in ["DNA", "cDNA"]:
+        file_type = "fasta"
+    elif ref_type == "GTF":
+        file_type = "gtf"
+    else:
+        raise ValueError(f"Invalid reference type! {ref_type}")
+    return f"{preproc_d}/refs/{ref_name}.{ref_type}.{file_type}"
 
 
 def get_sample_fastqs(name):
@@ -533,7 +538,7 @@ rule LIQA_refgene:
 rule minimap_dna_paf:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        refs=lambda wc: get_sample_refs(wc.sample, "cDNA"),
+        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
     output:
         paf=f"{preproc_d}/minimap2/{{sample}}.DNA.paf",
     threads: 32
@@ -542,7 +547,7 @@ rule minimap_dna_paf:
         " -t {threads}"
         " -x splice"
         " -c"
-        " <(cat {input.refs})"
+        " {input.ref}"
         " {input.reads}"
         " > {output.paf}"
 
@@ -550,7 +555,7 @@ rule minimap_dna_paf:
 rule minimap_dna:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        refs=lambda wc: get_sample_refs(wc.sample, "DNA"),
+        ref=lambda wc: get_sample_ref(wc.sample, "DNA"),
     output:
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
         bai=f"{preproc_d}/minimap2/{{sample}}.DNA.bam.bai",
@@ -562,7 +567,7 @@ rule minimap_dna:
         " -t {threads}"
         " -x splice"
         " -a"
-        " <(cat {input.refs})"
+        " {input.ref}"
         " {input.reads}"
         " | samtools sort "
         " -T {output.bam}.tmp"
@@ -574,9 +579,7 @@ rule minimap_dna:
 
 rule LIQA_quantify:
     input:
-        refgens=lambda wc: [
-            f"{ref}.refgene" for ref in get_sample_refs(wc.sample, "GTF")
-        ],
+        refgen=lambda wc: f"{get_sample_ref(wc.sample, 'GTF')}.refgene",
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
     output:
         tsv=f"{plots_d}/expression_stats/{{sample}}.liqa.tsv",
@@ -584,7 +587,7 @@ rule LIQA_quantify:
     shell:
         "python3 extern/LIQA/liqa_src/liqa.py"
         " -task quantify"
-        " -refgene <(cat {input.refgens})"
+        " -refgene <(cat {input.refgen})"
         " -bam {input.bam}"
         " -out {output.tsv}"
         " -max_distance 20"
@@ -652,9 +655,8 @@ rule tpm_plot:
             for s in wc.samples.split(".")
         ],
         tid_to_gid_list=lambda wc: [
-            f"{gtf}.tid_to_gid.pickle"
+            f"{get_sample_ref(s, 'GTF')}.tid_to_gid.pickle"
             for s in wc.samples.split(".")
-            for gtf in get_sample_refs(s, "GTF")
         ],
     output:
         png=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.png",
@@ -782,9 +784,9 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
 rule NS_analysis:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        dna=lambda wc: get_sample_refs(wc.sample, "DNA"),
-        cdna=lambda wc: get_sample_refs(wc.sample, "cDNA"),
-        gtf=lambda wc: get_sample_refs(wc.sample, "GTF"),
+        dna=lambda wc: get_sample_ref(wc.sample, "DNA"),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
     output:
         analysis_dir=directory(f"{NS_d}/{{sample}}/analysis"),
     benchmark:
@@ -811,7 +813,7 @@ rule NS_quantify:
     benchmark:
         f"{time_d}/{{sample}}/NS_quantify.benchmark"
     params:
-        cdna=lambda wc: get_sample_refs(wc.sample, "cDNA"),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
         output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
     threads: 32
     shell:
@@ -827,8 +829,8 @@ rule NS_simulate:
     input:
         analysis_dir=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis",
         quantify_tsv=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv",
-        dna=lambda wc: get_sample_refs(wc.exprmnt, "DNA"),
-        cdna=lambda wc: get_sample_refs(wc.exprmnt, "cDNA"),
+        dna=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
+        cdna=lambda wc: get_sample_ref(wc.exprmnt, "cDNA"),
     output:
         fasta=f"{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta",
     benchmark:
@@ -859,7 +861,11 @@ rule lr_cell_stats:
         lr_matches=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
         lr_br=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
     output:
-        pickle=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.pickle",
+        barcodes_p=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.barcodes.pickle",
+        reads_p=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.reads.pickle",
+        seqs_p=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats.seqs.pickle",
+    params:
+        outpath=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_stats",
     shell:
         "python3 {input.script}"
         " -b {input.barcodes}"
@@ -867,30 +873,50 @@ rule lr_cell_stats:
         " -p {input.paf}"
         " -m {input.lr_matches}"
         " -l {input.lr_br}"
-        " -o {output.pickle}"
+        " -o {params.outpath}"
 
 
 rule lr_cell_plot:
     input:
-        pickles=lambda wc: [
-            f"{plots_d}/lr_cell_stats/{s}.lr_cell_stats.pickle"
+        reads_pickles=lambda wc: [
+            f"{plots_d}/lr_cell_stats/{s}.lr_cell_stats.reads.pickle"
             for s in wc.samples.split(".")
         ],
     output:
         f"{plots_d}/lr_cell_stats/{{samples}}.png",
     run:
         samples = wildcards.samples.split(".")
-        for p, sample in zip(input.pickles, samples):
-            barcode_to_bid, rname_to_rid, bid_to_rids, rid_to_bids = pickle.load(
-                open(p, "rb")
-            )
-            plt.hist(
-                [len(v) for v in bid_to_rids.values()],
-                bins=range(1, 500, 5),
-                density=True,
-                label=sample,
-                alpha=0.3,
-            )
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        fig.suptitle(f"Read with one unique primary mapping")
+        sample_reads = list()
+        for p in tqdm(
+            input.reads_pickles,
+            total=len(samples),
+            desc="[lr_cell_plot] Loading pickles",
+        ):
+            sample_reads.append(pickle.load(open(p, "rb")))
+        for ax, Tstrand in zip(axes, ["+", "-"]):
+            ax.set_title(f"Transcriptome strand {Tstrand}")
+            for reads, sample in tqdm(
+                zip(sample_reads, samples),
+                total=len(samples),
+                desc=f"[lr_cell_plot] Processing samples on transcriptome strand {Tstrand}",
+            ):
+                vals = list()
+                for read in tqdm(reads, total=len(reads), desc=f"Processing {sample}"):
+                    if len(read["mappings"]) != 1:
+                        continue
+                    tid, tstrand = list(read["mappings"])[0][:2]
+                    if tstrand != Tstrand:
+                        continue
+                    vals.append(read["br_seg"][1])
+                ax.hist(
+                    vals,
+                    np.arange(-100, 100, 5),
+                    density=True,
+                    alpha=0.3,
+                    label=sample,
+                )
+            ax.legend()
         plt.legend()
-        plt.title("Cell barcode (X-axis) and their read counts (Y-axis)")
         plt.savefig(output[0], dpi=300)

@@ -48,10 +48,10 @@ def parse_args():
     )
     parser.add_argument(
         "-o",
-        "--output",
+        "--outpath",
         type=str,
         required=True,
-        help="Output pickle file.",
+        help="Output path to pickle files which will be: <outpath>.<object>.pickle with <object> being barcodes, reads, seqs.",
     )
     args = parser.parse_args()
     return args
@@ -87,6 +87,7 @@ def get_lr_states(
     # Get reads
     rname_to_rid = dict()
     reads = list()
+    seqs = list()
     for fastq in reads_paths:
         if fastq.endswith(".gz"):
             opener = gzip.open(fastq, "rt")
@@ -113,14 +114,13 @@ def get_lr_states(
                     ),
                     mappings=Counter(),
                     length=-1,
-                    seq="",
                 )
                 assert not read["name"] in rname_to_rid
                 rname_to_rid[read["name"]] = read["rid"]
                 reads.append(read)
             elif idx % mod == 1:
                 read["length"] = len(line.strip())
-                read["seq"] = line.strip()
+                seqs.append(line.strip())
     # Add mappings
     for line in tqdm(open(paf_path), desc=f"Processing {paf_path}"):
         line = line.rstrip("\n").split("\t")
@@ -170,9 +170,17 @@ def get_lr_states(
                 )
             )
     pickle.dump(
-        (barcodes, reads),
-        open(pickle_path, "wb+"),
+        barcodes,
+        open(f"{pickle_path}.barcodes.pickle", "wb+"),
     )
+    pickle.dump(
+        reads,
+        open(f"{pickle_path}.reads.pickle", "wb+"),
+    )
+    pickle.dump(
+        seqs,
+        open(f"{pickle_path}.seqs.pickle", "wb+"),
+    )        
 
 
 def main():
@@ -183,7 +191,7 @@ def main():
         paf_path=args.paf,
         lr_matches_path=args.lr_matches,
         lr_br_path=args.lr_br,
-        pickle_path=args.output,
+        pickle_path=args.outpath,
     )
 
 

@@ -337,7 +337,7 @@ class SIMULATE_PY:
             MISC_PY.get_random_sequence(k_size)
             + fragment
             + tail_noise_seq
-            + ''.join([MISC_PY.get_random_sequence(k_size) for _ in range(5)])
+            + ''.join([MISC_PY.get_random_sequence(k_size) for _ in range(3)])
         )
         frag_len = len(fragment)
 

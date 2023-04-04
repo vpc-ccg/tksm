@@ -7,13 +7,13 @@ TS_experiments:
                 params: "--molecule-count 100000"
                 model: "MCF7-sgnex"
                 mode: Xpr
+            - Trc:
+                params: ""
+                model: "MCF7-sgnex"
             - plA:
                 params: "--normal=15,7.5"
             - Flp:
                 params: "-p 0.5"
-            - Trc:
-                params: ""
-                model: "MCF7-sgnex"
             - Seq:
                 params: "--skip-qual-compute"
                 model: "MCF7-sgnex"
@@ -21,31 +21,31 @@ TS_experiments:
         pipeline:
             - Spc:
                 params: "--molecule-count 100000"
-                model: "N1"
+                model: "N1_chr21"
                 mode: Xpr_sc
+            - Trc:
+                params: ""
+                model: "N1_chr21"
     TS_2_p1:
         pipeline:
             - Mrg:
                 sources: ["TS_2_head",]
             - Flt:
-                params: "--info CB"
-            - Trc:
-                params: ""
-                model: "N1"
+                params: "-c \"info CB\""
             - plA:
                 params: "--normal=15,7.5"
             - Tag: 
-                params: "--format3 10 --contig-prefix umi_contig"
+                params: "--format3 10"
             - SCB: 
                 params: ""
             - Tag:
-                params: "--format3 AGATCGGAAGAGCGTCGTGTAG --contig-prefix sr_adaptor_contig"
+                params: "--format3 AGATCGGAAGAGCGTCGTGTAG"
     TS_2_p2:
         pipeline:
             - Mrg:
                 sources: ["TS_2_head",]
             - Flt:
-                params: "--info CB --negate"
+                params: "-c \"info CB\" --negate"
     TS_2:
         pipeline:
             - Mrg:
@@ -53,10 +53,10 @@ TS_experiments:
             - Flp:
                 params: "-p 0.5"
             - Tag:
-                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT --contig-prefix lr_adaptor_contig"
+                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
             - Seq:
                 params: "--skip-qual-compute"
-                model: "N1"
+                model: "N1_chr21"
 
 NS_experiments:
     NS_1:
@@ -83,8 +83,8 @@ plots:
             lr_cell_stats,
         ],
         data: [
-            N1_chr,
-            TS_2_chr,
+            N1_chr21,
+            TS_2,
         ],
       }
     - {
