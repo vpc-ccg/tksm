@@ -15,7 +15,7 @@ using std::vector;
 using std::ifstream;
 using std::ofstream;
 
-#include "pimpl_impl.h"
+#include "pimpl.h"
 
 class MODULE_module::impl : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
@@ -78,7 +78,7 @@ public:
 
 
         for(auto &md : stream_mdf(input)) {
-            output << streamer();
+            output << md;
         }
         return 0;
     }
