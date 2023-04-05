@@ -60,10 +60,7 @@ public:
 
     set<string> implemented_dists = {"normal", "uniform", "lognormal", "exponential"};
 
-
-    auto parse_dist_str(const string &st) const
-    -> std::tuple<string, int64_t, int64_t>
-    {
+    auto parse_dist_str(const string &st) const -> std::tuple<string, int64_t, int64_t> {
         string frag_len_dist;
         int64_t frag_len_dist_mean;
         int64_t frag_len_dist_std{0};
@@ -111,12 +108,13 @@ public:
             return 1;
         }
 
-        if(args.count("base-count") == 0 && args.count("depth") == 0) {
+        if (args.count("base-count") == 0 && args.count("depth") == 0) {
             loge("Either base-count or depth is required!");
             return 1;
         }
 
-        auto [frag_len_dist, frag_len_dist_mean, frag_len_dist_std] = parse_dist_str(args["frag-len-dist"].as<string>());
+        auto [frag_len_dist, frag_len_dist_mean, frag_len_dist_std] =
+            parse_dist_str(args["frag-len-dist"].as<string>());
         if (implemented_dists.find(frag_len_dist) == implemented_dists.end()) {
             loge("Invalid fragment length distribution");
             return 1;
@@ -125,7 +123,7 @@ public:
             loge("Invalid fragment length distribution parameters");
             return 1;
         }
-       return 0;
+        return 0;
     }
     int run() {
         if (process_utility_arguments(args)) {
@@ -137,8 +135,8 @@ public:
         describe_program();
 
         string reference_file = args["reference"].as<string>();
-        
-        //Read fasta index file .fai 
+
+        // Read fasta index file .fai
         string fai_file = reference_file + ".fai";
         ifstream fai(fai_file);
         string line;
@@ -157,10 +155,9 @@ public:
             int64_t ref_line_width;
             iss >> ref_name >> ref_len >> ref_offset >> ref_line_bases >> ref_line_width;
             ref_length += ref_len;
-            ref_names_index.push_back( ref_name);
+            ref_names_index.push_back(ref_name);
             ref_lens_so_far.push_back(ref_length);
             ref_lens.push_back(ref_len);
-
         }
 
         logi("Reference length: {}", ref_length);
@@ -168,56 +165,46 @@ public:
         fmtlog::poll(true);
 
         string output_file = args["output"].as<string>();
-       
+
         int64_t base_count = 0;
-        if(args.count("base-count") > 0) {
+        if (args.count("base-count") > 0) {
             base_count = args["base-count"].as<int64_t>();
         }
         else if (args.count("depth") > 0) {
             double depth = args["depth"].as<double>();
-            base_count = depth * ref_length;
+            base_count   = depth * ref_length;
         }
 
-        auto [frag_len_dist, frag_len_dist_mean, frag_len_dist_std] = parse_dist_str(args["frag-len-dist"].as<string>());
+        auto [frag_len_dist, frag_len_dist_mean, frag_len_dist_std] =
+            parse_dist_str(args["frag-len-dist"].as<string>());
         auto frag_length_dist = get_dist(frag_len_dist, frag_len_dist_mean, frag_len_dist_std);
-        auto position_dist = std::uniform_int_distribution<int64_t>(0, ref_length - 1);
-        auto strand_dist = std::uniform_int_distribution<int64_t>(0, 1);
+        auto position_dist    = std::uniform_int_distribution<int64_t>(0, ref_length - 1);
+        auto strand_dist      = std::uniform_int_distribution<int64_t>(0, 1);
 
         ofstream output(output_file);
 
         int64_t generated_bases = 0;
-        int64_t index = 0;
-        while(generated_bases < base_count){
-            int64_t pos = position_dist(rand_gen);
+        int64_t index           = 0;
+        while (generated_bases < base_count) {
+            int64_t pos       = position_dist(rand_gen);
             int64_t ref_index = 0;
-            while(pos > ref_lens_so_far[ref_index]){
+            while (pos > ref_lens_so_far[ref_index]) {
                 ++ref_index;
             }
-            int ref_pos = pos - ref_lens_so_far[ref_index] + ref_lens[ref_index];
+            int ref_pos  = pos - ref_lens_so_far[ref_index] + ref_lens[ref_index];
             int frag_len = std::visit([&](auto &&arg) { return arg(rand_gen); }, frag_length_dist);
-            if(frag_len > ref_lens[ref_index] - ref_pos){
+            if (frag_len > ref_lens[ref_index] - ref_pos) {
                 frag_len = ref_lens[ref_index] - ref_pos;
             }
             bool plus_strand = strand_dist(rand_gen) == 0;
-            molecule_descriptor mol{
-                fmt::format("{}_{}:{}-{}{}",
-                        index,
-                        ref_names_index[ref_index],
-                        ref_pos,
-                        ref_pos + frag_len,
-                        plus_strand ? "+" : "-"),
-                    plus_strand
-            };
+            molecule_descriptor mol{fmt::format("{}_{}:{}-{}{}", index, ref_names_index[ref_index], ref_pos,
+                                                ref_pos + frag_len, plus_strand ? "+" : "-"),
+                                    plus_strand};
             mol.append_segment({ref_names_index[ref_index], ref_pos, ref_pos + frag_len, plus_strand});
             output << mol;
             generated_bases += frag_len;
             ++index;
         }
-
-
-
-
-
 
         return 0;
     }
@@ -227,7 +214,7 @@ public:
         logi("Reference file: {}", args["reference"].as<string>());
         logi("Output file: {}", args["output"].as<string>());
 
-        if(args.count("base-count") > 0) {
+        if (args.count("base-count") > 0) {
             logi("Base count: {}", args["base-count"].as<int64_t>());
         }
         else if (args.count("depth") > 0) {
@@ -235,8 +222,6 @@ public:
         }
 
         logi("Fragment length distribution: {}", args["frag-len-dist"].as<string>());
-
-
 
         // Other parameters logs are here
         fmtlog::poll(true);
