@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "util.h"
 
 // Import kisims
 #include "abundance.h"
@@ -19,6 +18,9 @@
 #include "strand_man.h"
 #include "tag.h"
 #include "truncate.h"
+#include "random_wgs.h"
+#include "util.h"
+
 
 using std::set;
 using std::string;
@@ -39,6 +41,7 @@ vector<std::pair<string, string>> kisims = {
     {"flip", "Simulates strand flipping"},
     {"truncate", "Simulates read truncation"},
     {"sequencer", "Simulates reads given molecules"},
+    {"random-wgs", "Simulates random WGS reads"},
 };
 
 vector<std::pair<string,string>> utility = {
@@ -155,6 +158,9 @@ main(int argc, char **argv) {
     }
     else if (kisim == "model-qscores") {
         fmt::print("Model qscores\n");
+    }
+    else if (kisim == "random-wgs") {
+        return RWGS_module{argc - 1, argv + 1}.run();
     }
     else {
         fmt::print(stderr, "Unknown kisim: {}\n", kisim);

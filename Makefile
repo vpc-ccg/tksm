@@ -51,7 +51,7 @@ endif
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
 
-SRC_FILES = tksm.cpp tag.cpp truncate.cpp splicer.cpp single-cell-barcoder.cpp sequencer.cpp polyA.cpp pcr.cpp kde.cpp abundance.cpp strand_man.cpp filter.cpp
+SRC_FILES = tksm.cpp tag.cpp truncate.cpp splicer.cpp single-cell-barcoder.cpp sequencer.cpp polyA.cpp pcr.cpp kde.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp
 #Append SRC_PATH to SRC_FILES
 SRC_FILES := $(addprefix $(SRC_PATH)/,$(SRC_FILES))
 
