@@ -170,7 +170,7 @@ def NS_exprmnt_sample(exprmnt):
 rule all:
     input:
         [
-            f"{plots_d}/{r}/{'.'.join(p['data'])}.png"
+            f"{plots_d}/{r}/{'.'.join(p['data'])}.svg"
             for p in config["plots"]
             for r in p["rules"]
         ],
@@ -183,7 +183,7 @@ rule raw_lengths:
             [get_sample_fastqs(s) for s in wc.samples.split(".")]
         ),
     output:
-        png=f"{plots_d}/raw_lengths/{{samples}}.png",
+        svg=f"{plots_d}/raw_lengths/{{samples}}.svg",
     params:
         bins=50,
     run:
@@ -233,7 +233,7 @@ rule mapped_raw_lengths:
             f"{preproc_d}/minimap2/{s}.cDNA.paf" for s in wc.samples.split(".")
         ],
     output:
-        png=f"{plots_d}/mapped_raw_lengths/{{samples}}.png",
+        svg=f"{plots_d}/mapped_raw_lengths/{{samples}}.svg",
     params:
         bins=50,
     run:
@@ -286,7 +286,7 @@ rule mapped_lengths:
             f"{preproc_d}/minimap2/{s}.cDNA.paf" for s in wc.samples.split(".")
         ],
     output:
-        png=f"{plots_d}/mapped_lengths/{{samples}}.png",
+        svg=f"{plots_d}/mapped_lengths/{{samples}}.svg",
     params:
         bins=50,
     run:
@@ -373,7 +373,7 @@ rule substitution:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/substitution/{{samples}}.png",
+        f"{plots_d}/substitution/{{samples}}.svg",
     params:
         bins=50,
     run:
@@ -438,7 +438,7 @@ rule polyA:
             [get_sample_fastqs(s) for s in wc.samples.split(".")]
         ),
     output:
-        png=f"{plots_d}/polyA/{{samples}}.png",
+        svg=f"{plots_d}/polyA/{{samples}}.svg",
     params:
         bins=30,
     threads: 32
@@ -583,6 +583,8 @@ rule LIQA_quantify:
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
     output:
         tsv=f"{plots_d}/expression_stats/{{sample}}.liqa.tsv",
+    resources:
+        time=60 * 6 - 1,
     threads: 16
     shell:
         "python3 extern/LIQA/liqa_src/liqa.py"
@@ -659,7 +661,7 @@ rule tpm_plot:
             for s in wc.samples.split(".")
         ],
     output:
-        png=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.png",
+        svg=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.svg",
     wildcard_constraints:
         tpm_method="|".join(tpm_method_settings.keys()),
         merge_type=".by_gene|",
@@ -685,7 +687,7 @@ rule tpm_plot:
             X_tpm,
             Y_tpms,
             samples,
-            output.png,
+            output.svg,
             title=tpm_method_settings[wildcards.tpm_method]["title"],
         )
 
@@ -885,7 +887,7 @@ rule lr_cell_plot:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/lr_sr_adapt/{{samples}}.png",
+        f"{plots_d}/lr_sr_adapt/{{samples}}.svg",
     run:
         samples = wildcards.samples.split(".")
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))

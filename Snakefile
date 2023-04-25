@@ -27,7 +27,7 @@ def exprmnt_final_file(exprmnt):
     if prefix[-1] in ["Seq"]:
         prefix.append("fastq")
     elif prefix[-1] in [
-        "Spc",
+        "Tsb",
         "Flt",
         "PCR",
         "plA",
@@ -53,8 +53,8 @@ def get_sample_ref_names(sample):
         step = config["TS_experiments"][sample]["pipeline"][0]
         rule_name = list(step)[0]
         step = step[rule_name]
-        # If 1st step is splicer, then return its model's reference
-        if rule_name == "Spc":
+        # If 1st step is transcribe, then return its model's reference
+        if rule_name == "Tsb":
             return get_sample_ref_names(step["model"])
         # If 1st step is merge, then return the references of its sources
         if rule_name == "Mrg":
@@ -121,7 +121,7 @@ def get_kde_model_input(wc):
     step = get_step(wc.exprmnt, f"{wc.prefix}.Kde")
     model = step["model"]
     kde_input = [
-        f"{preproc_d}/truncate_kde/{model}.{x}.npy"
+        f"{preproc_d}/models/truncate/{model}.{x}.npy"
         for x in ["grid", "X_idxs", "Y_idxs"]
     ]
     return kde_input
@@ -132,9 +132,9 @@ rule all:
         [exprmnt_final_file(exprmnt) for exprmnt in config["TS_experiments"]],
 
 
-rule sequencer:
+rule sequence:
     input:
-        obj=["build/obj/sequencer.o", "build/obj/tksm.o"] if DEBUG else list(),
+        obj=["build/obj/sequence.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
         qscore_model=lambda wc: get_sequencer_model_input(wc, "qscore"),
@@ -151,7 +151,7 @@ rule sequencer:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        "{params.binary} sequencer"
+        "{params.binary} sequence"
         " -i {input.mdf}"
         " --references {params.fastas}"
         " -o {output.fastq}"
@@ -199,7 +199,7 @@ rule truncate:
     shell:
         "{params.binary} truncate"
         " -i {input.mdf}"
-        " --kde={params.kde}"
+        " --kde-model={params.kde}"
         " -o {output.mdf}"
         " {params.other}"
 
@@ -266,7 +266,7 @@ rule tag:
 
 rule single_cell_barcoder:
     input:
-        obj=["build/obj/single-cell-barcoder.o", "build/obj/tksm.o"]
+        obj=["build/obj/scb.o", "build/obj/tksm.o"]
         if DEBUG
         else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
@@ -280,7 +280,7 @@ rule single_cell_barcoder:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        "{params.binary} single-cell-barcoder"
+        "{params.binary} scb"
         " -i {input.mdf}"
         " -o {output.mdf}"
         " {params.other}"
@@ -307,22 +307,22 @@ rule polyA:
 
 
 ### Entry rules ###
-rule splicer:
+rule transcribe:
     input:
-        obj=["build/obj/splicer.o", "build/obj/tksm.o"] if DEBUG else list(),
-        tsv=lambda wc: f"{preproc_d}/tksm_abundance/{get_step(wc.exprmnt, 'Spc')['model']}.{get_step(wc.exprmnt, 'Spc')['mode']}.tsv",
+        obj=["build/obj/transcribe.o", "build/obj/tksm.o"] if DEBUG else list(),
+        tsv=lambda wc: f"{preproc_d}/tksm_abundance/{get_step(wc.exprmnt, 'Tsb')['model']}.{get_step(wc.exprmnt, 'Tsb')['mode']}.tsv",
         gtf=lambda wc: get_sample_ref(wc.exprmnt, "GTF"),
     output:
-        mdf=pipe(f"{TS_d}/{{exprmnt}}/Spc.mdf"),
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/Tsb.mdf"),
     benchmark:
-        f"{time_d}/{{exprmnt}}/Spc.benchmark"
+        f"{time_d}/{{exprmnt}}/Tsb.benchmark"
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"Spc")["params"],
+        other=lambda wc: get_step(wc.exprmnt, f"Tsb")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        "{params.binary} splicer"
+        "{params.binary} transcribe"
         " -a {input.tsv}"
         " -g {input.gtf}"
         " -o {output.mdf}"
@@ -373,22 +373,22 @@ rule abundance_sc:
         " -o {output.tsv}"
 
 
-rule truncate_kde:
+rule model_truncation:
     input:
-        obj=["build/obj/kde.o", "build/obj/tksm.o"] if DEBUG else list(),
+        obj=["build/obj/model_truncation.o", "build/obj/tksm.o"] if DEBUG else list(),
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     output:
-        x=f"{preproc_d}/truncate_kde/{{sample}}.X_idxs.npy",
-        y=f"{preproc_d}/truncate_kde/{{sample}}.Y_idxs.npy",
-        g=f"{preproc_d}/truncate_kde/{{sample}}.grid.npy",
+        x=f"{preproc_d}/models/truncate/{{sample}}.X_idxs.npy",
+        y=f"{preproc_d}/models/truncate/{{sample}}.Y_idxs.npy",
+        g=f"{preproc_d}/models/truncate/{{sample}}.grid.npy",
     benchmark:
-        f"{time_d}/{{sample}}/truncate_kde.benchmark"
+        f"{time_d}/{{sample}}/model_truncation.benchmark"
     params:
-        out_prefix=f"{preproc_d}/truncate_kde/{{sample}}",
+        out_prefix=f"{preproc_d}/models/truncate/{{sample}}",
         binary=config["exec"]["tksm"],
     threads: 32
     shell:
-        "{params.binary} kde"
+        "{params.binary} model-truncation"
         " -i {input.paf}"
         " -o {params.out_prefix}"
         " --threads {threads}"
@@ -407,6 +407,7 @@ rule minimap_cdna:
         "minimap2"
         " -t {threads}"
         " -x map-ont"
+        " -p 0.0"
         " -c --eqx"
         " -o {output.paf}"
         " {input.ref}"

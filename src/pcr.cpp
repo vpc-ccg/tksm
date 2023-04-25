@@ -215,7 +215,7 @@ public:
 
         ifstream input(input_file);
 
-        vector<molecule_descriptor> molecules = parse_mdf(input);
+        vector<molecule_descriptor> molecules = parse_mdf(input, true);
 
         if( molecules.size() > 2 * molecule_count){
             std::shuffle(molecules.begin(), molecules.end(), rand_gen);

@@ -1,9 +1,9 @@
 outpath: /groups/hachgrp/projects/dev-tksm/analysis/paper
 
 TS_experiments:
-    TS_1:
+    TKSM_bulk:
         pipeline:
-            - Spc:
+            - Tsb:
                 params: "--molecule-count 1000000"
                 model: "MCF7-sgnex"
                 mode: Xpr
@@ -14,22 +14,24 @@ TS_experiments:
                 params: "--normal=15,7.5"
             - Flp:
                 params: "-p 0.5"
+            - Tag:
+                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
             - Seq:
                 params: "--skip-qual-compute"
                 model: "MCF7-sgnex"
-    TS_2_head:
+    single_cell_head:
         pipeline:
-            - Spc:
-                params: "--molecule-count 5000000"
+            - Tsb:
+                params: "--molecule-count 1000000"
                 model: "N1"
                 mode: Xpr_sc
             - Trc:
                 params: ""
                 model: "N1"
-    TS_2_p1:
+    single_cell_p1:
         pipeline:
             - Mrg:
-                sources: ["TS_2_head",]
+                sources: ["single_cell_head",]
             - Flt:
                 params: "-c \"info CB\""
             - plA:
@@ -40,16 +42,18 @@ TS_experiments:
                 params: ""
             - Tag:
                 params: "--format3 AGATCGGAAGAGCGTCGTGTAG"
-    TS_2_p2:
+    single_cell_p2:
         pipeline:
             - Mrg:
-                sources: ["TS_2_head",]
+                sources: ["single_cell_head",]
             - Flt:
                 params: "-c \"info CB\" --negate"
-    TS_2:
+    TKSM_single_cell:
         pipeline:
             - Mrg:
-                sources: ["TS_2_p1", "TS_2_p2"]
+                sources: ["single_cell_p1", "single_cell_p2"]
+            - PCR:
+                params: "--cycles 5 --molecule-count 5000000"
             - Flp:
                 params: "-p 0.5"
             - Tag:
@@ -57,14 +61,31 @@ TS_experiments:
             - Seq:
                 params: "--skip-qual-compute"
                 model: "N1"
+    TKSM_gene_fusion:
+        pipeline:
+            - Tsb:
+                params: "--molecule-count 1000000 --fusion-count 100"
+                model: "MCF7-sgnex"
+                mode: Xpr
+            - Trc:
+                params: ""
+                model: "MCF7-sgnex"
+            - plA:
+                params: "--normal=15,7.5"
+            - PCR:
+                params: "--cycles 5 --molecule-count 5000000"
+            - Flp:
+                params: "-p 0.5"
+            - Tag:
+                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
 
 NS_experiments:
-    NS_1:
+    nanosim_bulk:
         sample: "MCF7-sgnex"
         simulation_params: "-n 1000000 --seed 42"
-    NS_1_chr21:
-        sample: "MCF7-sgnex_chr21"
-        simulation_params: "-n 100000 --seed 42"
 
 plots:
     - {
@@ -77,13 +98,13 @@ plots:
             tpm_plot_tksm,
             tpm_plot_tksm.by_gene,
             tpm_plot_tksm_sc.by_gene,
-            # tpm_plot_liqa,
+            tpm_plot_liqa,
             tpm_plot_minimap2,
             lr_sr_adapt,
         ],
         data: [
             N1,
-            TS_2,
+            TKSM_single_cell,
         ],
       }
     - {
@@ -94,14 +115,31 @@ plots:
             substitution,
             polyA,
             tpm_plot_tksm,
-            # tpm_plot_liqa,
+            tpm_plot_liqa,
             tpm_plot_minimap2,
             tpm_plot_nanosim,
         ],
         data: [
             MCF7-sgnex,
-            NS_1,
-            TS_1,
+            TKSM_bulk,
+            nanosim_bulk,
+        ],
+    }
+    - {
+        rules: [
+            raw_lengths,
+            mapped_raw_lengths,
+            mapped_lengths,
+            substitution,
+            polyA,
+            tpm_plot_tksm,
+            tpm_plot_liqa,
+            tpm_plot_minimap2,
+            tpm_plot_nanosim,
+        ],
+        data: [
+            MCF7-sgnex,
+            TKSM_gene_fusion,
         ],
     }
 
@@ -126,15 +164,7 @@ samples:
         fastq:
             - data/samples/MCF7-sgnex.fastq.gz
         ref: Homo_sapiens
-    "MCF7-sgnex_chr21":
-        fastq:
-            - data/samples/MCF7-sgnex_subsample.fastq.gz
-        ref: Homo_sapiens_chr21
     "N1":
         fastq:
             - data/samples/N1.fastq
         ref: Homo_sapiens
-    "N1_chr21":
-        fastq:
-            - data/samples/N1_subsample.fastq.gz
-        ref: Homo_sapiens_chr21
