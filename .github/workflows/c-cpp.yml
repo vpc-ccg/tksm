@@ -19,7 +19,7 @@ jobs:
           os: ["ubuntu"]
           include:
             - os: ubuntu
-              environment-file: env.yaml
+              environment-file: env-dev.yaml
               miniforge-variant: Mambaforge
               miniforge-version: 4.9.2-4
               env-name: tksm
