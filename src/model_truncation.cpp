@@ -1,4 +1,4 @@
-#include "kde.h"
+#include "model_truncation.h"
 #include "pimpl.h"
 #include <fmt/format.h>
 #include <truncate_kde.h>

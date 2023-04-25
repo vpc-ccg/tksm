@@ -1,4 +1,4 @@
-#include "sequencer.h"
+#include "sequence.h"
 
 #include <fmt/format.h>
 #include <sequence.h>
@@ -26,7 +26,7 @@ class Sequencer_module::impl : public tksm_module {
     char **argv;
 
 public:
-    impl(int argc, char **argv) : tksm_module("sequencer", "Sequencer Module"), argc(argc), argv(argv) {}
+    impl(int argc, char **argv) : tksm_module("sequence", "Sequencer Module"), argc(argc), argv(argv) {}
     ~impl() = default;
     int run() {
         if (validate_arguments()) {
