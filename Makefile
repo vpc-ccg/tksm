@@ -35,7 +35,7 @@ else
 endif
 CXX_STD ?=c++20
 CXXFLAGS += -std=$(CXX_STD) -Wall  $(CXX_OPT) $(CXX_DBG) 
-LDFLAGS += -lz -lpthread -lfmt $(LD_DBG) 
+LDFLAGS += -lz -lpthread -lfmt $(LD_DBG) -ltbb
 
 
 ifneq ($(DEBUG),1)
@@ -51,7 +51,7 @@ endif
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
 
-SRC_FILES = tksm.cpp tag.cpp truncate.cpp splicer.cpp single-cell-barcoder.cpp sequencer.cpp polyA.cpp pcr.cpp kde.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp
+SRC_FILES = tksm.cpp tag.cpp truncate.cpp splicer.cpp single-cell-barcoder.cpp sequencer.cpp polyA.cpp pcr.cpp kde.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp shuffle.cpp
 #Append SRC_PATH to SRC_FILES
 SRC_FILES := $(addprefix $(SRC_PATH)/,$(SRC_FILES))
 
