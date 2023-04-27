@@ -8,13 +8,15 @@
 #include "abundance.h"
 #include "filter.h"
 #include "head.h"
-#include "kde.h"
+#include "model_truncation.h"
 #include "pcr.h"
 #include "polyA.h"
+
 #include "random_wgs.h"
-#include "sequencer.h"
-#include "single-cell-barcoder.h"
-#include "splicer.h"
+#include "sequence.h"
+#include "scb.h"
+#include "transcribe.h"
+
 #include "strand_man.h"
 #include "tag.h"
 #include "truncate.h"
@@ -31,25 +33,25 @@ using std::vector;
 
 // clang-format off
 vector<std::pair<string, string>> kisims = {
-    {"abundance", "Computes the abundance of a long read RNA-seq experiment"},
-    {"splicer", "Simulates RNA molecules given abundances"},
-    {"tag", "Simulates tagmentation"},
-    {"polyA", "Simulates polyA tailing"},
-    {"single-cell-barcoder", "Simulates single cell barcoding"},
-    {"pcr", "Simulates PCR"},
+    {"transcribe", "Builds RNA transcript molecules given abundances"},
+    {"tag", "Adds a tag to each molecule given tag pattern"},
+    {"polyA", "Adds polyA tail to each molecule"},
+    {"scb", "Adds single cell barcode (from CB tags added by transcribe)"},
+    {"pcr", "Simulates PCR amplification"},
     {"flip", "Simulates strand flipping"},
     {"truncate", "Simulates read truncation"},
-    {"sequencer", "Simulates reads given molecules"},
-    {"random-wgs", "Simulates random WGS reads"},
     {"shuffle", "Shuffles an mdf file"},
+    {"sequence", "Simulates reads given molecules"},
+    {"random-wgs", "Simulates random WGS reads"},    
 };
 
 vector<std::pair<string,string>> utility = {
-    {"kde", "Kernel density estimation"},
-    {"head", "Prints the first n lines of a file"},
-    {"filter", "Filters a file based on a condition"},
+    {"abundance", "Computes the abundance of a long read RNA-seq experiment"},
+    {"model-truncation", "Kernel density estimation"},
     {"model-errors", "Models sequencing errors"},
     {"model-qscores", "Models sequencing quality scores"},
+    {"head", "Prints the first n molecules of a file"},
+    {"filter", "Filters a file based on a condition"},
 };
 
 vector<string> info = {
@@ -120,7 +122,7 @@ main(int argc, char **argv) {
     else if (kisim == "abundance") {
         return Abundance_module{argc - 1, argv + 1}.run();
     }
-    else if (kisim == "splicer") {
+    else if (kisim == "transcribe") {
         return Splicer_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "tag") {
@@ -129,7 +131,7 @@ main(int argc, char **argv) {
     else if (kisim == "polyA") {
         return PolyA_module{argc - 1, argv + 1}.run();
     }
-    else if (kisim == "single-cell-barcoder") {
+    else if (kisim == "scb") {
         return SingleCellBarcoder_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "pcr") {
@@ -141,10 +143,10 @@ main(int argc, char **argv) {
     else if (kisim == "flip") {
         return StrandMan_module{argc - 1, argv + 1}.run();
     }
-    else if (kisim == "sequencer") {
+    else if (kisim == "sequence") {
         return Sequencer_module{argc - 1, argv + 1}.run();
     }
-    else if (kisim == "kde") {
+    else if (kisim == "model-truncation") {
         return KDE_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "head") {

@@ -2,61 +2,66 @@ outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
 
 # Pipeline modules
 
-# Entry point for the pipeline
-## Mrg :
-### Merge the output of multiple pipelines into a single MDF and use it as input.
-### Takes sources key-value pair whose value is a list of pipeline names to merge.
-### The multiple pipelines can have different models and different references.
-### Must include params key-value as a list (not string) of pipeline names to merge.
-## Spc : 
-### Splice the genome. Generates transcripts based on the model expression.
-### Must include mode (either Xpr or Xpr_sc) and model (sample name) key-value pairs.
-### Allows for params key-value pair
+# >---- Entry point modules. Produce MDF as output. 
+# Mrg :
+## Merge the output of multiple pipelines into a single MDF and use it as input.
+## Takes sources key-value pair whose value is a list of pipeline names to merge.
+## The multiple pipelines can have different models and different references.
+## Must include params key-value as a list (not string) of pipeline names to merge.
+# Tsb : 
+## Splices the genome. Generates transcripts based on the model expression.
+## Tsb module allows for params key-value pair with the value being a string.
+## Must include mode (either Xpr or Xpr_sc) and model (sample name) key-value pairs.
 
-# Modules with MDF as input and MDF as output. All these modules take params key-value pair
+# >----> Core modules with MDF as input and MDF as output.
+## All these modules take params key-value pair with string values
 # Flt : Filters molecules out molecules that fail the given conditions
 # PCR : PCR amplification
 # plA : polyA tailing
-# SCB : Single-cell barcoding of molecules (from tags added by Spc module with Xpr_sc mode)
+# SCB : Single-cell barcoding of molecules (from tags added by Tsb module with Xpr_sc mode)
 # Tag : Tag the molecules with on 5' or 3' end with specified FASTA pattern
 # Flp : Flib the molecule strands with a given probability
 # Trc : Truncate the molecules. Takes model (sample name) key-value pair
 
-# Model with FASTQ/A as output
+# ----> Terminal sequencing module with FASTQ/A as output.
 # Seq : 
-### Sequence the molecules. Can only be last module. 
-### Takes model (sample name or TKSM error/qscore model name) key-value pair.
+## Sequence the molecules. Can only be last module in its pipeline. 
+## Takes model (sample name or TKSM error/qscore model name (try: tksm sequence -h)) key-value pair.
 TS_experiments:
-    P1:
+    head_1:
         pipeline:
-            - Spc:
-                params: "--molecule-count 10000"
-                model: "MCF7-sgnex_chr21"
+            - Tsb:
+                params: "--molecule-count 200000"
+                model: "MCF7-sgnex"
                 mode: Xpr
-    P2:
-        pipeline:
-            - Spc:
-                params: "--molecule-count 10000"
-                model: "N1_chr21"
-                mode: Xpr_sc
-    E1:
-        pipeline:
-            - Mrg:
-                sources: ["P1", "P2"]
-            - Flt:
-                params: "--c1 c1"
-            - SCB:
-                params: ""
-            - Tag:
-                params: "--format5 10"
-            - PCR:
-                params: "--cycles 3 -x Taq-setting1 --molecule-count 10000"
             - Trc:
                 params: ""
-                model: "N1_chr21"
+                model: "MCF7-sgnex"
+            - plA: {}
+    head_2:
+        pipeline:
+            - Tsb:
+                params: "--molecule-count 100000"
+                model: "N1"
+                mode: Xpr_sc
+            - Trc:
+                params: ""
+                model: "N1"
+            - plA: {}
+            - SCB: {}
+            - Tag:
+                params: "--format5 10"
+    experiment_1:
+        pipeline:
+            - Mrg:
+                sources: ["head_1", "head_2"]
+            - PCR:
+                params: "--cycles 3 -x T4 --molecule-count 1000000"
+            - Flp:
+                - params: "-p 0.5"
             - Seq:
                 params: "--skip-qual-compute"
-                model: "N1"
+                model: "nanopore2020"
 
 exec:
     tksm: build/bin/tksm
