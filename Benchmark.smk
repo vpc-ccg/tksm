@@ -37,7 +37,7 @@ NS_d = f"{outpath}/NS"
 time_d = f"{outpath}/time"
 plots_d = f"{outpath}/plots"
 
-
+### Import TKSM Snakemake rules
 use rule * from TS_smk as TS_*
 
 
@@ -45,13 +45,126 @@ use rule minimap_cdna from TS_smk as TS_minimap_cdna with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
 
 
 use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
+        time=ancient(TS_smk.time_tsv),
+
+def get_sample_ref_names(sample):
+    try:
+        # Try should work for TSKM and real samples
+        return TS_smk.get_sample_ref_names(sample)
+    except ValueError:
+        if sample in config["NS_experiments"]:
+            return TS_smk.get_sample_ref_names(
+                config["NS_experiments"][sample]["sample"]
+            )
+        raise ValueError(f"Invalid sample name! {sample}")
 
 
+def get_sample_ref(sample, ref_type):
+    ref_names = get_sample_ref_names(sample)
+    ref_name = ":".join(ref_names)
+    if ref_type in ["DNA", "cDNA"]:
+        file_type = "fasta"
+    elif ref_type == "GTF":
+        file_type = "gtf"
+    else:
+        raise ValueError(f"Invalid reference type! {ref_type}")
+    return f"{preproc_d}/refs/{ref_name}.{ref_type}.{file_type}"
+
+
+def get_sample_fastqs(name):
+    try:
+        return TS_smk.get_sample_fastqs(name)
+    except ValueError:
+        if name in config["NS_experiments"]:
+            exprmnt = name
+            return [f"{NS_d}/{exprmnt}/simulation_aligned_reads.fasta"]
+        raise ValueError(f"Invalid experiment/sample name! {name}")
+
+
+def NS_exprmnt_sample(exprmnt):
+    return config["NS_experiments"][exprmnt]["sample"]
+
+### Trans-Nanosim rules
+rule NS_analysis:
+    input:
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+        dna=lambda wc: get_sample_ref(wc.sample, "DNA"),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        analysis_dir=directory(f"{NS_d}/{{sample}}/analysis"),
+    params:
+        output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
+    threads: 32
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_analysis', exprmnt='{wildcards.sample}', prefix='')}"
+        "read_analysis.py transcriptome"
+        " -i {input.reads}"
+        " -rg {input.dna}"
+        " -rt {input.cdna}"
+        " --annotation {input.gtf}"
+        " -o {params.output_prefix}"
+        " -t {threads}"
+        " --no_intron_retention"
+
+
+rule NS_quantify:
+    input:
+        reads=lambda wildcards: get_sample_fastqs(wildcards.sample),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        quantify_tsv=f"{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv",
+    params:
+        output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
+    threads: 32
+    resources:
+        time=60 * 6 - 1,
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_quantify', exprmnt='{wildcards.sample}', prefix='')}"
+        "read_analysis.py quantify"
+        " -i {input.reads} "
+        " -rt {input.cdna}"
+        " -o {params.output_prefix}"
+        " -t {threads}"
+        " -e trans"
+
+
+rule NS_simulate:
+    input:
+        analysis_dir=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis",
+        quantify_tsv=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv",
+        dna=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
+        cdna=lambda wc: get_sample_ref(wc.exprmnt, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        fasta=f"{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta",
+    params:
+        analysis_model=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis/sim",
+        out_prefix=lambda wc: f"{NS_d}/{wc.exprmnt}/simulation",
+        other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
+    threads: 32
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_simulate', exprmnt='{wildcards.exprmnt}', prefix='')}"
+        "simulator.py transcriptome"
+        " -rt {input.cdna}"
+        " -rg {input.dna}"
+        " --exp {input.quantify_tsv}"
+        " -c {params.analysis_model}"
+        " -o {params.out_prefix}"
+        " -t {threads}"
+        " --no_model_ir"
+        " {params.other}"
+
+
+### Ploting helper methods
 tpm_method_settings = {
     "minimap2": dict(
         get_tpm_args=dict(
@@ -127,44 +240,6 @@ def run_longest_polys(seq):
 def reverse_complement(seq):
     complement = {"A": "T", "C": "G", "G": "C", "T": "A", "N": "N"}
     return "".join(complement.get(base, base) for base in reversed(seq))
-
-
-def get_sample_ref_names(sample):
-    try:
-        # Try should work for TS and real samples
-        return TS_smk.get_sample_ref_names(sample)
-    except ValueError:
-        if sample in config["NS_experiments"]:
-            return TS_smk.get_sample_ref_names(
-                config["NS_experiments"][sample]["sample"]
-            )
-        raise ValueError(f"Invalid sample name! {sample}")
-
-
-def get_sample_ref(sample, ref_type):
-    ref_names = get_sample_ref_names(sample)
-    ref_name = ":".join(ref_names)
-    if ref_type in ["DNA", "cDNA"]:
-        file_type = "fasta"
-    elif ref_type == "GTF":
-        file_type = "gtf"
-    else:
-        raise ValueError(f"Invalid reference type! {ref_type}")
-    return f"{preproc_d}/refs/{ref_name}.{ref_type}.{file_type}"
-
-
-def get_sample_fastqs(name):
-    try:
-        return TS_smk.get_sample_fastqs(name)
-    except ValueError:
-        if name in config["NS_experiments"]:
-            exprmnt = name
-            return [f"{NS_d}/{exprmnt}/simulation_aligned_reads.fasta"]
-        raise ValueError(f"Invalid experiment/sample name! {name}")
-
-
-def NS_exprmnt_sample(exprmnt):
-    return config["NS_experiments"][exprmnt]["sample"]
 
 
 rule all:
@@ -793,79 +868,6 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title):
     fig.tight_layout()
     for outpath in outpaths:
         plt.savefig(outpath)
-
-
-rule NS_analysis:
-    input:
-        reads=lambda wc: get_sample_fastqs(wc.sample),
-        dna=lambda wc: get_sample_ref(wc.sample, "DNA"),
-        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
-    output:
-        analysis_dir=directory(f"{NS_d}/{{sample}}/analysis"),
-    benchmark:
-        f"{time_d}/{{sample}}/NS_analysis.benchmark"
-    params:
-        output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
-    threads: 32
-    shell:
-        "read_analysis.py transcriptome"
-        " -i {input.reads}"
-        " -rg {input.dna}"
-        " -rt {input.cdna}"
-        " --annotation {input.gtf}"
-        " -o {params.output_prefix}"
-        " -t {threads}"
-        " --no_intron_retention"
-
-
-rule NS_quantify:
-    input:
-        reads=lambda wildcards: get_sample_fastqs(wildcards.sample),
-        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-    output:
-        quantify_tsv=f"{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv",
-    benchmark:
-        f"{time_d}/{{sample}}/NS_quantify.benchmark"
-    params:
-        output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
-    threads: 32
-    resources:
-        time=60 * 6 - 1,
-    shell:
-        "read_analysis.py quantify"
-        " -i {input.reads} "
-        " -rt {input.cdna}"
-        " -o {params.output_prefix}"
-        " -t {threads}"
-        " -e trans"
-
-
-rule NS_simulate:
-    input:
-        analysis_dir=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis",
-        quantify_tsv=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv",
-        dna=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        cdna=lambda wc: get_sample_ref(wc.exprmnt, "cDNA"),
-    output:
-        fasta=f"{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta",
-    benchmark:
-        f"{time_d}/{{exprmnt}}/NS_simulate.benchmark"
-    params:
-        analysis_model=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis/sim",
-        out_prefix=lambda wc: f"{NS_d}/{wc.exprmnt}/simulation",
-        other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
-    threads: 32
-    shell:
-        "simulator.py transcriptome"
-        " -rt {input.cdna}"
-        " -rg {input.dna}"
-        " --exp {input.quantify_tsv}"
-        " -c {params.analysis_model}"
-        " -o {params.out_prefix}"
-        " -t {threads}"
-        " --no_model_ir"
-        " {params.other}"
 
 
 rule lr_cell_stats:
