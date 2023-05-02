@@ -137,8 +137,8 @@ def format_gnu_time_string(
     fields.append("%e")
     fields.append("%U")
     fields.append("%M")
-    fields.append("%S")
     fields.append(f"{threads}")
+    fields.append("%S")
     fields = ",".join(fields)
 
     awk_cmd = 'awk \'BEGIN{{FS=","}} {{printf "%s,%s,%s,%s,%.2f,%.2f,%.2f,%d,%.2f\\n",$1,$2,$3,$4,$5/60,$6/60,$7/(1024*1024),$8,$9/60}}\''
