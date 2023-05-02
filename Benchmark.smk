@@ -184,6 +184,7 @@ rule raw_lengths:
         ),
     output:
         svg=f"{plots_d}/raw_lengths/{{samples}}.svg",
+        png=f"{plots_d}/raw_lengths/{{samples}}.png",
     params:
         bins=50,
     run:
@@ -224,7 +225,8 @@ rule raw_lengths:
             print(f"{sample} length median: {np.median(lens):.2f}")
         plt.legend()
         plt.title("Length distribution (whole reads)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule mapped_raw_lengths:
@@ -234,6 +236,7 @@ rule mapped_raw_lengths:
         ],
     output:
         svg=f"{plots_d}/mapped_raw_lengths/{{samples}}.svg",
+        png=f"{plots_d}/mapped_raw_lengths/{{samples}}.png",
     params:
         bins=50,
     run:
@@ -277,7 +280,8 @@ rule mapped_raw_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (whole reads from PAF)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule mapped_lengths:
@@ -287,6 +291,7 @@ rule mapped_lengths:
         ],
     output:
         svg=f"{plots_d}/mapped_lengths/{{samples}}.svg",
+        png=f"{plots_d}/mapped_lengths/{{samples}}.png",
     params:
         bins=50,
     run:
@@ -330,7 +335,8 @@ rule mapped_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (mapping part of reads from PAF)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule substitution_stats:
@@ -373,7 +379,8 @@ rule substitution:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/substitution/{{samples}}.svg",
+        svg=f"{plots_d}/substitution/{{samples}}.svg",
+        png=f"{plots_d}/substitution/{{samples}}.png",
     params:
         bins=50,
     run:
@@ -429,7 +436,8 @@ rule substitution:
         ):
             axs[i].set_title(f"{title} per 100 bases")
         fig.tight_layout()
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule polyA:
@@ -439,6 +447,7 @@ rule polyA:
         ),
     output:
         svg=f"{plots_d}/polyA/{{samples}}.svg",
+        png=f"{plots_d}/polyA/{{samples}}.png",
     params:
         bins=30,
     threads: 32
@@ -492,7 +501,8 @@ rule polyA:
             )
         plt.legend()
         plt.title("Poly(A,T) length distribution")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule tksm_abundance:
@@ -662,6 +672,7 @@ rule tpm_plot:
         ],
     output:
         svg=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.svg",
+        png=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.png",
     wildcard_constraints:
         tpm_method="|".join(tpm_method_settings.keys()),
         merge_type=".by_gene|",
@@ -687,7 +698,7 @@ rule tpm_plot:
             X_tpm,
             Y_tpms,
             samples,
-            output.svg,
+            output,
             title=tpm_method_settings[wildcards.tpm_method]["title"],
         )
 
@@ -731,7 +742,7 @@ def get_tpm(
     return tpm
 
 
-def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
+def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title):
     plt.rc("font", size=22)
 
     plot_count = len(samples) - 1
@@ -780,7 +791,8 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
             ax.set_xscale("log")
             ax.set_yscale("log")
     fig.tight_layout()
-    plt.savefig(outpath)
+    for outpath in outpaths:
+        plt.savefig(outpath)
 
 
 rule NS_analysis:
@@ -887,7 +899,8 @@ rule lr_cell_plot:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/lr_sr_adapt/{{samples}}.svg",
+        svg=f"{plots_d}/lr_sr_adapt/{{samples}}.svg",
+        png=f"{plots_d}/lr_sr_adapt/{{samples}}.png",
     run:
         samples = wildcards.samples.split(".")
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
@@ -923,4 +936,5 @@ rule lr_cell_plot:
                 )
             ax.legend()
         plt.legend()
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)

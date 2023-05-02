@@ -1,5 +1,6 @@
 import sys
 import re
+from collections import Counter
 
 if len(config) == 0:
 
@@ -11,15 +12,8 @@ preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
 time_d = f"{outpath}/time"
 exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
+
 DEBUG = True
-
-if DEBUG:
-
-    def pipe(X):
-        return X
-
-    def temp(X):
-        return X
 
 
 def exprmnt_final_file(exprmnt):
@@ -129,7 +123,43 @@ def get_kde_model_input(wc):
 
 rule all:
     input:
-        [exprmnt_final_file(exprmnt) for exprmnt in config["TS_experiments"]],
+        [
+            exprmnt_final_file(exprmnt)
+            for exprmnt in config["TS_experiments"]
+            if exprmnt_final_file(exprmnt).endswith("fastq")
+        ],
+
+
+if config["enable-piping"] == True:
+    print("Piping enabled for TKSM!", file=sys.stderr)
+    merge_source_mdf_counter = Counter()
+    merge_to_numbered_sources = dict()
+    for exprmnt in config["TS_experiments"]:
+        step, details = tuple(config["TS_experiments"][exprmnt]["pipeline"][0].items())[
+            0
+        ]
+        if not step == "Mrg":
+            continue
+        merge_to_numbered_sources[exprmnt] = list()
+        for source_exprmnt in details["sources"]:
+            source_mdf = exprmnt_final_file(source_exprmnt)
+            merge_to_numbered_sources[exprmnt].append(
+                f"{source_mdf}.{merge_source_mdf_counter[source_mdf]}"
+            )
+            merge_source_mdf_counter[source_mdf] += 1
+    for mdf, count in merge_source_mdf_counter.items():
+        rule:
+            input:
+                mdf=mdf,
+            output:
+                [pipe(f"{mdf}.{number}") for number in range(count)],
+            shell:
+                "python py/mdf_tee.py {input} {output}"
+
+else:
+
+    def pipe(X):
+        return X
 
 
 rule sequence:
@@ -266,9 +296,7 @@ rule tag:
 
 rule single_cell_barcoder:
     input:
-        obj=["build/obj/scb.o", "build/obj/tksm.o"]
-        if DEBUG
-        else list(),
+        obj=["build/obj/scb.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.mdf"),
@@ -329,13 +357,22 @@ rule transcribe:
         " {params.other}"
 
 
-rule merge:
-    input:
-        mdfs=get_merge_mdf_input,
-    output:
-        mdf=pipe(f"{TS_d}/{{exprmnt}}/Mrg.mdf"),
-    shell:
-        "cat {input.mdfs} > {output.mdf}"
+if config["enable-piping"] == False:
+    rule merge:
+        input:
+            mdfs=get_merge_mdf_input,
+        output:
+            mdf=pipe(f"{TS_d}/{{exprmnt}}/Mrg.mdf"),
+        shell:
+            "cat {input.mdfs} > {output.mdf}"
+else:
+    rule merge:
+        input:
+            lambda wc: merge_to_numbered_sources[wc.exprmnt],
+        output:
+            mdf=pipe(f"{TS_d}/{{exprmnt}}/Mrg.mdf"),
+        shell:
+            "py/mfd_cat.py {input.mdfs}  {output.mdf}"
 
 
 ### Preprocessing rules ###
