@@ -47,7 +47,7 @@ def main():
             #     sys.stderr.write(
             #         f"[mdf_cat.py] {[int(x) for x in done]} files; {tuple(x.split('/')[-1] for x in args.input_files)}; {md_count} MDs to {args.output_file.split('/')[-2:]}.\n"
             #     )
-            for idx, (d, q) in enumerate(done, input_queues):
+            for idx, (d, q) in enumerate(zip(done, input_queues)):
                 if d:
                     continue
                 try:

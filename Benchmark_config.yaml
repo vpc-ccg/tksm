@@ -21,7 +21,7 @@ TS_experiments:
             - Seq:
                 params: "--skip-qual-compute"
                 model: "MCF7-sgnex"
-    single_cell_head:
+    TKSM_single_cell_head:
         pipeline:
             - Tsb:
                 params: "--molecule-count 1000000"
@@ -30,10 +30,10 @@ TS_experiments:
             - Trc:
                 params: ""
                 model: "N1"
-    single_cell_p1:
+    TKSM_single_cell_p1:
         pipeline:
             - Mrg:
-                sources: ["single_cell_head",]
+                sources: ["TKSM_single_cell_head",]
             - Flt:
                 params: "-c \"info CB\""
             - plA:
@@ -44,16 +44,16 @@ TS_experiments:
                 params: ""
             - Tag:
                 params: "--format3 AGATCGGAAGAGCGTCGTGTAG"
-    single_cell_p2:
+    TKSM_single_cell_p2:
         pipeline:
             - Mrg:
-                sources: ["single_cell_head",]
+                sources: ["TKSM_single_cell_head",]
             - Flt:
                 params: "-c \"info CB\" --negate"
     TKSM_single_cell:
         pipeline:
             - Mrg:
-                sources: ["single_cell_p1", "single_cell_p2"]
+                sources: ["TKSM_single_cell_p1", "TKSM_single_cell_p2"]
             - PCR:
                 params: "--cycles 5 --molecule-count 5000000 -x Taq-setting1"
             - Flp:
@@ -100,7 +100,7 @@ plots:
             tpm_plot_tksm,
             tpm_plot_tksm.by_gene,
             tpm_plot_tksm_sc.by_gene,
-            # tpm_plot_liqa,
+            tpm_plot_liqa,
             tpm_plot_minimap2,
             lr_sr_adapt,
         ],
@@ -117,7 +117,7 @@ plots:
             substitution,
             polyA,
             tpm_plot_tksm,
-            # tpm_plot_liqa,
+            tpm_plot_liqa,
             tpm_plot_minimap2,
             tpm_plot_nanosim,
         ],

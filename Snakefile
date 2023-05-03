@@ -141,13 +141,15 @@ def format_gnu_time_string(
     fields.append(("%M", "%.2f", "/(1024*1024)"))
     fields.append((f"{threads}", "%d", ""))
     fields.append(("%S", "%.2f", "/60"))
-    fields.append((f"piped={config['enable_piping']}", "%s", ""))
+    fields.append((f"{config['enable_piping']}", "%s", ""))
 
     time_format = ",".join([x[0] for x in fields])
     printf_format = ",".join([x[1] for x in fields]) + "\\n"
-    printf_args = ",".join([f"${i}{x[2]}" for i,x in enumerate(fields, start=1)])
+    printf_args = ",".join([f"${i}{x[2]}" for i, x in enumerate(fields, start=1)])
 
-    awk_cmd = 'awk \'BEGIN{{FS=","}} {{printf "'+printf_format+'",'+printf_args+'}}\''
+    awk_cmd = (
+        'awk \'BEGIN{{FS=","}} {{printf "' + printf_format + '",' + printf_args + "}}'"
+    )
     return f'$(which time) -f "{time_format}" -o >({awk_cmd} >> {{input.time}}) '
 
 
@@ -159,13 +161,12 @@ rule all:
             if exprmnt_final_file(exprmnt).endswith("fastq")
         ],
 
-def pipe(X):
-    return X
 
 if config["enable_piping"] == True:
     sys.stderr.write("Piping enabled for TKSM!\n")
     merge_source_mdf_counter = Counter()
     merge_to_numbered_sources = dict()
+
     for exprmnt in config["TS_experiments"]:
         step, details = tuple(config["TS_experiments"][exprmnt]["pipeline"][0].items())[
             0
@@ -179,6 +180,7 @@ if config["enable_piping"] == True:
                 f"{source_mdf}.{merge_source_mdf_counter[source_mdf]}"
             )
             merge_source_mdf_counter[source_mdf] += 1
+
     for mdf, count in merge_source_mdf_counter.items():
         rule:
             input:
@@ -591,6 +593,13 @@ rule badread_qscore_model:
         " > {output.model}"
 
 
+rule make_time:
+    output:
+        time_tsv,
+    shell:
+        'echo "Timestamp,Experiment,Prefix,Process,Real time (min),User time (min),Memory (GB),Threads,System time (min),Piped?" > {output}'
+
+
 rule cat_refs:
     input:
         refs=lambda wc: [
@@ -605,10 +614,3 @@ rule cat_refs:
                 shell("zcat {ref} >> {output.ref}")
             else:
                 shell("cat {ref} >> {output.ref}")
-
-
-rule make_time:
-    output:
-        time_tsv,
-    shell:
-        'echo "Timestamp,Experiment,Prefix,Process,Real time (min),User time (min),Memory (GB),Threads,System time (min)" > {output}'

@@ -24,7 +24,7 @@ TS_experiments:
     P_TKSM_single_cell_head:
         pipeline:
             - Tsb:
-                params: "--molecule-count 100000"
+                params: "--molecule-count 1000000"
                 model: "N1"
                 mode: Xpr_sc
             - Trc:
@@ -53,10 +53,7 @@ TS_experiments:
     P_TKSM_single_cell:
         pipeline:
             - Mrg:
-                sources: [
-                    "P_TKSM_single_cell_p1",
-                    "P_TKSM_single_cell_p2",
-                ]
+                sources: ["P_TKSM_single_cell_p1", "P_TKSM_single_cell_p2"]
             - PCR:
                 params: "--cycles 5 --molecule-count 5000000 -x Taq-setting1"
             - Flp:
