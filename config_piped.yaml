@@ -1,8 +1,8 @@
 outpath: /groups/hachgrp/projects/dev-tksm/analysis/paper
-enable-piping: false
+enable-piping: true
 
 TS_experiments:
-    TKSM_bulk:
+    P_TKSM_bulk:
         pipeline:
             - Tsb:
                 params: "--molecule-count 1000000"
@@ -20,7 +20,7 @@ TS_experiments:
             - Seq:
                 params: "--skip-qual-compute"
                 model: "MCF7-sgnex"
-    single_cell_head:
+    P_single_cell_head:
         pipeline:
             - Tsb:
                 params: "--molecule-count 1000000"
@@ -29,10 +29,10 @@ TS_experiments:
             - Trc:
                 params: ""
                 model: "N1"
-    single_cell_p1:
+    P_single_cell_p1:
         pipeline:
             - Mrg:
-                sources: ["single_cell_head",]
+                sources: ["P_single_cell_head",]
             - Flt:
                 params: "-c \"info CB\""
             - plA:
@@ -43,16 +43,16 @@ TS_experiments:
                 params: ""
             - Tag:
                 params: "--format3 AGATCGGAAGAGCGTCGTGTAG"
-    single_cell_p2:
+    P_single_cell_p2:
         pipeline:
             - Mrg:
-                sources: ["single_cell_head",]
+                sources: ["P_single_cell_head",]
             - Flt:
                 params: "-c \"info CB\" --negate"
-    TKSM_single_cell:
+    P_TKSM_single_cell:
         pipeline:
             - Mrg:
-                sources: ["single_cell_p1", "single_cell_p2"]
+                sources: ["P_single_cell_p1", "P_single_cell_p2"]
             - PCR:
                 params: "--cycles 5 --molecule-count 5000000 -x Taq-setting1"
             - Flp:
@@ -62,7 +62,7 @@ TS_experiments:
             - Seq:
                 params: "--skip-qual-compute"
                 model: "N1"
-    TKSM_gene_fusion:
+    P_TKSM_gene_fusion:
         pipeline:
             - Tsb:
                 params: "--molecule-count 1000000 --fusion-count 100"
@@ -83,71 +83,9 @@ TS_experiments:
                 params: "--skip-qual-compute"
                 model: "MCF7-sgnex"
 
-NS_experiments:
-    nanosim_bulk:
-        sample: "MCF7-sgnex"
-        simulation_params: "-n 1000000 --seed 42"
-
-plots:
-    - {
-        rules: [
-            raw_lengths,
-            mapped_raw_lengths,
-            mapped_lengths,
-            substitution,
-            polyA,
-            tpm_plot_tksm,
-            tpm_plot_tksm.by_gene,
-            tpm_plot_tksm_sc.by_gene,
-            # tpm_plot_liqa,
-            tpm_plot_minimap2,
-            lr_sr_adapt,
-        ],
-        data: [
-            N1,
-            TKSM_single_cell,
-        ],
-      }
-    - {
-        rules: [
-            raw_lengths,
-            mapped_raw_lengths,
-            mapped_lengths,
-            substitution,
-            polyA,
-            tpm_plot_tksm,
-            # tpm_plot_liqa,
-            tpm_plot_minimap2,
-            tpm_plot_nanosim,
-        ],
-        data: [
-            MCF7-sgnex,
-            TKSM_bulk,
-            nanosim_bulk,
-        ],
-    }
-    # - {
-    #     rules: [
-    #         raw_lengths,
-    #         mapped_raw_lengths,
-    #         mapped_lengths,
-    #         substitution,
-    #         polyA,
-    #         tpm_plot_tksm,
-    #         tpm_plot_liqa,
-    #         tpm_plot_minimap2,
-    #         tpm_plot_nanosim,
-    #     ],
-    #     data: [
-    #         MCF7-sgnex,
-    #         TKSM_gene_fusion,
-    #     ],
-    # }
 
 exec:
     tksm: build/bin/tksm
-    tNS_analyze: simulator.py
-    lr_cell_stats: py/lr_cell_stats.py
 
 refs:
     Homo_sapiens:

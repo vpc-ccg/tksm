@@ -1,5 +1,5 @@
 outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
-
+enable-piping: false
 # Pipeline modules
 
 # >---- Entry point modules. Produce MDF as output. 
@@ -37,7 +37,8 @@ TS_experiments:
             - Trc:
                 params: ""
                 model: "MCF7-sgnex"
-            - plA: {}
+            - plA:
+                params: ""
     head_2:
         pipeline:
             - Tsb:
@@ -47,18 +48,23 @@ TS_experiments:
             - Trc:
                 params: ""
                 model: "N1"
-            - plA: {}
-            - SCB: {}
+            - plA:
+                params: ""
+            - SCB:
+                params: ""
             - Tag:
                 params: "--format5 10"
     experiment_1:
         pipeline:
             - Mrg:
-                sources: ["head_1", "head_2"]
+                sources: [
+                    "head_1",
+                    "head_2",
+                ]
             - PCR:
                 params: "--cycles 3 -x T4 --molecule-count 1000000"
             - Flp:
-                - params: "-p 0.5"
+                params: "-p 0.5"
             - Seq:
                 params: "--skip-qual-compute"
                 model: "nanopore2020"

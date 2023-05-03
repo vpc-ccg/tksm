@@ -37,7 +37,7 @@ NS_d = f"{outpath}/NS"
 time_d = f"{outpath}/time"
 plots_d = f"{outpath}/plots"
 
-
+### Import TKSM Snakemake rules
 use rule * from TS_smk as TS_*
 
 
@@ -45,13 +45,126 @@ use rule minimap_cdna from TS_smk as TS_minimap_cdna with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
 
 
 use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
+        time=ancient(TS_smk.time_tsv),
+
+def get_sample_ref_names(sample):
+    try:
+        # Try should work for TSKM and real samples
+        return TS_smk.get_sample_ref_names(sample)
+    except ValueError:
+        if sample in config["NS_experiments"]:
+            return TS_smk.get_sample_ref_names(
+                config["NS_experiments"][sample]["sample"]
+            )
+        raise ValueError(f"Invalid sample name! {sample}")
 
 
+def get_sample_ref(sample, ref_type):
+    ref_names = get_sample_ref_names(sample)
+    ref_name = ":".join(ref_names)
+    if ref_type in ["DNA", "cDNA"]:
+        file_type = "fasta"
+    elif ref_type == "GTF":
+        file_type = "gtf"
+    else:
+        raise ValueError(f"Invalid reference type! {ref_type}")
+    return f"{preproc_d}/refs/{ref_name}.{ref_type}.{file_type}"
+
+
+def get_sample_fastqs(name):
+    try:
+        return TS_smk.get_sample_fastqs(name)
+    except ValueError:
+        if name in config["NS_experiments"]:
+            exprmnt = name
+            return [f"{NS_d}/{exprmnt}/simulation_aligned_reads.fasta"]
+        raise ValueError(f"Invalid experiment/sample name! {name}")
+
+
+def NS_exprmnt_sample(exprmnt):
+    return config["NS_experiments"][exprmnt]["sample"]
+
+### Trans-Nanosim rules
+rule NS_analysis:
+    input:
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+        dna=lambda wc: get_sample_ref(wc.sample, "DNA"),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        analysis_dir=directory(f"{NS_d}/{{sample}}/analysis"),
+    params:
+        output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
+    threads: 32
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_analysis', exprmnt='{wildcards.sample}', prefix='')}"
+        "read_analysis.py transcriptome"
+        " -i {input.reads}"
+        " -rg {input.dna}"
+        " -rt {input.cdna}"
+        " --annotation {input.gtf}"
+        " -o {params.output_prefix}"
+        " -t {threads}"
+        " --no_intron_retention"
+
+
+rule NS_quantify:
+    input:
+        reads=lambda wildcards: get_sample_fastqs(wildcards.sample),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        quantify_tsv=f"{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv",
+    params:
+        output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
+    threads: 32
+    resources:
+        time=60 * 6 - 1,
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_quantify', exprmnt='{wildcards.sample}', prefix='')}"
+        "read_analysis.py quantify"
+        " -i {input.reads} "
+        " -rt {input.cdna}"
+        " -o {params.output_prefix}"
+        " -t {threads}"
+        " -e trans"
+
+
+rule NS_simulate:
+    input:
+        analysis_dir=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis",
+        quantify_tsv=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv",
+        dna=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
+        cdna=lambda wc: get_sample_ref(wc.exprmnt, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        fasta=f"{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta",
+    params:
+        analysis_model=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis/sim",
+        out_prefix=lambda wc: f"{NS_d}/{wc.exprmnt}/simulation",
+        other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
+    threads: 32
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_simulate', exprmnt='{wildcards.exprmnt}', prefix='')}"
+        "simulator.py transcriptome"
+        " -rt {input.cdna}"
+        " -rg {input.dna}"
+        " --exp {input.quantify_tsv}"
+        " -c {params.analysis_model}"
+        " -o {params.out_prefix}"
+        " -t {threads}"
+        " --no_model_ir"
+        " {params.other}"
+
+
+### Ploting helper methods
 tpm_method_settings = {
     "minimap2": dict(
         get_tpm_args=dict(
@@ -129,44 +242,6 @@ def reverse_complement(seq):
     return "".join(complement.get(base, base) for base in reversed(seq))
 
 
-def get_sample_ref_names(sample):
-    try:
-        # Try should work for TS and real samples
-        return TS_smk.get_sample_ref_names(sample)
-    except ValueError:
-        if sample in config["NS_experiments"]:
-            return TS_smk.get_sample_ref_names(
-                config["NS_experiments"][sample]["sample"]
-            )
-        raise ValueError(f"Invalid sample name! {sample}")
-
-
-def get_sample_ref(sample, ref_type):
-    ref_names = get_sample_ref_names(sample)
-    ref_name = ":".join(ref_names)
-    if ref_type in ["DNA", "cDNA"]:
-        file_type = "fasta"
-    elif ref_type == "GTF":
-        file_type = "gtf"
-    else:
-        raise ValueError(f"Invalid reference type! {ref_type}")
-    return f"{preproc_d}/refs/{ref_name}.{ref_type}.{file_type}"
-
-
-def get_sample_fastqs(name):
-    try:
-        return TS_smk.get_sample_fastqs(name)
-    except ValueError:
-        if name in config["NS_experiments"]:
-            exprmnt = name
-            return [f"{NS_d}/{exprmnt}/simulation_aligned_reads.fasta"]
-        raise ValueError(f"Invalid experiment/sample name! {name}")
-
-
-def NS_exprmnt_sample(exprmnt):
-    return config["NS_experiments"][exprmnt]["sample"]
-
-
 rule all:
     input:
         [
@@ -184,6 +259,7 @@ rule raw_lengths:
         ),
     output:
         svg=f"{plots_d}/raw_lengths/{{samples}}.svg",
+        png=f"{plots_d}/raw_lengths/{{samples}}.png",
     params:
         bins=50,
     run:
@@ -224,7 +300,8 @@ rule raw_lengths:
             print(f"{sample} length median: {np.median(lens):.2f}")
         plt.legend()
         plt.title("Length distribution (whole reads)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule mapped_raw_lengths:
@@ -234,6 +311,7 @@ rule mapped_raw_lengths:
         ],
     output:
         svg=f"{plots_d}/mapped_raw_lengths/{{samples}}.svg",
+        png=f"{plots_d}/mapped_raw_lengths/{{samples}}.png",
     params:
         bins=50,
     run:
@@ -277,7 +355,8 @@ rule mapped_raw_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (whole reads from PAF)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule mapped_lengths:
@@ -287,6 +366,7 @@ rule mapped_lengths:
         ],
     output:
         svg=f"{plots_d}/mapped_lengths/{{samples}}.svg",
+        png=f"{plots_d}/mapped_lengths/{{samples}}.png",
     params:
         bins=50,
     run:
@@ -330,7 +410,8 @@ rule mapped_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (mapping part of reads from PAF)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule substitution_stats:
@@ -373,7 +454,8 @@ rule substitution:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/substitution/{{samples}}.svg",
+        svg=f"{plots_d}/substitution/{{samples}}.svg",
+        png=f"{plots_d}/substitution/{{samples}}.png",
     params:
         bins=50,
     run:
@@ -429,7 +511,8 @@ rule substitution:
         ):
             axs[i].set_title(f"{title} per 100 bases")
         fig.tight_layout()
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule polyA:
@@ -439,6 +522,7 @@ rule polyA:
         ),
     output:
         svg=f"{plots_d}/polyA/{{samples}}.svg",
+        png=f"{plots_d}/polyA/{{samples}}.png",
     params:
         bins=30,
     threads: 32
@@ -492,7 +576,8 @@ rule polyA:
             )
         plt.legend()
         plt.title("Poly(A,T) length distribution")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule tksm_abundance:
@@ -662,6 +747,7 @@ rule tpm_plot:
         ],
     output:
         svg=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.svg",
+        png=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.png",
     wildcard_constraints:
         tpm_method="|".join(tpm_method_settings.keys()),
         merge_type=".by_gene|",
@@ -687,7 +773,7 @@ rule tpm_plot:
             X_tpm,
             Y_tpms,
             samples,
-            output.svg,
+            output,
             title=tpm_method_settings[wildcards.tpm_method]["title"],
         )
 
@@ -731,7 +817,7 @@ def get_tpm(
     return tpm
 
 
-def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
+def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title):
     plt.rc("font", size=22)
 
     plot_count = len(samples) - 1
@@ -780,80 +866,8 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
             ax.set_xscale("log")
             ax.set_yscale("log")
     fig.tight_layout()
-    plt.savefig(outpath)
-
-
-rule NS_analysis:
-    input:
-        reads=lambda wc: get_sample_fastqs(wc.sample),
-        dna=lambda wc: get_sample_ref(wc.sample, "DNA"),
-        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
-    output:
-        analysis_dir=directory(f"{NS_d}/{{sample}}/analysis"),
-    benchmark:
-        f"{time_d}/{{sample}}/NS_analysis.benchmark"
-    params:
-        output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
-    threads: 32
-    shell:
-        "read_analysis.py transcriptome"
-        " -i {input.reads}"
-        " -rg {input.dna}"
-        " -rt {input.cdna}"
-        " --annotation {input.gtf}"
-        " -o {params.output_prefix}"
-        " -t {threads}"
-        " --no_intron_retention"
-
-
-rule NS_quantify:
-    input:
-        reads=lambda wildcards: get_sample_fastqs(wildcards.sample),
-        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-    output:
-        quantify_tsv=f"{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv",
-    benchmark:
-        f"{time_d}/{{sample}}/NS_quantify.benchmark"
-    params:
-        output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
-    threads: 32
-    resources:
-        time=60 * 6 - 1,
-    shell:
-        "read_analysis.py quantify"
-        " -i {input.reads} "
-        " -rt {input.cdna}"
-        " -o {params.output_prefix}"
-        " -t {threads}"
-        " -e trans"
-
-
-rule NS_simulate:
-    input:
-        analysis_dir=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis",
-        quantify_tsv=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv",
-        dna=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        cdna=lambda wc: get_sample_ref(wc.exprmnt, "cDNA"),
-    output:
-        fasta=f"{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta",
-    benchmark:
-        f"{time_d}/{{exprmnt}}/NS_simulate.benchmark"
-    params:
-        analysis_model=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis/sim",
-        out_prefix=lambda wc: f"{NS_d}/{wc.exprmnt}/simulation",
-        other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
-    threads: 32
-    shell:
-        "simulator.py transcriptome"
-        " -rt {input.cdna}"
-        " -rg {input.dna}"
-        " --exp {input.quantify_tsv}"
-        " -c {params.analysis_model}"
-        " -o {params.out_prefix}"
-        " -t {threads}"
-        " --no_model_ir"
-        " {params.other}"
+    for outpath in outpaths:
+        plt.savefig(outpath)
 
 
 rule lr_cell_stats:
@@ -887,7 +901,8 @@ rule lr_cell_plot:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/lr_sr_adapt/{{samples}}.svg",
+        svg=f"{plots_d}/lr_sr_adapt/{{samples}}.svg",
+        png=f"{plots_d}/lr_sr_adapt/{{samples}}.png",
     run:
         samples = wildcards.samples.split(".")
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
@@ -923,4 +938,5 @@ rule lr_cell_plot:
                 )
             ax.legend()
         plt.legend()
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.png, dpi=1000)
