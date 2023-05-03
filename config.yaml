@@ -1,5 +1,6 @@
 outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
-enable-piping: false
+enable_piping: false
+benchmark_time: false
 # Pipeline modules
 
 # >---- Entry point modules. Produce MDF as output. 

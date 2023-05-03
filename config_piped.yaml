@@ -1,38 +1,39 @@
 outpath: /groups/hachgrp/projects/dev-tksm/analysis/paper
-enable-piping: true
+enable_piping: true
+benchmark_time: true
 
 TS_experiments:
-    P_TKSM_bulk:
+    # P_TKSM_bulk:
+    #     pipeline:
+    #         - Tsb:
+    #             params: "--molecule-count 1000000"
+    #             model: "MCF7-sgnex"
+    #             mode: Xpr
+    #         - Trc:
+    #             params: ""
+    #             model: "MCF7-sgnex"
+    #         - plA:
+    #             params: "--normal=15,7.5"
+    #         - Flp:
+    #             params: "-p 0.5"
+    #         - Tag:
+    #             params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
+    #         - Seq:
+    #             params: "--skip-qual-compute"
+    #             model: "MCF7-sgnex"
+    P_TKSM_single_cell_head:
         pipeline:
             - Tsb:
-                params: "--molecule-count 1000000"
-                model: "MCF7-sgnex"
-                mode: Xpr
-            - Trc:
-                params: ""
-                model: "MCF7-sgnex"
-            - plA:
-                params: "--normal=15,7.5"
-            - Flp:
-                params: "-p 0.5"
-            - Tag:
-                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
-            - Seq:
-                params: "--skip-qual-compute"
-                model: "MCF7-sgnex"
-    P_single_cell_head:
-        pipeline:
-            - Tsb:
-                params: "--molecule-count 1000000"
+                params: "--molecule-count 100000"
                 model: "N1"
                 mode: Xpr_sc
             - Trc:
                 params: ""
                 model: "N1"
-    P_single_cell_p1:
+    P_TKSM_single_cell_p1:
         pipeline:
             - Mrg:
-                sources: ["P_single_cell_head",]
+                sources: ["P_TKSM_single_cell_head",]
             - Flt:
                 params: "-c \"info CB\""
             - plA:
@@ -43,16 +44,19 @@ TS_experiments:
                 params: ""
             - Tag:
                 params: "--format3 AGATCGGAAGAGCGTCGTGTAG"
-    P_single_cell_p2:
+    P_TKSM_single_cell_p2:
         pipeline:
             - Mrg:
-                sources: ["P_single_cell_head",]
+                sources: ["P_TKSM_single_cell_head",]
             - Flt:
                 params: "-c \"info CB\" --negate"
     P_TKSM_single_cell:
         pipeline:
             - Mrg:
-                sources: ["P_single_cell_p1", "P_single_cell_p2"]
+                sources: [
+                    "P_TKSM_single_cell_p1",
+                    "P_TKSM_single_cell_p2",
+                ]
             - PCR:
                 params: "--cycles 5 --molecule-count 5000000 -x Taq-setting1"
             - Flp:
@@ -62,26 +66,26 @@ TS_experiments:
             - Seq:
                 params: "--skip-qual-compute"
                 model: "N1"
-    P_TKSM_gene_fusion:
-        pipeline:
-            - Tsb:
-                params: "--molecule-count 1000000 --fusion-count 100"
-                model: "MCF7-sgnex"
-                mode: Xpr
-            - Trc:
-                params: ""
-                model: "MCF7-sgnex"
-            - plA:
-                params: "--normal=15,7.5"
-            - PCR:
-                params: "--cycles 5 --molecule-count 5000000 -x Taq-setting1"
-            - Flp:
-                params: "-p 0.5"
-            - Tag:
-                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
-            - Seq:
-                params: "--skip-qual-compute"
-                model: "MCF7-sgnex"
+    # P_TKSM_gene_fusion:
+    #     pipeline:
+    #         - Tsb:
+    #             params: "--molecule-count 1000000 --fusion-count 100"
+    #             model: "MCF7-sgnex"
+    #             mode: Xpr
+    #         - Trc:
+    #             params: ""
+    #             model: "MCF7-sgnex"
+    #         - plA:
+    #             params: "--normal=15,7.5"
+    #         - PCR:
+    #             params: "--cycles 5 --molecule-count 5000000 -x Taq-setting1"
+    #         - Flp:
+    #             params: "-p 0.5"
+    #         - Tag:
+    #             params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
+    #         - Seq:
+    #             params: "--skip-qual-compute"
+    #             model: "MCF7-sgnex"
 
 
 exec:

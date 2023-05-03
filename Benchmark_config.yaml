@@ -1,5 +1,6 @@
 outpath: /groups/hachgrp/projects/dev-tksm/analysis/paper
-enable-piping: false
+enable_piping: false
+benchmark_time: true
 
 TS_experiments:
     TKSM_bulk:

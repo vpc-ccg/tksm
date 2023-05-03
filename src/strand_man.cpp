@@ -120,7 +120,7 @@ public:
     }
 
     void describe_program() {
-        logi("Running [MODULE]");
+        logi("Running [Flip module]");
         logi("Input file: {}", args["input"].as<string>());
         logi("Output file: {}", args["output"].as<string>());
             
