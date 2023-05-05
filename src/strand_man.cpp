@@ -44,19 +44,6 @@ class StrandMan_module::impl : public tksm_module {
     
     std::uniform_real_distribution<double> dist{0.0, 1.0};
 
-    molecule_descriptor flip_molecule(const molecule_descriptor &md){
-        molecule_descriptor flipped_md{md.get_id(), md._reversed};
-        for(const auto &segment : md.cget_segments() | std::views::reverse){
-            auto flipped_segment = segment;
-            flipped_segment.plus_strand = !flipped_segment.plus_strand;
-            flipped_md.append_segment(flipped_segment);
-        }
-        flipped_md.meta = md.meta;
-        flipped_md.depth(md.get_depth());
-
-        return flipped_md;
-    }
-
     auto strand_flip_transformer(double flip_probability = 0) {
         return std::ranges::views::transform([&, flip_probability](auto &md) {
             if(dist(rand_gen) < flip_probability){

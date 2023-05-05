@@ -22,6 +22,7 @@
 #include "truncate.h"
 #include "util.h"
 #include "shuffle.h"
+#include "unsegment.h"
 
 using std::set;
 using std::string;
@@ -42,7 +43,8 @@ vector<std::pair<string, string>> kisims = {
     {"truncate", "Simulates read truncation"},
     {"shuffle", "Shuffles an mdf file"},
     {"sequence", "Simulates reads given molecules"},
-    {"random-wgs", "Simulates random WGS reads"},    
+    {"random-wgs", "Simulates random WGS reads"},
+    {"unsegment", "Concatenate adjacent molecules with random probability"},
 };
 
 vector<std::pair<string,string>> utility = {
@@ -157,6 +159,9 @@ main(int argc, char **argv) {
     }
     else if (kisim == "shuffle") {
         return Shuffle_module{argc - 1, argv + 1}.run();
+    }
+    else if (kisim == "unsegment") {
+        return Unsegment_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "model-errors") {
         fmt::print("Model errors\n");

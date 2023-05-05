@@ -747,7 +747,7 @@ struct molecule_descriptor {
     //    vector<std::pair<int, char>> errors_so_far;
 
 public:
-    molecule_descriptor() {}
+    molecule_descriptor() : _id(""), _reversed{false}, _depth{0}{}
 
     molecule_descriptor(const string &id, bool reversed) : _id(id), _reversed(reversed), _depth(1) {}
 
@@ -876,6 +876,11 @@ public:
         }
         return buffer.str();
     }
+    
+    molecule_descriptor *concat(const molecule_descriptor &other) {
+        _segments.insert(_segments.end(), other._segments.begin(), other._segments.end());
+        return this;
+    }
 
     friend std::ostream &operator<<(std::ostream &ost, const molecule_descriptor &md) {
         print_tsv(ost, "+" + md._id, md._depth, md.dump_comment());
@@ -887,6 +892,19 @@ public:
     }
 };
 
+inline
+molecule_descriptor flip_molecule(const molecule_descriptor &md){
+    molecule_descriptor flipped_md{md.get_id(), md._reversed};
+    for(const auto &segment : md.cget_segments() | std::views::reverse){
+        auto flipped_segment = segment;
+        flipped_segment.plus_strand = !flipped_segment.plus_strand;
+        flipped_md.append_segment(flipped_segment);
+    }
+    flipped_md.meta = md.meta;
+    flipped_md.depth(md.get_depth());
+
+    return flipped_md;
+}
 /*
 // pcr copy structure that tracks pcr errors introduced
 struct pcr_copy {

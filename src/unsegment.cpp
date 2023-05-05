@@ -1,47 +1,25 @@
-#include "shuffle.h"
+#include "unsegment.h"
+
 #include <cxxopts.hpp>
+#include <fstream>
 #include <random>
 #include <string>
 #include <vector>
-#include <fstream>
-#include <limits>
 
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
 #include "util.h"
 
-using std::string;
-using std::vector;
 using std::ifstream;
 using std::ofstream;
+using std::string;
+using std::vector;
+using namespace std::string_literals;
 
 #include "pimpl.h"
 
-
-class Shuffle_module::impl : public tksm_module {
-
-    void shuffle_stream( const string &input_file, ostream &output, size_t buffer_size = std::numeric_limits<size_t>::max()) {
-        std::uniform_int_distribution<size_t> disko(0, buffer_size - 1);
-        vector<molecule_descriptor> buffer;
-
-        for(auto &md : stream_mdf(input_file, true)) {
-            if(buffer_size > buffer.size()){
-                buffer.push_back(md);
-            }
-            else{
-                size_t pos = disko(rand_gen);
-                output << buffer[pos];
-                buffer[pos] = md;
-            }
-        }
-        if(buffer.size() > 0) {
-            std::ranges::shuffle(buffer, rand_gen);
-            for(auto &md : buffer) {
-                output << md;
-            }
-        }
-    }
+class Unsegment_module::impl : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
@@ -54,11 +32,14 @@ class Shuffle_module::impl : public tksm_module {
                 "output mdf file",
                 cxxopts::value<string>()
             )(
-                "buffer-size",
-                "Sets the buffer size for shuffling, if not set, the whole file is read into memory",
-                cxxopts::value<size_t>()
-            )
-
+                "p,probability",
+                "probability of concatenation",
+                cxxopts::value<double>()
+            )(
+                "f,flip-probability",
+                "probability of flipping the attached molecule",
+                cxxopts::value<double>()->default_value("0.5")
+             )
             ;
         // clang-format on
         return options.parse(argc, argv);
@@ -67,12 +48,13 @@ class Shuffle_module::impl : public tksm_module {
     cxxopts::ParseResult args;
 
 public:
-    impl(int argc, char **argv) : tksm_module{"shuffle", "shuffles mdfs"}, args(parse(argc, argv)) {}
+    impl(int argc, char **argv)
+        : tksm_module{"Unsegment", "Concatenate adjacent molecules with a probability"}, args(parse(argc, argv)) {}
 
     ~impl() = default;
 
     int validate_arguments() {
-        std::vector<string> mandatory = {"input", "output"};
+        std::vector<string> mandatory = {"input", "output", "probability"};
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
@@ -97,33 +79,50 @@ public:
         }
         describe_program();
 
-        string input_file  = args["input"].as<string>();
+        string input_file = args["input"].as<string>();
 
         string output_file = args["output"].as<string>();
+
+        double probability = args["probability"].as<double>();
+        double fp          = args["flip-probability"].as<double>();
+
+        ifstream input(input_file);
+
         ofstream output(output_file);
 
-        size_t buffer_size = [&] () ->size_t{
-            if(args["buffer-size"].count() > 0 ){
-                return args["buffer-size"].as<size_t>();
+        molecule_descriptor current;
+        std::uniform_real_distribution<double> dist(0.0, 1.0);
+
+        for (auto &md : stream_mdf(input)) {
+            if (current.get_id() == "") {
+                current = md;
+                continue;
             }
-            else{
-                return std::numeric_limits<size_t>::max();
+            if (dist(rand_gen) < probability) {
+                if (dist(rand_gen) < fp) {
+                    current.concat(flip_molecule(md));
+                }
+                else {
+                    current.concat(md);
+                }
+                current.add_comment("Cat", md.get_id());
+            }
+            else {
+                output << current;
+                current = md;
             }
         }
-        ();
-
-        shuffle_stream( input_file, output, buffer_size);
         return 0;
     }
 
     void describe_program() {
-        logi("Running Shuffle Module");
+        logi("Running {}", program_name);
         logi("Input file: {}", args["input"].as<string>());
         logi("Output file: {}", args["output"].as<string>());
-        //Other parameters logs are here
+        // Other parameters logs are here
         fmtlog::poll(true);
     }
 };
 
-MODULE_IMPLEMENT_PIMPL_CLASS(Shuffle_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(Unsegment_module);
 
