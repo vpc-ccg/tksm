@@ -245,7 +245,7 @@ def reverse_complement(seq):
 rule all:
     input:
         [
-            f"{plots_d}/{r}/{'.'.join(p['data'])}.svg"
+            f"{plots_d}/{r}/{'.'.join(p['data'])}.{'png' if r.startswith('tpm_plot') else 'pdf'}"
             for p in config["plots"]
             for r in p["rules"]
         ],
@@ -258,7 +258,7 @@ rule raw_lengths:
             [get_sample_fastqs(s) for s in wc.samples.split(".")]
         ),
     output:
-        svg=f"{plots_d}/raw_lengths/{{samples}}.svg",
+        pdf=f"{plots_d}/raw_lengths/{{samples}}.pdf",
         png=f"{plots_d}/raw_lengths/{{samples}}.png",
     params:
         bins=50,
@@ -300,7 +300,7 @@ rule raw_lengths:
             print(f"{sample} length median: {np.median(lens):.2f}")
         plt.legend()
         plt.title("Length distribution (whole reads)")
-        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
 
 
@@ -310,7 +310,7 @@ rule mapped_raw_lengths:
             f"{preproc_d}/minimap2/{s}.cDNA.paf" for s in wc.samples.split(".")
         ],
     output:
-        svg=f"{plots_d}/mapped_raw_lengths/{{samples}}.svg",
+        pdf=f"{plots_d}/mapped_raw_lengths/{{samples}}.pdf",
         png=f"{plots_d}/mapped_raw_lengths/{{samples}}.png",
     params:
         bins=50,
@@ -355,7 +355,7 @@ rule mapped_raw_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (whole reads from PAF)")
-        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
 
 
@@ -365,7 +365,7 @@ rule mapped_lengths:
             f"{preproc_d}/minimap2/{s}.cDNA.paf" for s in wc.samples.split(".")
         ],
     output:
-        svg=f"{plots_d}/mapped_lengths/{{samples}}.svg",
+        pdf=f"{plots_d}/mapped_lengths/{{samples}}.pdf",
         png=f"{plots_d}/mapped_lengths/{{samples}}.png",
     params:
         bins=50,
@@ -410,7 +410,7 @@ rule mapped_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (mapping part of reads from PAF)")
-        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
 
 
@@ -454,7 +454,7 @@ rule substitution:
             for s in wc.samples.split(".")
         ],
     output:
-        svg=f"{plots_d}/substitution/{{samples}}.svg",
+        pdf=f"{plots_d}/substitution/{{samples}}.pdf",
         png=f"{plots_d}/substitution/{{samples}}.png",
     params:
         bins=50,
@@ -511,7 +511,7 @@ rule substitution:
         ):
             axs[i].set_title(f"{title} per 100 bases")
         fig.tight_layout()
-        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
 
 
@@ -521,7 +521,7 @@ rule polyA:
             [get_sample_fastqs(s) for s in wc.samples.split(".")]
         ),
     output:
-        svg=f"{plots_d}/polyA/{{samples}}.svg",
+        pdf=f"{plots_d}/polyA/{{samples}}.pdf",
         png=f"{plots_d}/polyA/{{samples}}.png",
     params:
         bins=30,
@@ -576,7 +576,7 @@ rule polyA:
             )
         plt.legend()
         plt.title("Poly(A,T) length distribution")
-        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
 
 
@@ -746,7 +746,6 @@ rule tpm_plot:
             for s in wc.samples.split(".")
         ],
     output:
-        svg=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.svg",
         png=f"{plots_d}/tpm_plot_{{tpm_method}}{{merge_type}}/{{samples}}.png",
     wildcard_constraints:
         tpm_method="|".join(tpm_method_settings.keys()),
@@ -817,44 +816,72 @@ def get_tpm(
     return tpm
 
 
-def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title):
+def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
     plt.rc("font", size=22)
 
     plot_count = len(samples) - 1
-    fig, axs = plt.subplots(
-        plot_count,
-        3,
-        sharex=True,
-        sharey=True,
-        figsize=(10 * 3, 10 * plot_count),
-        squeeze=False,
-    )
+    unions = [
+        (lambda xy: xy[0], "Transcripts in input (regardless of sample)"),
+        # (lambda xy: xy[0] & xy[1], "Transcripts in sample AND in input"),
+        # (lambda xy: xy[0] | xy[1], "Transcripts in sample OR in input"),
+    ]
+    if flip == False:
+        fig, axs = plt.subplots(
+            plot_count,
+            len(unions),
+            sharex=True,
+            sharey=True,
+            figsize=(
+                10 * len(unions),
+                10 * plot_count,
+            ),
+            squeeze=False,
+        )
+    else:
+        fig, axs = plt.subplots(
+            len(unions),
+            plot_count,
+            sharex=True,
+            sharey=True,
+            figsize=(
+                10 * plot_count,
+                10 * len(unions),
+            ),
+            squeeze=False,
+        )
     fig.suptitle(title, fontsize=30)
-    axs[0, 0].set_title("Transcripts in sample AND in input", fontsize=28)
-    axs[0, 1].set_title("Transcripts in sample OR in input", fontsize=28)
-    axs[0, 2].set_title("Transcripts in input (regardless of sample)", fontsize=28)
+    
+    if flip == False:
+        for (_, title), ax in zip(unions, axs[0]):
+            ax.set_title(title, fontsize=28)
+        for sample, ax in zip(samples[1:], axs[:, 0]):
+            ax.set_ylabel(f"TPM in {sample}", fontsize=28)
+        for ax in axs[-1]:
+            ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+    else:
+        pass
+        for c_idx, sample in enumerate(samples[1:]):
+            for ax in axs[:,c_idx]:
+                ax.set_ylabel(f"TPM in {sample}", fontsize=28)
+                if c_idx == 0 and len(unions)>1:
+                    title = unions[c_idx][1]
+                    ax.set_ylabel(f"{title}\n\nTPM in {sample}", fontsize=28)
 
-    for sample, ax in zip(samples[1:], axs[:, 0]):
-        ax.set_ylabel(f"TPM in {sample}", fontsize=28)
-    for ax in axs[-1]:
-        ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+        for ax in axs[-1, :]:
+            ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+
     X_tids = set(X_tpm.keys())
     for idx, (sample, Y_tpm) in enumerate(zip(samples[1:], Y_tpms)):
         Y_tids = set(Y_tpm.keys())
-
-        ax = axs[idx, 0]
-        for ax, select_tids in zip(
-            axs[idx],
-            [
-                X_tids & Y_tids,
-                X_tids | Y_tids,
-                X_tids,
-            ],
+        for ax, (select_tids_func, _) in zip(
+            axs[idx] if not flip else axs[:, idx],
+            unions,
         ):
+            select_tids = select_tids_func((X_tids, Y_tids))
             X = np.array([X_tpm[tid] for tid in select_tids])
             Y = np.array([Y_tpm[tid] for tid in select_tids])
             ax.plot(X, Y, "o", alpha=0.5, label=sample)
-            ax.text(
+            t = ax.text(
                 0.15,
                 0.75,
                 f"N = {len(select_tids)}\n"
@@ -863,6 +890,8 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title):
                 + f"RMSE = {mean_squared_error(X,Y, squared=False):.1f}",
                 transform=ax.transAxes,
             )
+            t.set_bbox(dict(facecolor='red', alpha=0.5, edgecolor='red'))
+
             ax.set_xscale("log")
             ax.set_yscale("log")
     fig.tight_layout()
@@ -901,7 +930,7 @@ rule lr_cell_plot:
             for s in wc.samples.split(".")
         ],
     output:
-        svg=f"{plots_d}/lr_sr_adapt/{{samples}}.svg",
+        pdf=f"{plots_d}/lr_sr_adapt/{{samples}}.pdf",
         png=f"{plots_d}/lr_sr_adapt/{{samples}}.png",
     run:
         samples = wildcards.samples.split(".")
@@ -938,5 +967,5 @@ rule lr_cell_plot:
                 )
             ax.legend()
         plt.legend()
-        plt.savefig(output.svg, dpi=300)
+        plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
