@@ -816,48 +816,72 @@ def get_tpm(
     return tpm
 
 
-def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title):
+def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
     plt.rc("font", size=22)
 
     plot_count = len(samples) - 1
     unions = [
+        (lambda xy: xy[0], "Transcripts in input (regardless of sample)"),
         # (lambda xy: xy[0] & xy[1], "Transcripts in sample AND in input"),
         # (lambda xy: xy[0] | xy[1], "Transcripts in sample OR in input"),
-        (lambda xy: xy[0], "Transcripts in input"),
     ]
-    fig, axs = plt.subplots(
-        plot_count,
-        len(unions),
-        sharex=True,
-        sharey=True,
-        figsize=(
-            10 * len(unions),
-            10 * plot_count,
-        ),
-        squeeze=False,
-    )
+    if flip == False:
+        fig, axs = plt.subplots(
+            plot_count,
+            len(unions),
+            sharex=True,
+            sharey=True,
+            figsize=(
+                10 * len(unions),
+                10 * plot_count,
+            ),
+            squeeze=False,
+        )
+    else:
+        fig, axs = plt.subplots(
+            len(unions),
+            plot_count,
+            sharex=True,
+            sharey=True,
+            figsize=(
+                10 * plot_count,
+                10 * len(unions),
+            ),
+            squeeze=False,
+        )
     fig.suptitle(title, fontsize=30)
-    if len(unions) > 1:
-        for ax, (_, title) in zip(axs[0], unions):
+    
+    if flip == False:
+        for (_, title), ax in zip(unions, axs[0]):
             ax.set_title(title, fontsize=28)
+        for sample, ax in zip(samples[1:], axs[:, 0]):
+            ax.set_ylabel(f"TPM in {sample}", fontsize=28)
+        for ax in axs[-1]:
+            ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+    else:
+        pass
+        for c_idx, sample in enumerate(samples[1:]):
+            for ax in axs[:,c_idx]:
+                ax.set_ylabel(f"TPM in {sample}", fontsize=28)
+                if c_idx == 0 and len(unions)>1:
+                    title = unions[c_idx][1]
+                    ax.set_ylabel(f"{title}\n\nTPM in {sample}", fontsize=28)
 
-    for sample, ax in zip(samples[1:], axs[:, 0]):
-        ax.set_ylabel(f"TPM in {sample}", fontsize=28)
-    for ax in axs[-1]:
-        ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+        for ax in axs[-1, :]:
+            ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+
     X_tids = set(X_tpm.keys())
     for idx, (sample, Y_tpm) in enumerate(zip(samples[1:], Y_tpms)):
         Y_tids = set(Y_tpm.keys())
-        ax = axs[idx, 0]
         for ax, (select_tids_func, _) in zip(
-            axs[idx],
+            axs[idx] if not flip else axs[:, idx],
             unions,
         ):
             select_tids = select_tids_func((X_tids, Y_tids))
             X = np.array([X_tpm[tid] for tid in select_tids])
             Y = np.array([Y_tpm[tid] for tid in select_tids])
             ax.plot(X, Y, "o", alpha=0.5, label=sample)
-            ax.text(
+            t = ax.text(
                 0.15,
                 0.75,
                 f"N = {len(select_tids)}\n"
@@ -866,6 +890,8 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title):
                 + f"RMSE = {mean_squared_error(X,Y, squared=False):.1f}",
                 transform=ax.transAxes,
             )
+            t.set_bbox(dict(facecolor='red', alpha=0.5, edgecolor='red'))
+
             ax.set_xscale("log")
             ax.set_yscale("log")
     fig.tight_layout()
