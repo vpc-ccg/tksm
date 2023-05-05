@@ -268,6 +268,46 @@ rule truncate:
         " -o {output.mdf}"
         " {params.other}"
 
+rule unsegment:
+    input:
+        obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
+        mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
+        time=ancient(time_tsv) if config["benchmark_time"] else list(),
+    output:
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Uns.mdf"),
+    params:
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Uns")["params"],
+        binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt=exprmnts_re,
+    shell:
+        f"{format_gnu_time_string(process='unsegment')}"
+        "{params.binary} unsegment"
+        " -i {input.mdf}"
+        " -o {output.mdf}"
+        " {params.other}"
+
+
+
+rule shuffle:
+    input:
+        obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
+        mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
+        time=ancient(time_tsv) if config["benchmark_time"] else list(),
+    output:
+        mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Shf.mdf"),
+    params:
+        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Shf")["params"],
+        binary=config["exec"]["tksm"],
+    wildcard_constraints:
+        exprmnt=exprmnts_re,
+    shell:
+        f"{format_gnu_time_string(process='shuffle')}"
+        "{params.binary} shuffle"
+        " -i {input.mdf}"
+        " -o {output.mdf}"
+        " {params.other}"
+
 
 rule flip:
     input:
