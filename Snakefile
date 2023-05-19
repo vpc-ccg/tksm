@@ -11,7 +11,6 @@ if len(config) == 0:
 outpath = config["outpath"]
 preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
-time_d = f"{outpath}/time"
 time_tsv = f"{outpath}/time.tsv"
 exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
@@ -268,6 +267,7 @@ rule truncate:
         " -o {output.mdf}"
         " {params.other}"
 
+
 rule unsegment:
     input:
         obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
@@ -286,7 +286,6 @@ rule unsegment:
         " -i {input.mdf}"
         " -o {output.mdf}"
         " {params.other}"
-
 
 
 rule shuffle:

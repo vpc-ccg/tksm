@@ -34,8 +34,8 @@ outpath = config["outpath"]
 preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
 NS_d = f"{outpath}/NS"
-time_d = f"{outpath}/time"
 plots_d = f"{outpath}/plots"
+
 
 ### Import TKSM Snakemake rules
 use rule * from TS_smk as TS_*
@@ -52,6 +52,7 @@ use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         time=ancient(TS_smk.time_tsv),
+
 
 def get_sample_ref_names(sample):
     try:
@@ -89,6 +90,7 @@ def get_sample_fastqs(name):
 
 def NS_exprmnt_sample(exprmnt):
     return config["NS_experiments"][exprmnt]["sample"]
+
 
 ### Trans-Nanosim rules
 rule NS_analysis:
@@ -479,12 +481,10 @@ rule substitution:
         ):
             counts = tuple(list() for _ in titles)
             for line in tqdm(open(tsv, "r"), desc=f"[substitution] Processing {tsv}"):
-                stats = [
-                    int(float(x)) for x in line.rstrip().split("\t")
-                ]
+                stats = [int(float(x)) for x in line.rstrip().split("\t")]
                 assert len(stats) == 5, line
                 l100 = 100 / stats[4]
-                for c,s in zip(counts, stats[:4]):
+                for c, s in zip(counts, stats[:4]):
                     c.append(l100 * s)
             counts = tuple(np.array(c) for c in counts)
             for i in range(len(counts)):
@@ -636,8 +636,6 @@ rule minimap_dna:
     output:
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
         bai=f"{preproc_d}/minimap2/{{sample}}.DNA.bam.bai",
-    benchmark:
-        f"{time_d}/{{sample}}/minimap2_cdna.benchmark"
     threads: 32
     shell:
         "minimap2"
@@ -844,7 +842,7 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
             squeeze=False,
         )
     fig.suptitle(title, fontsize=30)
-    
+
     if flip == False:
         for (_, title), ax in zip(unions, axs[0]):
             ax.set_title(title, fontsize=28)
@@ -855,9 +853,9 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
     else:
         pass
         for c_idx, sample in enumerate(samples[1:]):
-            for ax in axs[:,c_idx]:
+            for ax in axs[:, c_idx]:
                 ax.set_ylabel(f"TPM in {sample}", fontsize=28)
-                if c_idx == 0 and len(unions)>1:
+                if c_idx == 0 and len(unions) > 1:
                     title = unions[c_idx][1]
                     ax.set_ylabel(f"{title}\n\nTPM in {sample}", fontsize=28)
 
@@ -884,8 +882,7 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
                 + f"RMSE = {mean_squared_error(X,Y, squared=False):.1f}",
                 transform=ax.transAxes,
             )
-            t.set_bbox(dict(facecolor='red', alpha=0.5, edgecolor='red'))
-
+            t.set_bbox(dict(facecolor="red", alpha=0.5, edgecolor="red"))
             ax.set_xscale("log")
             ax.set_yscale("log")
     fig.tight_layout()
@@ -917,6 +914,64 @@ rule lr_cell_stats:
         " -o {params.outpath}"
 
 
+rule lr_cell_matching:
+    input:
+        script=config["exec"]["lr_cell_matching"],
+        barcodes=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+    output:
+        tsv=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_matching.tsv",
+    threads: 64
+    shell:
+        "python3 {input.script}"
+        " -i {input.reads}"
+        " -b {input.barcodes}"
+        " -o {output.tsv}"
+        " -t {threads}"
+
+
+rule lr_cell_matching_plot:
+    input:
+        tsvs=lambda wc: [
+            f"{plots_d}/lr_cell_stats/{s}.lr_cell_matching.tsv"
+            for s in wc.samples.split(".")
+        ],
+    output:
+        pdf=f"{plots_d}/lr_cell_matching_plot/{{samples}}.pdf",
+        png=f"{plots_d}/lr_cell_matching_plot/{{samples}}.png",
+    run:
+        samples = wildcards.samples.split(".")
+        fig = plt.figure(figsize=(8, 4))
+        ax = fig.add_subplot(111)
+        ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter())
+        width = 0.4
+        counts = dict()
+        for IDX, (tsv, sample) in enumerate(zip(input.tsvs, samples)):
+            for idx, l in enumerate(open(tsv)):
+                if idx == 0:
+                    continue
+                l = l.rstrip("\n").split("\t")
+                k = tuple(l[:2])
+                v = float(l[3].strip("%"))
+                if not k in counts:
+                    counts[k] = [0.0 for _ in samples]
+                counts[k][IDX] = v
+        x_ticks, Y = zip(*sorted(counts.items()))
+        x_ticks = [f"{x[0]}\n d={x[1]}" for x in x_ticks]
+        X = np.array(np.arange(len(x_ticks)), dtype=float)
+        ax.set_xticks(X + (len(samples)-1)*width/2, x_ticks)
+
+        for sample, sample_Y in zip(samples, zip(*Y)):
+            ax.bar(X, sample_Y, label=sample, width=width)
+            for x,y in zip(X, sample_Y):
+                plt.text(x, y+.5 if y < 6.5 else y-6.5, f'{y:.1f}%', ha = 'center', size="small", rotation=-60)
+            X += width
+        plt.legend()
+        fig.tight_layout()
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
+
+
 rule lr_cell_plot:
     input:
         reads_pickles=lambda wc: [
@@ -929,7 +984,9 @@ rule lr_cell_plot:
     run:
         samples = wildcards.samples.split(".")
         fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
-        fig.suptitle(f"Density distribution of long-reads, with a single primary alignment, in terms of strand and Illumina adapter mapping location")
+        fig.suptitle(
+            f"Density distribution of long-reads, with a single primary alignment,\n in terms of strand and Illumina adapter mapping location"
+        )
         sample_reads = list()
         for p in tqdm(
             input.reads_pickles,
@@ -938,10 +995,7 @@ rule lr_cell_plot:
         ):
             sample_reads.append(pickle.load(open(p, "rb")))
         totals = [
-            sum([
-                1 for read in reads
-                if len(read["mappings"])==1
-            ])
+            sum([1 for read in reads if len(read["mappings"]) == 1])
             for reads in sample_reads
         ]
         for ax, Tstrand in zip(axes, ["+", "-"]):
@@ -958,22 +1012,30 @@ rule lr_cell_plot:
                     tid, tstrand = list(read["mappings"])[0][:2]
                     if tstrand != Tstrand:
                         continue
-                    vals[read["br_seg"][1]] += 1/total
+                    vals[read["br_seg"][1]] += 1 / total
                 bin_edges = np.arange(-150, 151, 5)
-                keys,weights = zip(*vals.items())
+                keys, weights = zip(*vals.items())
                 hist, _ = np.histogram(keys, bins=bin_edges, weights=weights)
-                MIN_VAL
+                print(hist)
+                MIN_VAL = 0.01
                 f = 0
-                for i,v in enumerate(hist):
+                for i, v in enumerate(hist):
                     if v > MIN_VAL:
                         f = i
                         break
                 l = len(hist)
-                for i,v in enumerate(reversed(hist)):
+                for i, v in enumerate(reversed(hist)):
                     if v > MIN_VAL:
-                        l = len(hist)-i
+                        l = len(hist) - i
                         break
-                ax.bar(bin_edges[f:l+1], hist[f:l+1], width=5, align='edge', alpha=0.3, label=sample)
+                ax.bar(
+                    bin_edges[f:l],
+                    hist[f:l],
+                    width=5,
+                    align="edge",
+                    alpha=0.3,
+                    label=sample,
+                )
             ax.legend()
         fig.tight_layout()
         plt.savefig(output.pdf, dpi=300)

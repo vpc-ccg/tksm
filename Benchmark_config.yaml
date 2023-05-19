@@ -97,12 +97,10 @@ plots:
             mapped_lengths,
             substitution,
             polyA,
-            tpm_plot_tksm,
-            tpm_plot_tksm.by_gene,
             tpm_plot_tksm_sc.by_gene,
-            tpm_plot_liqa,
             tpm_plot_minimap2,
             lr_sr_adapt,
+            lr_cell_matching_plot,
         ],
         data: [
             N1,
@@ -127,28 +125,12 @@ plots:
             nanosim_bulk,
         ],
     }
-    # - {
-    #     rules: [
-    #         raw_lengths,
-    #         mapped_raw_lengths,
-    #         mapped_lengths,
-    #         substitution,
-    #         polyA,
-    #         tpm_plot_tksm,
-    #         tpm_plot_liqa,
-    #         tpm_plot_minimap2,
-    #         tpm_plot_nanosim,
-    #     ],
-    #     data: [
-    #         MCF7-sgnex,
-    #         TKSM_gene_fusion,
-    #     ],
-    # }
 
 exec:
     tksm: build/bin/tksm
     tNS_analyze: simulator.py
     lr_cell_stats: py/lr_cell_stats.py
+    lr_cell_matching: py/lr_cell_matching.py
 
 refs:
     Homo_sapiens:
@@ -168,5 +150,5 @@ samples:
         ref: Homo_sapiens
     "N1":
         fastq:
-            - data/samples/N1.fastq
+            - data/samples/N1.fastq.gz
         ref: Homo_sapiens
