@@ -1,0 +1,110 @@
+outpath: output
+enable_piping: true
+benchmark_time: true
+
+TS_experiments:
+    P_TKSM_bulk:
+        pipeline:
+            - Tsb:
+                params: "--molecule-count 1000000"
+                model: "MCF7-sgnex"
+                mode: Xpr
+            - Trc:
+                params: ""
+                model: "MCF7-sgnex"
+            - plA:
+                params: "--normal=15,7.5"
+            - Flp:
+                params: "-p 0.5"
+            - Tag:
+                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    # P_TKSM_single_cell_head:
+    #     pipeline:
+    #         - Tsb:
+    #             params: "--molecule-count 1000000"
+    #             model: "N1"
+    #             mode: Xpr_sc
+    #         - Trc:
+    #             params: ""
+    #             model: "N1"
+    # P_TKSM_single_cell_p1:
+    #     pipeline:
+    #         - Mrg:
+    #             sources: ["P_TKSM_single_cell_head",]
+    #         - Flt:
+    #             params: "-c \"info CB\""
+    #         - plA:
+    #             params: "--normal=15,7.5"
+    #         - Tag: 
+    #             params: "--format3 10"
+    #         - SCB: 
+    #             params: ""
+    #         - Tag:
+    #             params: "--format3 AGATCGGAAGAGCGTCGTGTAG"
+    # P_TKSM_single_cell_p2:
+    #     pipeline:
+    #         - Mrg:
+    #             sources: ["P_TKSM_single_cell_head",]
+    #         - Flt:
+    #             params: "-c \"info CB\" --negate"
+    # P_TKSM_single_cell:
+    #     pipeline:
+    #         - Mrg:
+    #             sources: ["P_TKSM_single_cell_p1", "P_TKSM_single_cell_p2"]
+    #         - PCR:
+    #             params: "--cycles 5 --molecule-count 5000000 -x Taq-setting1"
+    #         - Flp:
+    #             params: "-p 0.5"
+    #         - Tag:
+    #             params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
+    #         - Seq:
+    #             params: "--skip-qual-compute"
+    #             model: "N1"
+    # P_TKSM_gene_fusion:
+    #     pipeline:
+    #         - Tsb:
+    #             params: "--molecule-count 1000000 --fusion-count 100"
+    #             model: "MCF7-sgnex"
+    #             mode: Xpr
+    #         - Trc:
+    #             params: ""
+    #             model: "MCF7-sgnex"
+    #         - plA:
+    #             params: "--normal=15,7.5"
+    #         - PCR:
+    #             params: "--cycles 5 --molecule-count 5000000 -x Taq-setting1"
+    #         - Flp:
+    #             params: "-p 0.5"
+    #         - Tag:
+    #             params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
+    #         - Seq:
+    #             params: "--skip-qual-compute"
+    #             model: "MCF7-sgnex"
+
+
+exec:
+    tksm: build/bin/tksm
+
+refs:
+    Homo_sapiens:
+        cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr.fa
+        DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+        GTF: data/refs/Homo_sapiens.GRCh38.108.chr.gtf
+    Homo_sapiens_chr21:
+        cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr21.fa
+        DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.chr21.fa
+        GTF: data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
+    10x_bc: data/refs/3M-february-2018.txt.gz
+
+samples:
+    "MCF7-sgnex":
+        fastq:
+            - data/samples/MCF7-sgnex.fastq.gz
+        ref: Homo_sapiens
+    "N1":
+        fastq:
+            - data/samples/N1.fastq
+        ref: Homo_sapiens

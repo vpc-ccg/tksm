@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import gzip
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 from tqdm import tqdm
 

@@ -1,9 +1,10 @@
-#include "strand_man.h"
+#include "shuffle.h"
 #include <cxxopts.hpp>
 #include <random>
 #include <string>
 #include <vector>
 #include <fstream>
+#include <limits>
 
 #include "interval.h"
 #include "mdf.h"
@@ -17,7 +18,30 @@ using std::ofstream;
 
 #include "pimpl.h"
 
-class StrandMan_module::impl : public tksm_module {
+
+class Shuffle_module::impl : public tksm_module {
+
+    void shuffle_stream( const string &input_file, ostream &output, size_t buffer_size = std::numeric_limits<size_t>::max()) {
+        std::uniform_int_distribution<size_t> disko(0, buffer_size - 1);
+        vector<molecule_descriptor> buffer;
+
+        for(auto &md : stream_mdf(input_file, true)) {
+            if(buffer_size > buffer.size()){
+                buffer.push_back(md);
+            }
+            else{
+                size_t pos = disko(rand_gen);
+                output << buffer[pos];
+                buffer[pos] = md;
+            }
+        }
+        if(buffer.size() > 0) {
+            std::ranges::shuffle(buffer, rand_gen);
+            for(auto &md : buffer) {
+                output << md;
+            }
+        }
+    }
     cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
@@ -30,10 +54,11 @@ class StrandMan_module::impl : public tksm_module {
                 "output mdf file",
                 cxxopts::value<string>()
             )(
-                "p,flip-probability",
-                "probability of flipping the strand of a molecule",
-                cxxopts::value<double>()
+                "buffer-size",
+                "Sets the buffer size for shuffling, if not set, the whole file is read into memory",
+                cxxopts::value<size_t>()
             )
+
             ;
         // clang-format on
         return options.parse(argc, argv);
@@ -41,45 +66,26 @@ class StrandMan_module::impl : public tksm_module {
 
     cxxopts::ParseResult args;
 
-    
-    std::uniform_real_distribution<double> dist{0.0, 1.0};
-
-    auto strand_flip_transformer(double flip_probability = 0) {
-        return std::ranges::views::transform([&, flip_probability](auto &md) {
-            if(dist(rand_gen) < flip_probability){
-                return flip_molecule(md);
-            }
-            return md;
-        });
-    }
 public:
-    impl(int argc, char **argv) : tksm_module{"<MODULE>", "<MODULE> description"}, args(parse(argc, argv)) {}
+    impl(int argc, char **argv) : tksm_module{"shuffle", "shuffles mdfs"}, args(parse(argc, argv)) {}
 
     ~impl() = default;
 
     int validate_arguments() {
-        std::vector<string> mandatory = {"input", "output", "flip-probability"};
+        std::vector<string> mandatory = {"input", "output"};
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
-                report_missing_parameter(param);
+                loge("{} is required!", param);
                 ++missing_parameters;
             }
         }
-        
+        // Other parameter checks here
 
         if (missing_parameters > 0) {
             fmt::print(stderr, "{}\n", options.help());
             return 1;
         }
-
-        // Other parameter checks here
-
-        if( args["flip-probability"].as<double>() < 0.0 || args["flip-probability"].as<double>() > 1.0){
-            loge("Flip probability must be between 0 and 1");
-            ++missing_parameters;
-        }
-
         return 0;
     }
     int run() {
@@ -94,29 +100,30 @@ public:
         string input_file  = args["input"].as<string>();
 
         string output_file = args["output"].as<string>();
-
-        ifstream input(input_file);
-
         ofstream output(output_file);
 
-        double flip_probability = args["flip-probability"].as<double>();
-        for(const auto &md : stream_mdf(args["input"].as<string>(), true) | strand_flip_transformer(flip_probability)){
-            output << md;
+        size_t buffer_size = [&] () ->size_t{
+            if(args["buffer-size"].count() > 0 ){
+                return args["buffer-size"].as<size_t>();
+            }
+            else{
+                return std::numeric_limits<size_t>::max();
+            }
         }
+        ();
+
+        shuffle_stream( input_file, output, buffer_size);
         return 0;
     }
 
     void describe_program() {
-        logi("Running [Flip module]");
+        logi("Running Shuffle Module");
         logi("Input file: {}", args["input"].as<string>());
         logi("Output file: {}", args["output"].as<string>());
-            
-        logi("Molecule flip probability: {}%", args["flip-probability"].as<double>()*100.0);
-
-
+        //Other parameters logs are here
         fmtlog::poll(true);
     }
 };
 
-MODULE_IMPLEMENT_PIMPL_CLASS(StrandMan_module);
+MODULE_IMPLEMENT_PIMPL_CLASS(Shuffle_module);
 

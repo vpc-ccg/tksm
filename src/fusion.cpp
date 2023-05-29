@@ -765,6 +765,10 @@ public:
         for( const transcript &t : 
             compute_fusion_transcripts(relevant_molecules, genes, gene_expression_map, transcript_to_tpcm,
                                        transcript_id_to_genes, transcript_templates, args)){
+            if(t.cget_exons().empty()){
+                logd("Skipping empty fusion transcript {}", t.info.at("transcript_id"));
+                continue;
+            }
             abundances.emplace_back(t.info.at("transcript_id"), t.get_abundance(), t.info.at("CB"));
             transcript_templates.emplace(t.info.at("transcript_id"),t);
         }

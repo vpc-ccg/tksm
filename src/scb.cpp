@@ -1,4 +1,4 @@
-#include "single-cell-barcoder.h"
+#include "scb.h"
 
 #include <cxxopts.hpp>
 #include <random>
@@ -36,7 +36,7 @@ class SingleCellBarcoder_module::impl : public tksm_module {
 
 public:
     impl(int argc, char **argv)
-        : tksm_module{"single-cell-barcoder", "Single cell barcode module"}, args(parse(argc, argv)) {}
+        : tksm_module{"scb", "Single cell barcode module"}, args(parse(argc, argv)) {}
     ~impl() {}
 
     int validate_arguments() {

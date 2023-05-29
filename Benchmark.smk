@@ -34,10 +34,10 @@ outpath = config["outpath"]
 preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
 NS_d = f"{outpath}/NS"
-time_d = f"{outpath}/time"
 plots_d = f"{outpath}/plots"
 
 
+### Import TKSM Snakemake rules
 use rule * from TS_smk as TS_*
 
 
@@ -45,13 +45,128 @@ use rule minimap_cdna from TS_smk as TS_minimap_cdna with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
 
 
 use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
+        time=ancient(TS_smk.time_tsv),
 
 
+def get_sample_ref_names(sample):
+    try:
+        # Try should work for TSKM and real samples
+        return TS_smk.get_sample_ref_names(sample)
+    except ValueError:
+        if sample in config["NS_experiments"]:
+            return TS_smk.get_sample_ref_names(
+                config["NS_experiments"][sample]["sample"]
+            )
+        raise ValueError(f"Invalid sample name! {sample}")
+
+
+def get_sample_ref(sample, ref_type):
+    ref_names = get_sample_ref_names(sample)
+    ref_name = ":".join(ref_names)
+    if ref_type in ["DNA", "cDNA"]:
+        file_type = "fasta"
+    elif ref_type == "GTF":
+        file_type = "gtf"
+    else:
+        raise ValueError(f"Invalid reference type! {ref_type}")
+    return f"{preproc_d}/refs/{ref_name}.{ref_type}.{file_type}"
+
+
+def get_sample_fastqs(name):
+    try:
+        return TS_smk.get_sample_fastqs(name)
+    except ValueError:
+        if name in config["NS_experiments"]:
+            exprmnt = name
+            return [f"{NS_d}/{exprmnt}/simulation_aligned_reads.fasta"]
+        raise ValueError(f"Invalid experiment/sample name! {name}")
+
+
+def NS_exprmnt_sample(exprmnt):
+    return config["NS_experiments"][exprmnt]["sample"]
+
+
+### Trans-Nanosim rules
+rule NS_analysis:
+    input:
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+        dna=lambda wc: get_sample_ref(wc.sample, "DNA"),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        analysis_dir=directory(f"{NS_d}/{{sample}}/analysis"),
+    params:
+        output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
+    threads: 32
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_analysis', exprmnt='{wildcards.sample}', prefix='')}"
+        "read_analysis.py transcriptome"
+        " -i {input.reads}"
+        " -rg {input.dna}"
+        " -rt {input.cdna}"
+        " --annotation {input.gtf}"
+        " -o {params.output_prefix}"
+        " -t {threads}"
+        " --no_intron_retention"
+
+
+rule NS_quantify:
+    input:
+        reads=lambda wildcards: get_sample_fastqs(wildcards.sample),
+        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        quantify_tsv=f"{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv",
+    params:
+        output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
+    threads: 32
+    resources:
+        time=60 * 6 - 1,
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_quantify', exprmnt='{wildcards.sample}', prefix='')}"
+        "read_analysis.py quantify"
+        " -i {input.reads} "
+        " -rt {input.cdna}"
+        " -o {params.output_prefix}"
+        " -t {threads}"
+        " -e trans"
+
+
+rule NS_simulate:
+    input:
+        analysis_dir=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis",
+        quantify_tsv=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv",
+        dna=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
+        cdna=lambda wc: get_sample_ref(wc.exprmnt, "cDNA"),
+        time=ancient(TS_smk.time_tsv),
+    output:
+        fasta=f"{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta",
+    params:
+        analysis_model=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis/sim",
+        out_prefix=lambda wc: f"{NS_d}/{wc.exprmnt}/simulation",
+        other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
+    threads: 32
+    shell:
+        f"{TS_smk.format_gnu_time_string(process='NS_simulate', exprmnt='{wildcards.exprmnt}', prefix='')}"
+        "simulator.py transcriptome"
+        " -rt {input.cdna}"
+        " -rg {input.dna}"
+        " --exp {input.quantify_tsv}"
+        " -c {params.analysis_model}"
+        " -o {params.out_prefix}"
+        " -t {threads}"
+        " --no_model_ir"
+        " {params.other}"
+
+
+### Ploting helper methods
 tpm_method_settings = {
     "minimap2": dict(
         get_tpm_args=dict(
@@ -91,7 +206,7 @@ tpm_method_settings = {
             val_col=1,
             header=True,
         ),
-        title="TPM using TKSM single cell abundance estimates",
+        title="TPM using TKSM SC abundance estimates",
     ),
 }
 
@@ -129,48 +244,10 @@ def reverse_complement(seq):
     return "".join(complement.get(base, base) for base in reversed(seq))
 
 
-def get_sample_ref_names(sample):
-    try:
-        # Try should work for TS and real samples
-        return TS_smk.get_sample_ref_names(sample)
-    except ValueError:
-        if sample in config["NS_experiments"]:
-            return TS_smk.get_sample_ref_names(
-                config["NS_experiments"][sample]["sample"]
-            )
-        raise ValueError(f"Invalid sample name! {sample}")
-
-
-def get_sample_ref(sample, ref_type):
-    ref_names = get_sample_ref_names(sample)
-    ref_name = ":".join(ref_names)
-    if ref_type in ["DNA", "cDNA"]:
-        file_type = "fasta"
-    elif ref_type == "GTF":
-        file_type = "gtf"
-    else:
-        raise ValueError(f"Invalid reference type! {ref_type}")
-    return f"{preproc_d}/refs/{ref_name}.{ref_type}.{file_type}"
-
-
-def get_sample_fastqs(name):
-    try:
-        return TS_smk.get_sample_fastqs(name)
-    except ValueError:
-        if name in config["NS_experiments"]:
-            exprmnt = name
-            return [f"{NS_d}/{exprmnt}/simulation_aligned_reads.fasta"]
-        raise ValueError(f"Invalid experiment/sample name! {name}")
-
-
-def NS_exprmnt_sample(exprmnt):
-    return config["NS_experiments"][exprmnt]["sample"]
-
-
 rule all:
     input:
         [
-            f"{plots_d}/{r}/{'.'.join(p['data'])}.png"
+            f"{plots_d}/{r}/{'.'.join(p['data'])}.{'png' if r.startswith('tpm_plot') else 'pdf'}"
             for p in config["plots"]
             for r in p["rules"]
         ],
@@ -183,6 +260,7 @@ rule raw_lengths:
             [get_sample_fastqs(s) for s in wc.samples.split(".")]
         ),
     output:
+        pdf=f"{plots_d}/raw_lengths/{{samples}}.pdf",
         png=f"{plots_d}/raw_lengths/{{samples}}.png",
     params:
         bins=50,
@@ -224,7 +302,8 @@ rule raw_lengths:
             print(f"{sample} length median: {np.median(lens):.2f}")
         plt.legend()
         plt.title("Length distribution (whole reads)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule mapped_raw_lengths:
@@ -233,6 +312,7 @@ rule mapped_raw_lengths:
             f"{preproc_d}/minimap2/{s}.cDNA.paf" for s in wc.samples.split(".")
         ],
     output:
+        pdf=f"{plots_d}/mapped_raw_lengths/{{samples}}.pdf",
         png=f"{plots_d}/mapped_raw_lengths/{{samples}}.png",
     params:
         bins=50,
@@ -277,7 +357,8 @@ rule mapped_raw_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (whole reads from PAF)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule mapped_lengths:
@@ -286,6 +367,7 @@ rule mapped_lengths:
             f"{preproc_d}/minimap2/{s}.cDNA.paf" for s in wc.samples.split(".")
         ],
     output:
+        pdf=f"{plots_d}/mapped_lengths/{{samples}}.pdf",
         png=f"{plots_d}/mapped_lengths/{{samples}}.png",
     params:
         bins=50,
@@ -330,7 +412,8 @@ rule mapped_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (mapping part of reads from PAF)")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule substitution_stats:
@@ -373,63 +456,55 @@ rule substitution:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/substitution/{{samples}}.png",
+        pdf=f"{plots_d}/substitution/{{samples}}.pdf",
+        png=f"{plots_d}/substitution/{{samples}}.png",
     params:
         bins=50,
     run:
         samples = wildcards.samples.split(".")
-        fig, axs = plt.subplots(2, 2, figsize=(12, 4))
+        fig, axs = plt.subplots(2, 2, figsize=(12, 4), sharey=True)
         axs = axs.flatten()
         bb = [None, None, None, None]
         maxi = [0, 0, 0, 0]
+        mini = [100, 100, 100, 100]
+        titles = [
+            "Match",
+            "Substitution",
+            "Insertion",
+            "Deletion",
+        ]
         print("Reading TSV files...")
         for tsv, sample in tqdm(
             zip(input.tsvs, samples),
             total=len(input.tsvs),
             desc="[substitution] Reading TSV files",
         ):
-            counts = list()
+            counts = tuple(list() for _ in titles)
             for line in tqdm(open(tsv, "r"), desc=f"[substitution] Processing {tsv}"):
-                match_c, subs_c, insert_c, del_c, length = [
-                    int(float(x)) for x in line.rstrip().split("\t")
-                ]
-                l100 = 100 / length
-                counts.append(
-                    (
-                        l100 * match_c,
-                        l100 * subs_c,
-                        l100 * insert_c,
-                        l100 * del_c,
-                    )
-                )
-            for j, title in enumerate(
-                [
-                    "match counts",
-                    "substitution counts",
-                    "insertion counts",
-                    "deletion counts",
-                ]
-            ):
-                cc = np.array([x[j] for x in counts])
-                _, bb[j], _ = axs[j].hist(
-                    cc,
-                    bins=params.bins if bb[j] is None else bb[j],
+                stats = [int(float(x)) for x in line.rstrip().split("\t")]
+                assert len(stats) == 5, line
+                l100 = 100 / stats[4]
+                for c, s in zip(counts, stats[:4]):
+                    c.append(l100 * s)
+            counts = tuple(np.array(c) for c in counts)
+            for i in range(len(counts)):
+                maxi[i] = max(maxi[i], np.percentile(counts[i], 99))
+                mini[i] = min(mini[i], np.percentile(counts[i], 1))
+            for i, title in enumerate(titles):
+                c = counts[i]
+                _, bb[i], _ = axs[i].hist(
+                    c,
+                    bins=params.bins if bb[i] is None else bb[i],
                     alpha=0.3,
-                    label=f"{sample}: (µ={np.mean(cc):.2f}, σ={np.std(cc):.2f})",
+                    label=f"{sample}: (µ={np.mean(c):.2f}, σ={np.std(c):.2f})",
                     density=True,
                 )
-                axs[j].legend()
-        for i, title in enumerate(
-            [
-                "match counts",
-                "substitution counts",
-                "insertion counts",
-                "deletion counts",
-            ]
-        ):
-            axs[i].set_title(f"{title} per 100 bases")
+                axs[i].set_xlim(left=mini[i], right=maxi[i])
+                axs[i].legend()
+                axs[i].set_title(f"{title}")
         fig.tight_layout()
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule polyA:
@@ -438,6 +513,7 @@ rule polyA:
             [get_sample_fastqs(s) for s in wc.samples.split(".")]
         ),
     output:
+        pdf=f"{plots_d}/polyA/{{samples}}.pdf",
         png=f"{plots_d}/polyA/{{samples}}.png",
     params:
         bins=30,
@@ -492,7 +568,8 @@ rule polyA:
             )
         plt.legend()
         plt.title("Poly(A,T) length distribution")
-        plt.savefig(output[0], dpi=300)
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
 
 
 rule tksm_abundance:
@@ -559,8 +636,6 @@ rule minimap_dna:
     output:
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
         bai=f"{preproc_d}/minimap2/{{sample}}.DNA.bam.bai",
-    benchmark:
-        f"{time_d}/{{sample}}/minimap2_cdna.benchmark"
     threads: 32
     shell:
         "minimap2"
@@ -583,6 +658,8 @@ rule LIQA_quantify:
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
     output:
         tsv=f"{plots_d}/expression_stats/{{sample}}.liqa.tsv",
+    resources:
+        time=60 * 6 - 1,
     threads: 16
     shell:
         "python3 extern/LIQA/liqa_src/liqa.py"
@@ -664,7 +741,9 @@ rule tpm_plot:
         tpm_method="|".join(tpm_method_settings.keys()),
         merge_type=".by_gene|",
     run:
+        by_gene_title = ""
         if wildcards.merge_type == ".by_gene":
+            by_gene_title = "\nmerged by gene"
             tid_to_gid = dict()
             for tid_to_gid_file in input.tid_to_gid_list:
                 tid_to_gid.update(pickle.load(open(tid_to_gid_file, "rb")))
@@ -685,8 +764,8 @@ rule tpm_plot:
             X_tpm,
             Y_tpms,
             samples,
-            output.png,
-            title=tpm_method_settings[wildcards.tpm_method]["title"],
+            output,
+            title=tpm_method_settings[wildcards.tpm_method]["title"] + by_gene_title,
         )
 
 
@@ -729,44 +808,72 @@ def get_tpm(
     return tpm
 
 
-def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
+def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
     plt.rc("font", size=22)
 
     plot_count = len(samples) - 1
-    fig, axs = plt.subplots(
-        plot_count,
-        3,
-        sharex=True,
-        sharey=True,
-        figsize=(10 * 3, 10 * plot_count),
-        squeeze=False,
-    )
+    unions = [
+        (lambda xy: xy[0], "Transcripts in input (regardless of sample)"),
+        # (lambda xy: xy[0] & xy[1], "Transcripts in sample AND in input"),
+        # (lambda xy: xy[0] | xy[1], "Transcripts in sample OR in input"),
+    ]
+    if flip == False:
+        fig, axs = plt.subplots(
+            plot_count,
+            len(unions),
+            sharex=True,
+            sharey=True,
+            figsize=(
+                10 * len(unions),
+                10 * plot_count,
+            ),
+            squeeze=False,
+        )
+    else:
+        fig, axs = plt.subplots(
+            len(unions),
+            plot_count,
+            sharex=True,
+            sharey=True,
+            figsize=(
+                10 * plot_count,
+                10 * len(unions),
+            ),
+            squeeze=False,
+        )
     fig.suptitle(title, fontsize=30)
-    axs[0, 0].set_title("Transcripts in sample AND in input", fontsize=28)
-    axs[0, 1].set_title("Transcripts in sample OR in input", fontsize=28)
-    axs[0, 2].set_title("Transcripts in input (regardless of sample)", fontsize=28)
 
-    for sample, ax in zip(samples[1:], axs[:, 0]):
-        ax.set_ylabel(f"TPM in {sample}", fontsize=28)
-    for ax in axs[-1]:
-        ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+    if flip == False:
+        for (_, title), ax in zip(unions, axs[0]):
+            ax.set_title(title, fontsize=28)
+        for sample, ax in zip(samples[1:], axs[:, 0]):
+            ax.set_ylabel(f"TPM in {sample}", fontsize=28)
+        for ax in axs[-1]:
+            ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+    else:
+        pass
+        for c_idx, sample in enumerate(samples[1:]):
+            for ax in axs[:, c_idx]:
+                ax.set_ylabel(f"TPM in {sample}", fontsize=28)
+                if c_idx == 0 and len(unions) > 1:
+                    title = unions[c_idx][1]
+                    ax.set_ylabel(f"{title}\n\nTPM in {sample}", fontsize=28)
+
+        for ax in axs[-1, :]:
+            ax.set_xlabel(f"TPM in input ({samples[0]})", fontsize=28)
+
     X_tids = set(X_tpm.keys())
     for idx, (sample, Y_tpm) in enumerate(zip(samples[1:], Y_tpms)):
         Y_tids = set(Y_tpm.keys())
-
-        ax = axs[idx, 0]
-        for ax, select_tids in zip(
-            axs[idx],
-            [
-                X_tids & Y_tids,
-                X_tids | Y_tids,
-                X_tids,
-            ],
+        for ax, (select_tids_func, _) in zip(
+            axs[idx] if not flip else axs[:, idx],
+            unions,
         ):
+            select_tids = select_tids_func((X_tids, Y_tids))
             X = np.array([X_tpm[tid] for tid in select_tids])
             Y = np.array([Y_tpm[tid] for tid in select_tids])
             ax.plot(X, Y, "o", alpha=0.5, label=sample)
-            ax.text(
+            t = ax.text(
                 0.15,
                 0.75,
                 f"N = {len(select_tids)}\n"
@@ -775,83 +882,12 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpath, title):
                 + f"RMSE = {mean_squared_error(X,Y, squared=False):.1f}",
                 transform=ax.transAxes,
             )
+            t.set_bbox(dict(facecolor="red", alpha=0.5, edgecolor="red"))
             ax.set_xscale("log")
             ax.set_yscale("log")
     fig.tight_layout()
-    plt.savefig(outpath)
-
-
-rule NS_analysis:
-    input:
-        reads=lambda wc: get_sample_fastqs(wc.sample),
-        dna=lambda wc: get_sample_ref(wc.sample, "DNA"),
-        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
-    output:
-        analysis_dir=directory(f"{NS_d}/{{sample}}/analysis"),
-    benchmark:
-        f"{time_d}/{{sample}}/NS_analysis.benchmark"
-    params:
-        output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
-    threads: 32
-    shell:
-        "read_analysis.py transcriptome"
-        " -i {input.reads}"
-        " -rg {input.dna}"
-        " -rt {input.cdna}"
-        " --annotation {input.gtf}"
-        " -o {params.output_prefix}"
-        " -t {threads}"
-        " --no_intron_retention"
-
-
-rule NS_quantify:
-    input:
-        reads=lambda wildcards: get_sample_fastqs(wildcards.sample),
-        cdna=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-    output:
-        quantify_tsv=f"{NS_d}/{{sample}}/abundance/sim_transcriptome_quantification.tsv",
-    benchmark:
-        f"{time_d}/{{sample}}/NS_quantify.benchmark"
-    params:
-        output_prefix=f"{NS_d}/{{sample}}/abundance/sim",
-    threads: 32
-    resources:
-        time=60 * 6 - 1,
-    shell:
-        "read_analysis.py quantify"
-        " -i {input.reads} "
-        " -rt {input.cdna}"
-        " -o {params.output_prefix}"
-        " -t {threads}"
-        " -e trans"
-
-
-rule NS_simulate:
-    input:
-        analysis_dir=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis",
-        quantify_tsv=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/abundance/sim_transcriptome_quantification.tsv",
-        dna=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        cdna=lambda wc: get_sample_ref(wc.exprmnt, "cDNA"),
-    output:
-        fasta=f"{NS_d}/{{exprmnt}}/simulation_aligned_reads.fasta",
-    benchmark:
-        f"{time_d}/{{exprmnt}}/NS_simulate.benchmark"
-    params:
-        analysis_model=lambda wc: f"{NS_d}/{NS_exprmnt_sample(wc.exprmnt)}/analysis/sim",
-        out_prefix=lambda wc: f"{NS_d}/{wc.exprmnt}/simulation",
-        other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
-    threads: 32
-    shell:
-        "simulator.py transcriptome"
-        " -rt {input.cdna}"
-        " -rg {input.dna}"
-        " --exp {input.quantify_tsv}"
-        " -c {params.analysis_model}"
-        " -o {params.out_prefix}"
-        " -t {threads}"
-        " --no_model_ir"
-        " {params.other}"
+    for outpath in outpaths:
+        plt.savefig(outpath)
 
 
 rule lr_cell_stats:
@@ -878,6 +914,71 @@ rule lr_cell_stats:
         " -o {params.outpath}"
 
 
+rule lr_cell_matching:
+    input:
+        script=config["exec"]["lr_cell_matching"],
+        barcodes=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+    output:
+        tsv=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_matching.tsv",
+    threads: 64
+    shell:
+        "python3 {input.script}"
+        " -i {input.reads}"
+        " -b {input.barcodes}"
+        " -o {output.tsv}"
+        " -t {threads}"
+
+
+rule lr_cell_matching_plot:
+    input:
+        tsvs=lambda wc: [
+            f"{plots_d}/lr_cell_stats/{s}.lr_cell_matching.tsv"
+            for s in wc.samples.split(".")
+        ],
+    output:
+        pdf=f"{plots_d}/lr_cell_matching_plot/{{samples}}.pdf",
+        png=f"{plots_d}/lr_cell_matching_plot/{{samples}}.png",
+    run:
+        samples = wildcards.samples.split(".")
+        fig = plt.figure(figsize=(8, 4))
+        ax = fig.add_subplot(111)
+        ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter())
+        width = 0.4
+        counts = dict()
+        for IDX, (tsv, sample) in enumerate(zip(input.tsvs, samples)):
+            for idx, l in enumerate(open(tsv)):
+                if idx == 0:
+                    continue
+                l = l.rstrip("\n").split("\t")
+                k = tuple(l[:2])
+                v = float(l[3].strip("%"))
+                if not k in counts:
+                    counts[k] = [0.0 for _ in samples]
+                counts[k][IDX] = v
+        x_ticks, Y = zip(*sorted(counts.items()))
+        x_ticks = [f"{x[0]}\n d={x[1]}" for x in x_ticks]
+        X = np.array(np.arange(len(x_ticks)), dtype=float)
+        ax.set_xticks(X + (len(samples) - 1) * width / 2, x_ticks)
+
+        for sample, sample_Y in zip(samples, zip(*Y)):
+            ax.bar(X, sample_Y, label=sample, width=width)
+            for x, y in zip(X, sample_Y):
+                plt.text(
+                    x,
+                    y + 0.5 if y < 6.5 else y - 6.5,
+                    f"{y:.1f}%",
+                    ha="center",
+                    size="small",
+                    rotation=-60,
+                )
+            X += width
+        plt.legend()
+        fig.tight_layout()
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
+
+
 rule lr_cell_plot:
     input:
         reads_pickles=lambda wc: [
@@ -885,11 +986,14 @@ rule lr_cell_plot:
             for s in wc.samples.split(".")
         ],
     output:
-        f"{plots_d}/lr_sr_adapt/{{samples}}.png",
+        pdf=f"{plots_d}/lr_sr_adapt/{{samples}}.pdf",
+        png=f"{plots_d}/lr_sr_adapt/{{samples}}.png",
     run:
         samples = wildcards.samples.split(".")
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-        fig.suptitle(f"Read with one unique primary mapping")
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
+        fig.suptitle(
+            f"Density distribution of long-reads, with a single primary alignment,\n in terms of strand and Illumina adapter mapping location"
+        )
         sample_reads = list()
         for p in tqdm(
             input.reads_pickles,
@@ -897,28 +1001,49 @@ rule lr_cell_plot:
             desc="[lr_cell_plot] Loading pickles",
         ):
             sample_reads.append(pickle.load(open(p, "rb")))
+        totals = [
+            sum([1 for read in reads if len(read["mappings"]) == 1])
+            for reads in sample_reads
+        ]
         for ax, Tstrand in zip(axes, ["+", "-"]):
             ax.set_title(f"Transcriptome strand {Tstrand}")
-            for reads, sample in tqdm(
-                zip(sample_reads, samples),
+            for reads, sample, total in tqdm(
+                zip(sample_reads, samples, totals),
                 total=len(samples),
                 desc=f"[lr_cell_plot] Processing samples on transcriptome strand {Tstrand}",
             ):
-                vals = list()
+                vals = Counter()
                 for read in tqdm(reads, total=len(reads), desc=f"Processing {sample}"):
                     if len(read["mappings"]) != 1:
                         continue
                     tid, tstrand = list(read["mappings"])[0][:2]
                     if tstrand != Tstrand:
                         continue
-                    vals.append(read["br_seg"][1])
-                ax.hist(
-                    vals,
-                    np.arange(-100, 100, 5),
-                    density=True,
+                    vals[read["br_seg"][1]] += 1 / total
+                bin_edges = np.arange(-150, 151, 5)
+                keys, weights = zip(*vals.items())
+                hist, _ = np.histogram(keys, bins=bin_edges, weights=weights)
+                print(hist)
+                MIN_VAL = 0.01
+                f = 0
+                for i, v in enumerate(hist):
+                    if v > MIN_VAL:
+                        f = i
+                        break
+                l = len(hist)
+                for i, v in enumerate(reversed(hist)):
+                    if v > MIN_VAL:
+                        l = len(hist) - i
+                        break
+                ax.bar(
+                    bin_edges[f:l],
+                    hist[f:l],
+                    width=5,
+                    align="edge",
                     alpha=0.3,
                     label=sample,
                 )
             ax.legend()
-        plt.legend()
-        plt.savefig(output[0], dpi=300)
+        fig.tight_layout()
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)

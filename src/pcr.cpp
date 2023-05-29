@@ -57,7 +57,7 @@ class PCR{
             }
 
             mdc.id(mdc._id + "." + std::to_string(step));
-            if ( z1dist(rand_gen) > drop_ratio){ // Molecule is captured by the sequencing
+            if ( z1dist(rand_gen) < drop_ratio){ // Molecule is captured by the sequencing
                 ost << mdc;
             }
             for(int cycle = step+1; cycle < cycles; ++cycle){
@@ -215,7 +215,7 @@ public:
 
         ifstream input(input_file);
 
-        vector<molecule_descriptor> molecules = parse_mdf(input);
+        vector<molecule_descriptor> molecules = parse_mdf(input, true);
 
         if( molecules.size() > 2 * molecule_count){
             std::shuffle(molecules.begin(), molecules.end(), rand_gen);
