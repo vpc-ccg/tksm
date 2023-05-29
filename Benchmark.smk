@@ -959,12 +959,19 @@ rule lr_cell_matching_plot:
         x_ticks, Y = zip(*sorted(counts.items()))
         x_ticks = [f"{x[0]}\n d={x[1]}" for x in x_ticks]
         X = np.array(np.arange(len(x_ticks)), dtype=float)
-        ax.set_xticks(X + (len(samples)-1)*width/2, x_ticks)
+        ax.set_xticks(X + (len(samples) - 1) * width / 2, x_ticks)
 
         for sample, sample_Y in zip(samples, zip(*Y)):
             ax.bar(X, sample_Y, label=sample, width=width)
-            for x,y in zip(X, sample_Y):
-                plt.text(x, y+.5 if y < 6.5 else y-6.5, f'{y:.1f}%', ha = 'center', size="small", rotation=-60)
+            for x, y in zip(X, sample_Y):
+                plt.text(
+                    x,
+                    y + 0.5 if y < 6.5 else y - 6.5,
+                    f"{y:.1f}%",
+                    ha="center",
+                    size="small",
+                    rotation=-60,
+                )
             X += width
         plt.legend()
         fig.tight_layout()

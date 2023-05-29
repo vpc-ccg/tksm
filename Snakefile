@@ -181,6 +181,7 @@ if config["enable_piping"] == True:
             merge_source_mdf_counter[source_mdf] += 1
 
     for mdf, count in merge_source_mdf_counter.items():
+
         rule:
             input:
                 mdf=mdf,
@@ -432,6 +433,7 @@ rule transcribe:
 
 
 if config["enable_piping"] == False:
+
     rule merge:
         input:
             mdfs=get_merge_mdf_input,
@@ -441,7 +443,9 @@ if config["enable_piping"] == False:
         shell:
             f"{format_gnu_time_string(process='merge', prefix='')}"
             "cat {input.mdfs} > {output.mdf}"
+
 else:
+
     rule merge:
         input:
             script="py/mdf_cat.py",
