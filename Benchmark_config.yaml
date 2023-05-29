@@ -1,4 +1,4 @@
-outpath: /groups/hachgrp/projects/dev-tksm/analysis/paper
+outpath: output
 enable_piping: false
 benchmark_time: true
 

@@ -1,4 +1,4 @@
-outpath: /groups/hachgrp/projects/dev-tksm/analysis/TS-experiments
+outpath: output
 enable_piping: false
 benchmark_time: false
 # Pipeline modules
