@@ -654,7 +654,7 @@ tksm sequence --help
 If you like and use TKSM, please cite our paper:
 TKSM: Highly modular, user-customizable, and scalable transcriptomic sequencing long-read simulator
 
-# Contributing
+## Contributing
 Wanna contribute? That's great!
 If you want to add a new module, please check existing modules first and follow the same style.
 For C++ modules, please use the `src/template.cpp` file as a template.
