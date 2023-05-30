@@ -230,8 +230,8 @@ AGTCCCGTAA
 MDF:
 ```
 +m1 1 
-1	0	4	2C,3T
-1	6	9	1G
+1	0	4	+	2C,3T
+1	6	9	+	1G
 ```
 Given the FASTA and MDF records, we can construct the sequence of the `m1` molecule.
 - First we construct the sequence of the first interval: `(chr1, 0, 4) = AGTC`.
@@ -250,8 +250,8 @@ AGTC
 MDF:
 ```
 +m1 1 
-TT	0	2
-1	0	4
+TT	0	2	+
+1	0	4	+
 ```
 → *sequencer* → 
 ```
