@@ -14,7 +14,7 @@ TS_d = f"{outpath}/TS"
 time_tsv = f"{outpath}/time.tsv"
 exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
-DEBUG = True
+DEBUG = False
 
 
 def exprmnt_final_file(exprmnt):
