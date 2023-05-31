@@ -11,7 +11,6 @@ if len(config) == 0:
 outpath = config["outpath"]
 preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
-time_d = f"{outpath}/time"
 time_tsv = f"{outpath}/time.tsv"
 exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
@@ -184,6 +183,7 @@ if config["enable_piping"] == True:
             merge_source_mdf_counter[source_mdf] += 1
 
     for mdf, count in merge_source_mdf_counter.items():
+
         rule:
             input:
                 mdf=mdf,
@@ -270,6 +270,7 @@ rule truncate:
         " -o {output.mdf}"
         " {params.other}"
 
+
 rule unsegment:
     input:
         obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
@@ -288,7 +289,6 @@ rule unsegment:
         " -i {input.mdf}"
         " -o {output.mdf}"
         " {params.other}"
-
 
 
 rule shuffle:
@@ -435,6 +435,7 @@ rule transcribe:
 
 
 if config["enable_piping"] == False:
+
     rule merge:
         input:
             mdfs=get_merge_mdf_input,
@@ -444,7 +445,9 @@ if config["enable_piping"] == False:
         shell:
             f"{format_gnu_time_string(process='merge', prefix='')}"
             "cat {input.mdfs} > {output.mdf}"
+
 else:
+
     rule merge:
         input:
             script="py/mdf_cat.py",

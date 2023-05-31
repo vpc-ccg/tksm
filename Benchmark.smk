@@ -34,8 +34,8 @@ outpath = config["outpath"]
 preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
 NS_d = f"{outpath}/NS"
-time_d = f"{outpath}/time"
 plots_d = f"{outpath}/plots"
+
 
 ### Import TKSM Snakemake rules
 use rule * from TS_smk as TS_*
@@ -52,6 +52,7 @@ use rule scTagger_lr_seg from TS_smk as TS_scTagger_lr_seg with:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         time=ancient(TS_smk.time_tsv),
+
 
 def get_sample_ref_names(sample):
     try:
@@ -89,6 +90,7 @@ def get_sample_fastqs(name):
 
 def NS_exprmnt_sample(exprmnt):
     return config["NS_experiments"][exprmnt]["sample"]
+
 
 ### Trans-Nanosim rules
 rule NS_analysis:
@@ -204,7 +206,7 @@ tpm_method_settings = {
             val_col=1,
             header=True,
         ),
-        title="TPM using TKSM single cell abundance estimates",
+        title="TPM using TKSM SC abundance estimates",
     ),
 }
 
@@ -460,56 +462,46 @@ rule substitution:
         bins=50,
     run:
         samples = wildcards.samples.split(".")
-        fig, axs = plt.subplots(2, 2, figsize=(12, 4))
+        fig, axs = plt.subplots(2, 2, figsize=(12, 4), sharey=True)
         axs = axs.flatten()
         bb = [None, None, None, None]
         maxi = [0, 0, 0, 0]
+        mini = [100, 100, 100, 100]
+        titles = [
+            "Match",
+            "Substitution",
+            "Insertion",
+            "Deletion",
+        ]
         print("Reading TSV files...")
         for tsv, sample in tqdm(
             zip(input.tsvs, samples),
             total=len(input.tsvs),
             desc="[substitution] Reading TSV files",
         ):
-            counts = list()
+            counts = tuple(list() for _ in titles)
             for line in tqdm(open(tsv, "r"), desc=f"[substitution] Processing {tsv}"):
-                match_c, subs_c, insert_c, del_c, length = [
-                    int(float(x)) for x in line.rstrip().split("\t")
-                ]
-                l100 = 100 / length
-                counts.append(
-                    (
-                        l100 * match_c,
-                        l100 * subs_c,
-                        l100 * insert_c,
-                        l100 * del_c,
-                    )
-                )
-            for j, title in enumerate(
-                [
-                    "match counts",
-                    "substitution counts",
-                    "insertion counts",
-                    "deletion counts",
-                ]
-            ):
-                cc = np.array([x[j] for x in counts])
-                _, bb[j], _ = axs[j].hist(
-                    cc,
-                    bins=params.bins if bb[j] is None else bb[j],
+                stats = [int(float(x)) for x in line.rstrip().split("\t")]
+                assert len(stats) == 5, line
+                l100 = 100 / stats[4]
+                for c, s in zip(counts, stats[:4]):
+                    c.append(l100 * s)
+            counts = tuple(np.array(c) for c in counts)
+            for i in range(len(counts)):
+                maxi[i] = max(maxi[i], np.percentile(counts[i], 99))
+                mini[i] = min(mini[i], np.percentile(counts[i], 1))
+            for i, title in enumerate(titles):
+                c = counts[i]
+                _, bb[i], _ = axs[i].hist(
+                    c,
+                    bins=params.bins if bb[i] is None else bb[i],
                     alpha=0.3,
-                    label=f"{sample}: (µ={np.mean(cc):.2f}, σ={np.std(cc):.2f})",
+                    label=f"{sample}: (µ={np.mean(c):.2f}, σ={np.std(c):.2f})",
                     density=True,
                 )
-                axs[j].legend()
-        for i, title in enumerate(
-            [
-                "match counts",
-                "substitution counts",
-                "insertion counts",
-                "deletion counts",
-            ]
-        ):
-            axs[i].set_title(f"{title} per 100 bases")
+                axs[i].set_xlim(left=mini[i], right=maxi[i])
+                axs[i].legend()
+                axs[i].set_title(f"{title}")
         fig.tight_layout()
         plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
@@ -723,8 +715,6 @@ rule minimap_dna:
     output:
         bam=f"{preproc_d}/minimap2/{{sample}}.DNA.bam",
         bai=f"{preproc_d}/minimap2/{{sample}}.DNA.bam.bai",
-    benchmark:
-        f"{time_d}/{{sample}}/minimap2_cdna.benchmark"
     threads: 32
     shell:
         "minimap2"
@@ -830,7 +820,9 @@ rule tpm_plot:
         tpm_method="|".join(tpm_method_settings.keys()),
         merge_type=".by_gene|",
     run:
+        by_gene_title = ""
         if wildcards.merge_type == ".by_gene":
+            by_gene_title = "\nmerged by gene"
             tid_to_gid = dict()
             for tid_to_gid_file in input.tid_to_gid_list:
                 tid_to_gid.update(pickle.load(open(tid_to_gid_file, "rb")))
@@ -852,7 +844,7 @@ rule tpm_plot:
             Y_tpms,
             samples,
             output,
-            title=tpm_method_settings[wildcards.tpm_method]["title"],
+            title=tpm_method_settings[wildcards.tpm_method]["title"] + by_gene_title,
         )
 
 
@@ -929,7 +921,7 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
             squeeze=False,
         )
     fig.suptitle(title, fontsize=30)
-    
+
     if flip == False:
         for (_, title), ax in zip(unions, axs[0]):
             ax.set_title(title, fontsize=28)
@@ -940,9 +932,9 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
     else:
         pass
         for c_idx, sample in enumerate(samples[1:]):
-            for ax in axs[:,c_idx]:
+            for ax in axs[:, c_idx]:
                 ax.set_ylabel(f"TPM in {sample}", fontsize=28)
-                if c_idx == 0 and len(unions)>1:
+                if c_idx == 0 and len(unions) > 1:
                     title = unions[c_idx][1]
                     ax.set_ylabel(f"{title}\n\nTPM in {sample}", fontsize=28)
 
@@ -969,8 +961,7 @@ def plot_tpm_func(X_tpm, Y_tpms, samples, outpaths, title, flip=True):
                 + f"RMSE = {mean_squared_error(X,Y, squared=False):.1f}",
                 transform=ax.transAxes,
             )
-            t.set_bbox(dict(facecolor='red', alpha=0.5, edgecolor='red'))
-
+            t.set_bbox(dict(facecolor="red", alpha=0.5, edgecolor="red"))
             ax.set_xscale("log")
             ax.set_yscale("log")
     fig.tight_layout()
@@ -1002,6 +993,71 @@ rule lr_cell_stats:
         " -o {params.outpath}"
 
 
+rule lr_cell_matching:
+    input:
+        script=config["exec"]["lr_cell_matching"],
+        barcodes=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+    output:
+        tsv=f"{plots_d}/lr_cell_stats/{{sample}}.lr_cell_matching.tsv",
+    threads: 64
+    shell:
+        "python3 {input.script}"
+        " -i {input.reads}"
+        " -b {input.barcodes}"
+        " -o {output.tsv}"
+        " -t {threads}"
+
+
+rule lr_cell_matching_plot:
+    input:
+        tsvs=lambda wc: [
+            f"{plots_d}/lr_cell_stats/{s}.lr_cell_matching.tsv"
+            for s in wc.samples.split(".")
+        ],
+    output:
+        pdf=f"{plots_d}/lr_cell_matching_plot/{{samples}}.pdf",
+        png=f"{plots_d}/lr_cell_matching_plot/{{samples}}.png",
+    run:
+        samples = wildcards.samples.split(".")
+        fig = plt.figure(figsize=(8, 4))
+        ax = fig.add_subplot(111)
+        ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter())
+        width = 0.4
+        counts = dict()
+        for IDX, (tsv, sample) in enumerate(zip(input.tsvs, samples)):
+            for idx, l in enumerate(open(tsv)):
+                if idx == 0:
+                    continue
+                l = l.rstrip("\n").split("\t")
+                k = tuple(l[:2])
+                v = float(l[3].strip("%"))
+                if not k in counts:
+                    counts[k] = [0.0 for _ in samples]
+                counts[k][IDX] = v
+        x_ticks, Y = zip(*sorted(counts.items()))
+        x_ticks = [f"{x[0]}\n d={x[1]}" for x in x_ticks]
+        X = np.array(np.arange(len(x_ticks)), dtype=float)
+        ax.set_xticks(X + (len(samples) - 1) * width / 2, x_ticks)
+
+        for sample, sample_Y in zip(samples, zip(*Y)):
+            ax.bar(X, sample_Y, label=sample, width=width)
+            for x, y in zip(X, sample_Y):
+                plt.text(
+                    x,
+                    y + 0.5 if y < 6.5 else y - 6.5,
+                    f"{y:.1f}%",
+                    ha="center",
+                    size="small",
+                    rotation=-60,
+                )
+            X += width
+        plt.legend()
+        fig.tight_layout()
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
+
+
 rule lr_cell_plot:
     input:
         reads_pickles=lambda wc: [
@@ -1013,8 +1069,10 @@ rule lr_cell_plot:
         png=f"{plots_d}/lr_sr_adapt/{{samples}}.png",
     run:
         samples = wildcards.samples.split(".")
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-        fig.suptitle(f"Read with one unique primary mapping")
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
+        fig.suptitle(
+            f"Density distribution of long-reads, with a single primary alignment,\n in terms of strand and Illumina adapter mapping location"
+        )
         sample_reads = list()
         for p in tqdm(
             input.reads_pickles,
@@ -1022,29 +1080,49 @@ rule lr_cell_plot:
             desc="[lr_cell_plot] Loading pickles",
         ):
             sample_reads.append(pickle.load(open(p, "rb")))
+        totals = [
+            sum([1 for read in reads if len(read["mappings"]) == 1])
+            for reads in sample_reads
+        ]
         for ax, Tstrand in zip(axes, ["+", "-"]):
             ax.set_title(f"Transcriptome strand {Tstrand}")
-            for reads, sample in tqdm(
-                zip(sample_reads, samples),
+            for reads, sample, total in tqdm(
+                zip(sample_reads, samples, totals),
                 total=len(samples),
                 desc=f"[lr_cell_plot] Processing samples on transcriptome strand {Tstrand}",
             ):
-                vals = list()
+                vals = Counter()
                 for read in tqdm(reads, total=len(reads), desc=f"Processing {sample}"):
                     if len(read["mappings"]) != 1:
                         continue
                     tid, tstrand = list(read["mappings"])[0][:2]
                     if tstrand != Tstrand:
                         continue
-                    vals.append(read["br_seg"][1])
-                ax.hist(
-                    vals,
-                    np.arange(-100, 100, 5),
-                    density=True,
+                    vals[read["br_seg"][1]] += 1 / total
+                bin_edges = np.arange(-150, 151, 5)
+                keys, weights = zip(*vals.items())
+                hist, _ = np.histogram(keys, bins=bin_edges, weights=weights)
+                print(hist)
+                MIN_VAL = 0.01
+                f = 0
+                for i, v in enumerate(hist):
+                    if v > MIN_VAL:
+                        f = i
+                        break
+                l = len(hist)
+                for i, v in enumerate(reversed(hist)):
+                    if v > MIN_VAL:
+                        l = len(hist) - i
+                        break
+                ax.bar(
+                    bin_edges[f:l],
+                    hist[f:l],
+                    width=5,
+                    align="edge",
                     alpha=0.3,
                     label=sample,
                 )
             ax.legend()
-        plt.legend()
+        fig.tight_layout()
         plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
