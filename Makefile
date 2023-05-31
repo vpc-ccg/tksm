@@ -1,5 +1,3 @@
-
-
 # Check lld exists
 
 LLD_EXISTS := $(shell command -v ld.lld 2> /dev/null)

@@ -11,7 +11,6 @@ if len(config) == 0:
 outpath = config["outpath"]
 preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
-time_tsv = f"{outpath}/time.tsv"
 exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
 DEBUG = False
@@ -122,36 +121,6 @@ def get_kde_model_input(wc):
     return kde_input
 
 
-def format_gnu_time_string(
-    process="",
-    exprmnt="{wildcards.exprmnt}",
-    prefix="{wildcards.prefix}",
-    threads="{threads}",
-):
-    if config["benchmark_time"] == False:
-        return ""
-    fields = list()
-    fields.append((f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "%s", ""))
-    fields.append((f"{exprmnt}", "%s", ""))
-    fields.append((f"{prefix}", "%s", ""))
-    fields.append((f"{process}", "%s", ""))
-    fields.append(("%e", "%.2f", "/60"))
-    fields.append(("%U", "%.2f", "/60"))
-    fields.append(("%M", "%.2f", "/(1024*1024)"))
-    fields.append((f"{threads}", "%d", ""))
-    fields.append(("%S", "%.2f", "/60"))
-    fields.append((f"{config['enable_piping']}", "%s", ""))
-
-    time_format = ",".join([x[0] for x in fields])
-    printf_format = ",".join([x[1] for x in fields]) + "\\n"
-    printf_args = ",".join([f"${i}{x[2]}" for i, x in enumerate(fields, start=1)])
-
-    awk_cmd = (
-        'awk \'BEGIN{{FS=","}} {{printf "' + printf_format + '",' + printf_args + "}}'"
-    )
-    return f'$(which time) -f "{time_format}" -o >({awk_cmd} >> {{input.time}}) '
-
-
 rule all:
     input:
         [
@@ -204,7 +173,6 @@ rule sequence:
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
         qscore_model=lambda wc: get_sequencer_model_input(wc, "qscore"),
         error_model=lambda wc: get_sequencer_model_input(wc, "error"),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         fastq=f"{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq",
     threads: 32
@@ -215,7 +183,6 @@ rule sequence:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='sequence')}"
         "{params.binary} sequence"
         " -i {input.mdf}"
         " --references {params.fastas}"
@@ -230,7 +197,6 @@ rule filter:
     input:
         obj=["build/obj/filter.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flt.mdf"),
     params:
@@ -239,7 +205,6 @@ rule filter:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='filter')}"
         "{params.binary} filter"
         " -i {input.mdf}"
         " -t {output.mdf}"
@@ -251,7 +216,6 @@ rule truncate:
         obj=["build/obj/truncate.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         kde=get_kde_model_input,
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Trc.mdf"),
     params:
@@ -261,7 +225,6 @@ rule truncate:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='truncate')}"
         "{params.binary} truncate"
         " -i {input.mdf}"
         " --kde-model={params.kde}"
@@ -273,7 +236,6 @@ rule unsegment:
     input:
         obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Uns.mdf"),
     params:
@@ -282,7 +244,6 @@ rule unsegment:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='unsegment')}"
         "{params.binary} unsegment"
         " -i {input.mdf}"
         " -o {output.mdf}"
@@ -293,7 +254,6 @@ rule shuffle:
     input:
         obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Shf.mdf"),
     params:
@@ -302,7 +262,6 @@ rule shuffle:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='shuffle')}"
         "{params.binary} shuffle"
         " -i {input.mdf}"
         " -o {output.mdf}"
@@ -313,7 +272,6 @@ rule flip:
     input:
         obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flp.mdf"),
     params:
@@ -322,7 +280,6 @@ rule flip:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='flip')}"
         "{params.binary} flip"
         " -i {input.mdf}"
         " -o {output.mdf}"
@@ -333,7 +290,6 @@ rule pcr:
     input:
         obj=["build/obj/pcr.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.PCR.mdf"),
     params:
@@ -342,7 +298,6 @@ rule pcr:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='pcr')}"
         "{params.binary} pcr"
         " -i {input.mdf}"
         " -o {output.mdf}"
@@ -353,7 +308,6 @@ rule tag:
     input:
         obj=["build/obj/tag.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.mdf"),
     params:
@@ -362,7 +316,6 @@ rule tag:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='tag')}"
         "{params.binary} tag"
         " -i {input.mdf}"
         " -o {output.mdf}"
@@ -373,7 +326,6 @@ rule single_cell_barcoder:
     input:
         obj=["build/obj/scb.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.mdf"),
     params:
@@ -382,7 +334,6 @@ rule single_cell_barcoder:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='scb')}"
         "{params.binary} scb"
         " -i {input.mdf}"
         " -o {output.mdf}"
@@ -393,7 +344,6 @@ rule polyA:
     input:
         obj=["build/obj/polyA.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.plA.mdf"),
     params:
@@ -402,7 +352,6 @@ rule polyA:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='polyA')}"
         "{params.binary} polyA"
         " -i {input.mdf}"
         " -o {output.mdf}"
@@ -415,7 +364,6 @@ rule transcribe:
         obj=["build/obj/transcribe.o", "build/obj/tksm.o"] if DEBUG else list(),
         tsv=lambda wc: f"{preproc_d}/tksm_abundance/{get_step(wc.exprmnt, 'Tsb')['model']}.{get_step(wc.exprmnt, 'Tsb')['mode']}.tsv",
         gtf=lambda wc: get_sample_ref(wc.exprmnt, "GTF"),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/Tsb.mdf"),
     params:
@@ -424,7 +372,6 @@ rule transcribe:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='transcribe', prefix='')}"
         "{params.binary} transcribe"
         " -a {input.tsv}"
         " -g {input.gtf}"
@@ -437,11 +384,9 @@ if config["enable_piping"] == False:
     rule merge:
         input:
             mdfs=get_merge_mdf_input,
-            time=ancient(time_tsv) if config["benchmark_time"] else list(),
         output:
             mdf=pipe(f"{TS_d}/{{exprmnt}}/Mrg.mdf"),
         shell:
-            f"{format_gnu_time_string(process='merge', prefix='')}"
             "cat {input.mdfs} > {output.mdf}"
 
 else:
@@ -450,11 +395,9 @@ else:
         input:
             script="py/mdf_cat.py",
             mdfs=lambda wc: merge_to_numbered_sources[wc.exprmnt],
-            time=ancient(time_tsv) if config["benchmark_time"] else list(),
         output:
             mdf=pipe(f"{TS_d}/{{exprmnt}}/Mrg.mdf"),
         shell:
-            f"{format_gnu_time_string(process='merge', prefix='')}"
             "python {input.script} {input.mdfs}  {output.mdf}"
 
 
@@ -463,13 +406,11 @@ rule abundance:
     input:
         obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         tsv=f"{preproc_d}/tksm_abundance/{{sample}}.Xpr.tsv",
     params:
         binary=config["exec"]["tksm"],
     shell:
-        f"{format_gnu_time_string(process='abundance', exprmnt='{wildcards.sample}', prefix='')}"
         "{params.binary} abundance"
         " -p {input.paf}"
         " -o {output.tsv}"
@@ -480,13 +421,11 @@ rule abundance_sc:
         obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
         lr_matches=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         tsv=f"{preproc_d}/tksm_abundance/{{sample}}.Xpr_sc.tsv",
     params:
         binary=config["exec"]["tksm"],
     shell:
-        f"{format_gnu_time_string(process='abundance_sc', exprmnt='{wildcards.sample}', prefix='')}"
         "{params.binary} abundance"
         " -p {input.paf}"
         " -m {input.lr_matches}"
@@ -497,7 +436,6 @@ rule model_truncation:
     input:
         obj=["build/obj/model_truncation.o", "build/obj/tksm.o"] if DEBUG else list(),
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         x=f"{preproc_d}/models/truncate/{{sample}}.X_idxs.npy",
         y=f"{preproc_d}/models/truncate/{{sample}}.Y_idxs.npy",
@@ -507,7 +445,6 @@ rule model_truncation:
         binary=config["exec"]["tksm"],
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='model_truncation', exprmnt='{wildcards.sample}', prefix='')}"
         "{params.binary} model-truncation"
         " -i {input.paf}"
         " -o {params.out_prefix}"
@@ -518,12 +455,10 @@ rule minimap_cdna:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='minimap_cdna', exprmnt='{wildcards.sample}', prefix='')}"
         "minimap2"
         " -t {threads}"
         " -x map-ont"
@@ -538,12 +473,10 @@ rule scTagger_match:
     input:
         lr_tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
         wl_tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         lr_tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='scTagger_match', exprmnt='{wildcards.sample}', prefix='')}"
         "scTagger.py match_trie"
         " -lr {input.lr_tsv}"
         " -sr {input.wl_tsv}"
@@ -555,11 +488,9 @@ rule scTagger_extract_bc:
     input:
         tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
         wl=config["refs"]["10x_bc"],
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
     shell:
-        f"{format_gnu_time_string(process='scTagger_extract_bc', exprmnt='{wildcards.sample}', prefix='')}"
         "scTagger.py extract_sr_bc_from_lr"
         " -i {input.tsv}"
         " -wl {input.wl}"
@@ -569,12 +500,10 @@ rule scTagger_extract_bc:
 rule scTagger_lr_seg:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='scTagger_lr_seg', exprmnt='{wildcards.sample}', prefix='')}"
         "scTagger.py extract_lr_bc"
         " -r {input.reads}"
         " -o {output.tsv}"
@@ -585,12 +514,10 @@ rule minimap_cdna_for_badread_models:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='minimap_cdna_for_badread_models', exprmnt='{wildcards.sample}', prefix='')}"
         "minimap2"
         " -t {threads}"
         " -x map-ont"
@@ -605,11 +532,9 @@ rule badread_error_model:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         model=f"{preproc_d}/models/badread/{{sample}}.error.gz",
     shell:
-        f"{format_gnu_time_string(process='badread_error_model', exprmnt='{wildcards.sample}', prefix='')}"
         "badread error_model"
         " --reads {input.reads}"
         " --reference {input.ref}"
@@ -623,24 +548,15 @@ rule badread_qscore_model:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         model=f"{preproc_d}/models/badread/{{sample}}.qscore.gz",
     shell:
-        f"{format_gnu_time_string(process='badread_qscore_model', exprmnt='{wildcards.sample}', prefix='')}"
         "badread qscore_model"
         " --reads {input.reads}"
         " --reference {input.ref}"
         " --alignment {input.paf}"
         " --max_alignments 250000"
         " > {output.model}"
-
-
-rule make_time:
-    output:
-        time_tsv,
-    shell:
-        'echo "Timestamp,Experiment,Prefix,Process,Real time (min),User time (min),Memory (GB),Threads,System time (min),Piped?" > {output}'
 
 
 rule cat_refs:

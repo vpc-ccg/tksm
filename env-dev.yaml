@@ -5,7 +5,7 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - snakemake
+  - snakemake>=6.0.0
   - python-edlib
   - numpy
   - matplotlib
@@ -13,8 +13,8 @@ dependencies:
   - pandas
   - scikit-learn
   - sctagger=1.1
-  - minimap2
-  - cxx-compiler
+  - minimap2>=2.17
+  - gxx=12.2.0
   - fmt=9.1.0
   - cxxopts=3.1.0
   - lld
