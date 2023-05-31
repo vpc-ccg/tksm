@@ -10,6 +10,7 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <fstream>
 
 #include "gtf.h"
 #include "interval.h"
@@ -21,7 +22,8 @@ using std::set;
 using std::string;
 using std::unordered_map;
 using std::vector;
-namespace sr = std::ranges;
+namespace sr  = std::ranges;
+namespace srv = std::ranges::views;
 
 string fusion_separator = "::";
 class locus {
@@ -355,7 +357,7 @@ public:
     locus get_start(bool strand = true) const { return locus{chr, start, strand}; }
     locus get_end(bool strand = true) const { return locus{chr, end, strand}; }
     friend ostream &operator<<(ostream &os, const chimeric_event &event) {
-        os << event.chr << "\t" << event.start << "\t" << event.end << "\t" << event_type_to_string(event.event_type);
+        os << event.chr << "\t" << event.start << "\t" << event.end << "\t" << event_type_to_string(event.event_type) << "\t" << event.supplementary_interval;
         return os;
     }
 };
@@ -388,6 +390,10 @@ class Fusion_submodule : public tksm_submodule {
             )(
                 "fusion-file",
                 "Path to tab separated fusion file",
+                cxxopts::value<string>()
+            )(
+                "fusion-output",
+                "Description of generated fusions",
                 cxxopts::value<string>()
             )(
                 "fusion-count",
@@ -672,11 +678,34 @@ class Fusion_submodule : public tksm_submodule {
         return relevant_molecules_indices;
     }
 
+    auto update_expression_of_affected_transcripts(const auto &relevant_molecules, auto &abundances) {
+        // Build a tid to modification ratio map by iterating relevant molecules
+
+        unordered_map<string, double> tid_to_modification_ratio;
+
+        for (const auto &[event, locus_to_tids] : relevant_molecules) {
+            for (const auto &[locus, tids] : locus_to_tids) {
+                for (const auto &tid : tids) {
+                    tid_to_modification_ratio[tid] = 1 - event.event_ratio;
+                }
+            }
+        }
+
+        // Iterate over all transcripts and update their expression
+
+        for (auto &[tid, tpm, comment] : abundances) {
+            auto iter = tid_to_modification_ratio.find(tid);
+            if (iter != tid_to_modification_ratio.end()) {
+                tpm *= iter->second;
+            }
+        }
+    }
+
     auto compute_fusion_transcripts(map<chimeric_event, map<locus, vector<string>>> &relevant_molecules,
                                     const auto &genes, auto &gene_expression_map,
                                     const unordered_map<string, unordered_map<string, double>> &tid_to_tpm,
                                     const auto &tid_to_gene, const auto &transcript_templates, const auto &args)
-        -> generator<transcript> {
+        -> generator<std::tuple<chimeric_event, transcript>>{
         bool do_fall_back_to_expression = args.count("expression-fallback") > 0;
         auto tpm_dist                   = [&]() {
             if (do_fall_back_to_expression) {
@@ -715,7 +744,12 @@ class Fusion_submodule : public tksm_submodule {
                     current_gene_obj =
                         combine_gene_entries(genes.at(gene_names[0]).first, genes.at(gene_names[1]).first);
                 }
-                co_yield t;
+
+                if (t.cget_exons().empty()) {
+                    logd("Skipping empty fusion transcript {}", t.info.at("transcript_id"));
+                    continue;
+                }
+                co_yield  {event, t};
             }
         }
     }
@@ -736,7 +770,7 @@ public:
 
     template <class TopModule>
     auto run(TopModule *top_module, vector<std::tuple<string, double, string>> &abundances,
-             unordered_map<string, transcript> &transcript_templates) -> int{
+             unordered_map<string, transcript> &transcript_templates) -> int {
         cxxopts::ParseResult &args = top_module->args;
 
         vector<string> gtf_files                    = args["gtf"].as<vector<string>>();
@@ -744,7 +778,12 @@ public:
         [[maybe_unused]] double translocation_ratio = args["translocation-ratio"].as<double>();
         [[maybe_unused]] bool disable_deletions     = args["disable-deletions"].as<bool>();
 
-        auto genes                                        = read_genes(gtf_files);
+        if(args.count ("fusion-output") == 0) {
+            loge("No fusion output file specified");
+            return 1;
+        }
+
+        auto genes = read_genes(gtf_files);
         unordered_map<string, gtf> transcript_id_to_genes;
 
         for (auto &[gene, trans_vec] : genes) {
@@ -761,17 +800,18 @@ public:
         std::map<chimeric_event, std::map<locus, vector<string>>> relevant_molecules =
             find_relevant_molecules(transcript_templates, fusion_tree);
 
+        std::ofstream fusion_out{args["fusion-output"].as<string>()};
+
         logi("Creating fusion transcripts");
-        for( const transcript &t : 
-            compute_fusion_transcripts(relevant_molecules, genes, gene_expression_map, transcript_to_tpcm,
-                                       transcript_id_to_genes, transcript_templates, args)){
-            if(t.cget_exons().empty()){
-                logd("Skipping empty fusion transcript {}", t.info.at("transcript_id"));
-                continue;
-            }
+        for (const auto &[event, t] :
+             compute_fusion_transcripts(relevant_molecules, genes, gene_expression_map, transcript_to_tpcm,
+                                        transcript_id_to_genes, transcript_templates, args)) {
             abundances.emplace_back(t.info.at("transcript_id"), t.get_abundance(), t.info.at("CB"));
-            transcript_templates.emplace(t.info.at("transcript_id"),t);
+            transcript_templates.emplace(t.info.at("transcript_id"), t);
+            print_tsv(fusion_out, event, t.info.at("gene_id"), t.info.at("gene_name"), t.info.at("transcript_id"), t.info.at("transcript_name"), t.get_abundance());
+
         }
+        update_expression_of_affected_transcripts(relevant_molecules, abundances);
         return 0;
     }
 
