@@ -119,15 +119,15 @@ public:
         }
         describe_program();
 
-        vector<string> gtf_files               = args["gtf"].as<vector<string>>();
-        vector<string> abundance_files        = args["abundance"].as<vector<string>>();
-        string output_file            = args["output"].as<string>();
+        vector<string> gtf_files           = args["gtf"].as<vector<string>>();
+        vector<string> abundance_files     = args["abundance"].as<vector<string>>();
+        string output_file                 = args["output"].as<string>();
         int molecule_count                 = args["molecule-count"].as<int>();
         [[maybe_unused]] bool use_whole_id = args["use-whole-id"].as<bool>();
         [[maybe_unused]] bool non_coding   = args["non-coding"].as<bool>();
         int default_depth                  = args["default-depth"].as<int>();
         string molecule_prefix             = args["molecule-prefix"].as<string>();
-        vector<double> file_weights                =  process_file_weights(args);
+        vector<double> file_weights        =  process_file_weights(args);
 
         std::uniform_real_distribution<> dist(0, 1);
         std::ofstream outfile{output_file};
