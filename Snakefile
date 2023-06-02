@@ -30,6 +30,8 @@ def exprmnt_final_file(exprmnt):
         "Tag",
         "Flp",
         "Trc",
+        "Shf",
+        "Uns"
     ]:
         prefix.append("mdf")
     else:

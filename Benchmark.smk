@@ -611,11 +611,98 @@ rule LIQA_refgene:
         " -out {output.refgen}"
         " -m 1"
 
+# Genion Rules
+rule self_align_cdna:
+    input:
+        "{sample}"
+    output:
+        "{sample}.selfalign"
+    threads:
+        32
+    shell:
+        "minimap2  -X -2 -c "
+        " -t {threads}"
+        " {input}"
+        " {input}"
+        " -o {output}.paf &&"
+        "cat {output}.paf |"
+        " cut -f1,6 |"
+        " sed 's/_/\t/g' |"
+        " awk 'BEGIN{{OFS=\"\\t\";}}{{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}}' |"
+        " awk '$1!=$3' | sort | uniq"
+        " > {output}"
+
+
+rule genion_run_new:
+    input:
+        fastq=lambda wc: get_sample_fastqs(wc.sample),
+        dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
+        cdna_selfalign =lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
+        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
+        dups=config["genion"]["dups"],
+    output:
+        tsv=f"{preproc_d}/genion121/{{sample}}.tsv",
+    params:
+        min_support=3,
+    shell:
+        "/groups/hachgrp/projects/dev-genion/code/post-publish/genion/genion"
+        " -i {input.fastq}"
+        " -g {input.dna_paf}"
+        " -o {output.tsv}"
+        " --gtf {input.gtf}"
+        " -s {input.cdna_selfalign}"
+        " -d {input.dups}"
+        " --min-support={params.min_support}"
+
+rule genion_run:
+    input:
+        fastq=lambda wc: get_sample_fastqs(wc.sample),
+        dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
+        cdna_selfalign =lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
+        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
+        dups=config["genion"]["dups"],
+    output:
+        tsv=f"{preproc_d}/genion/{{sample}}.tsv",
+    params:
+        min_support=3,
+    shell:
+        "genion"
+        " -i {input.fastq}"
+        " -g {input.dna_paf}"
+        " -o {output.tsv}"
+        " --gtf {input.gtf}"
+        " -s {input.cdna_selfalign}"
+        " -d {input.dups}"
+        " --min-support={params.min_support}"
+
+rule longgf_run:
+    input:
+        bam=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.ns.bam",
+        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
+    output:
+        tsv=f"{preproc_d}/longgf/{{sample}}.tsv",
+    params:
+        min_overlap=80,
+        bin_size=4,
+        min_map_len=80,
+        min_support=3,
+    shell:
+        "LongGF"
+        " {input.bam}"
+        " {input.gtf}"
+        " {params.min_overlap}"
+        " {params.bin_size}"
+        " {params.min_map_len}"
+        " min_sup_read:{params.min_support}"
+        " > {output.tsv}"
+
+
+# Genion Rules End
 
 rule minimap_dna_paf:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
+        ref=lambda wc: get_sample_ref(wc.sample, "DNA"),
     output:
         paf=f"{preproc_d}/minimap2/{{sample}}.DNA.paf",
     threads: 32
@@ -628,6 +715,23 @@ rule minimap_dna_paf:
         " {input.reads}"
         " > {output.paf}"
 
+
+rule minimap_ns_dna:
+    input:
+        reads=lambda wc: get_sample_fastqs(wc.sample),
+        ref=lambda wc: get_sample_ref(wc.sample, "DNA"),
+    output:
+        bam=f"{preproc_d}/minimap2/{{sample}}.DNA.ns.bam",
+    threads: 32
+    shell:
+        "minimap2"
+        " -t {threads}"
+        " -x splice"
+        " -a"
+        " {input.ref}"
+        " {input.reads}"
+        " | samtools view -hb "
+        " -o {output.bam}"
 
 rule minimap_dna:
     input:
