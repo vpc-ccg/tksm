@@ -35,11 +35,7 @@ class Unsegment_module::impl : public tksm_module {
                 "p,probability",
                 "probability of concatenation",
                 cxxopts::value<double>()
-            )(
-                "f,flip-probability",
-                "probability of flipping the attached molecule",
-                cxxopts::value<double>()->default_value("0.5")
-             )
+            ) 
             ;
         // clang-format on
         return options.parse(argc, argv);
@@ -84,7 +80,7 @@ public:
         string output_file = args["output"].as<string>();
 
         double probability = args["probability"].as<double>();
-        double fp          = args["flip-probability"].as<double>();
+
 
         ifstream input(input_file);
 
@@ -99,12 +95,9 @@ public:
                 continue;
             }
             if (dist(rand_gen) < probability) {
-                if (dist(rand_gen) < fp) {
-                    current.concat(flip_molecule(md));
-                }
-                else {
-                    current.concat(md);
-                }
+
+                current.concat(md);
+
                 current.add_comment("Cat", md.get_id());
             }
             else {
