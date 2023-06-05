@@ -611,14 +611,23 @@ rule LIQA_refgene:
         " -out {output.refgen}"
         " -m 1"
 
+
 # Genion Rules
+rule download_and_extract_dups:
+    output:
+        dups=config["genion"]["dups"],
+    params:
+        url="ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz",
+    shell:
+        "wget {params.url} -O {output.dups}.gz && gunzip {output.dups}.gz"
+
+
 rule self_align_cdna:
     input:
-        "{sample}"
+        "{sample}",
     output:
-        "{sample}.selfalign"
-    threads:
-        32
+        "{sample}.selfalign",
+    threads: 32
     shell:
         "minimap2  -X -2 -c "
         " -t {threads}"
@@ -637,7 +646,7 @@ rule genion_run_new:
     input:
         fastq=lambda wc: get_sample_fastqs(wc.sample),
         dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
-        cdna_selfalign =lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
+        cdna_selfalign=lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
         gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
         dups=config["genion"]["dups"],
         binary="/groups/hachgrp/projects/dev-genion/code/post-publish/genion/genion",
@@ -655,11 +664,12 @@ rule genion_run_new:
         " -d {input.dups}"
         " --min-support={params.min_support}"
 
+
 rule genion_run:
     input:
         fastq=lambda wc: get_sample_fastqs(wc.sample),
         dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
-        cdna_selfalign =lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
+        cdna_selfalign=lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
         gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
         dups=config["genion"]["dups"],
     output:
@@ -675,6 +685,7 @@ rule genion_run:
         " -s {input.cdna_selfalign}"
         " -d {input.dups}"
         " --min-support={params.min_support}"
+
 
 rule longgf_run:
     input:
@@ -699,6 +710,7 @@ rule longgf_run:
 
 
 # Genion Rules End
+
 
 rule minimap_dna_paf:
     input:
@@ -733,6 +745,7 @@ rule minimap_ns_dna:
         " {input.reads}"
         " | samtools view -hb "
         " -o {output.bam}"
+
 
 rule minimap_dna:
     input:
