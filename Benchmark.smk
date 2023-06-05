@@ -640,12 +640,13 @@ rule genion_run_new:
         cdna_selfalign =lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
         gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
         dups=config["genion"]["dups"],
+        binary="/groups/hachgrp/projects/dev-genion/code/post-publish/genion/genion",
     output:
         tsv=f"{preproc_d}/genion121/{{sample}}.tsv",
     params:
         min_support=3,
     shell:
-        "/groups/hachgrp/projects/dev-genion/code/post-publish/genion/genion"
+        "{input.binary}"
         " -i {input.fastq}"
         " -g {input.dna_paf}"
         " -o {output.tsv}"
@@ -693,7 +694,7 @@ rule longgf_run:
         " {params.min_overlap}"
         " {params.bin_size}"
         " {params.min_map_len}"
-        " min_sup_read:{params.min_support}"
+        " 0 0 {params.min_support}"
         " > {output.tsv}"
 
 
