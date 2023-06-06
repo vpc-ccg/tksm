@@ -822,7 +822,7 @@ rule tid_to_gid:
             gname = info.get("gene_name", gid)
             assert tid not in tid_to_gid
             tid_to_gid[tid] = gid
-            assert gname not in gname_to_gid
+
             gname_to_gid[gname] = gid
         pickle.dump(tid_to_gid, open(output.tid_to_gid_pickle, "wb+"))
         pickle.dump(gname_to_gid, open(output.gname_to_gid_pickle, "wb+"))
@@ -1183,7 +1183,7 @@ rule gene_fusion_intersection:
     output:
         pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
     shell:
-        "python py/gene_fusion_upset.py"
+        "python {input.script}"
         " --tid_to_gid {input.tid_to_gid}"
         " --gname_to_gid {input.gname_to_gid}"
         " --tsb {input.tsb}"

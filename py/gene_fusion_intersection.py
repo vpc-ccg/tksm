@@ -150,14 +150,15 @@ def main():
     tid_to_gid = pickle.load(open(args.tid_to_gid, "rb"))
     gname_to_gid = pickle.load(open(args.gname_to_gid, "rb"))
     gene_fusions = defaultdict(set)
+
     mid_to_tid = get_mid_to_tid_from_mrg_mdf(args.mrg)
+
     add_tsb_mdf(args.tsb, gene_fusions)
     add_uns_mdf(args.uns, mid_to_tid, gene_fusions)
     add_genion_tsv(args.genion_pass, gene_fusions)
     add_genion_tsv(args.genion_fail, gene_fusions)
     pickle.dump(gene_fusions, open(args.output, "wb"))
     return 0
-
 
 if __name__ == "__main__":
     exit(main())
