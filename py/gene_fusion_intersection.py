@@ -71,7 +71,7 @@ def get_mid_to_tid_from_mrg_mdf(mrg_mdf):
 
 
 def add_longGF_tsv(longGF_tsv, gene_fusions):
-    for line in open(longGF_tsv, "r"):
+    for line in tqdm(open(longGF_tsv), desc=f"Reading {longGF_tsv}"):
         if "SumGF" in line:
             gnames = line.split()[1].split(":")
             if len(gnames) != 2:
@@ -157,6 +157,7 @@ def main():
     add_uns_mdf(args.uns, mid_to_tid, gene_fusions)
     add_genion_tsv(args.genion_pass, gene_fusions)
     add_genion_tsv(args.genion_fail, gene_fusions)
+    add_longGF_tsv(args.longGF, gene_fusions)
     pickle.dump(gene_fusions, open(args.output, "wb"))
     return 0
 

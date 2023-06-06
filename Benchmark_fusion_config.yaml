@@ -133,18 +133,80 @@ plots:
          ],
          data: [
              TKSM_gene_fusion000,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion001,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion002,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion004,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion008,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion000_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion001_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion002_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion004_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
              TKSM_gene_fusion008_trc,
          ],
      }
-
 exec:
     tksm: build/bin/tksm
     tNS_analyze: simulator.py

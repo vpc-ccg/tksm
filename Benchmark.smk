@@ -15,6 +15,7 @@ import matplotlib
 from snakemake.utils import min_version
 from tqdm import tqdm
 from sklearn.metrics import r2_score, mean_squared_error
+import upsetplot
 
 min_version("6.0")
 
@@ -1178,7 +1179,7 @@ rule gene_fusion_intersection:
         mrg=lambda wc: get_last_mdf(wc.sample, "Mrg"),
         uns=lambda wc: get_last_mdf(wc.sample, "Uns"),
         genion_pass=f"{preproc_d}/genion/{{sample}}.tsv",
-        genion_fail=f"{preproc_d}/genion/{{sample}}.tsv",
+        genion_fail=f"{preproc_d}/genion/{{sample}}.tsv.fail",
         longGF=f"{preproc_d}/longgf/{{sample}}.tsv",
     output:
         pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
@@ -1197,16 +1198,50 @@ rule gene_fusion_intersection:
 
 rule gene_fusion_upset_plot:
     input:
-        pickles=lambda wc: [
-            f"{plots_d}/gene_fusion_intersection/{s}.pickle"
-            for s in wc.samples.split(".")
-        ],
+        pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
     output:
-        pdf=f"{plots_d}/gene_fusion_upset/{{samples}}.pdf",
-        png=f"{plots_d}/gene_fusion_upset/{{samples}}.png",
+        pdf=f"{plots_d}/gene_fusion_upset/{{sample}}.pdf",
+        png=f"{plots_d}/gene_fusion_upset/{{sample}}.png",
     run:
-        samples = wildcards.samples.split(".")
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
-        fig.suptitle(f"X")
-        fig.savefig(output.pdf, dpi=300)
+        S = wildcards.sample
+        try:
+            if S.endswith("_trc"):
+                trc = True
+                S = S.rstrip("_trc")
+            else:
+                trc = False
+            S = S.lstrip("TKSM_gene_fusion")
+            rate = float(S) / 100
+            rate = f"{rate:.0%}"
+        except Exception as e:
+            print(e)
+            rate = "NA"
+            trc = False
+
+        gene_fusions = pickle.load(open(input.pickle, "rb"))
+        gf_counter = Counter()
+        for k, v in gene_fusions.items():
+            KEY = set()
+            for x in v:
+                if x.startswith("PASS"):
+                    KEY.add("Genion pass")
+                elif x.startswith("FAIL"):
+                    KEY.add("Genion fail")
+                else:
+                    KEY.add(x)
+            KEY = tuple(sorted(KEY))
+            gf_counter[KEY] += 1
+        UPSET_DATA = gf_counter.items()
+        UPSET_DATA = upsetplot.from_memberships(
+            list(zip(*gf_counter.items()))[0],
+            list(zip(*gf_counter.items()))[1],
+        )
+        fig = plt.figure(figsize=(10, 10))
+        upsetplot.plot(
+            UPSET_DATA,
+            fig=fig,
+            show_counts=True,
+        )
+        fig.suptitle(f"Rate = {rate}; Trc = {trc}")
+        fig.savefig(output.pdf, dpi=500)
         fig.savefig(output.png, dpi=1000)
