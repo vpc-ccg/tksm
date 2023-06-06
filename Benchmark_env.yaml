@@ -4,7 +4,7 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - snakemake
+  - snakemake>=7.0.0
   - python-edlib
   - numpy
   - matplotlib
@@ -12,7 +12,7 @@ dependencies:
   - upsetplot
   - pandas
   - scikit-learn
-  - badread
+  - badread=0.2.0
   - genion=1.2.2
   - longgf=0.1.2
   - sctagger=1.1
