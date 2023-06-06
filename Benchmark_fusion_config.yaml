@@ -129,7 +129,7 @@ TS_experiments:
 plots:
      - {
          rules: [
-             mapped_lengths,
+             gene_fusion_upset,
          ],
          data: [
              TKSM_gene_fusion000,
@@ -150,6 +150,7 @@ exec:
     tNS_analyze: simulator.py
     lr_cell_stats: py/lr_cell_stats.py
     lr_cell_matching: py/lr_cell_matching.py
+    gene_fusion_intersection: py/gene_fusion_intersection.py
 
 refs:
     Homo_sapiens:

@@ -6,7 +6,7 @@ import pickle
 import re
 import itertools
 import functools
-from collections import Counter
+from collections import Counter, defaultdict
 
 import numpy as np
 import pandas as pd
@@ -642,7 +642,7 @@ rule self_align_cdna:
         " > {output}"
 
 
-rule genion_run_new:
+rule genion_run:
     input:
         fastq=lambda wc: get_sample_fastqs(wc.sample),
         dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
@@ -651,33 +651,12 @@ rule genion_run_new:
         dups=config["genion"]["dups"],
         binary="/groups/hachgrp/projects/dev-genion/code/post-publish/genion/genion",
     output:
-        tsv=f"{preproc_d}/genion121/{{sample}}.tsv",
+        tsv=f"{preproc_d}/genion/{{sample}}.tsv",
+        fail=f"{preproc_d}/genion/{{sample}}.tsv.fail",
     params:
         min_support=3,
     shell:
         "{input.binary}"
-        " -i {input.fastq}"
-        " -g {input.dna_paf}"
-        " -o {output.tsv}"
-        " --gtf {input.gtf}"
-        " -s {input.cdna_selfalign}"
-        " -d {input.dups}"
-        " --min-support={params.min_support}"
-
-
-rule genion_run:
-    input:
-        fastq=lambda wc: get_sample_fastqs(wc.sample),
-        dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
-        cdna_selfalign=lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
-        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
-        dups=config["genion"]["dups"],
-    output:
-        tsv=f"{preproc_d}/genion/{{sample}}.tsv",
-    params:
-        min_support=3,
-    shell:
-        "genion"
         " -i {input.fastq}"
         " -g {input.dna_paf}"
         " -o {output.tsv}"
@@ -824,9 +803,11 @@ rule tid_to_gid:
     input:
         gtf="{prefix}.gtf",
     output:
-        pickle="{prefix}.gtf.tid_to_gid.pickle",
+        tid_to_gid_pickle="{prefix}.gtf.tid_to_gid.pickle",
+        gname_to_gid_pickle="{prefix}.gtf.gname_to_gid.pickle",
     run:
         tid_to_gid = dict()
+        gname_to_gid = dict()
         for l in tqdm(open(input.gtf), desc=f"[tid_to_gid] Processing {input.gtf}"):
             if l[0] == "#":
                 continue
@@ -838,9 +819,13 @@ rule tid_to_gid:
             info = {x[0]: x[1].strip('"') for x in info}
             tid = info["transcript_id"]
             gid = info["gene_id"]
+            gname = info.get("gene_name", gid)
             assert tid not in tid_to_gid
             tid_to_gid[tid] = gid
-        pickle.dump(tid_to_gid, open(output.pickle, "wb+"))
+            assert gname not in gname_to_gid
+            gname_to_gid[gname] = gid
+        pickle.dump(tid_to_gid, open(output.tid_to_gid_pickle, "wb+"))
+        pickle.dump(gname_to_gid, open(output.gname_to_gid_pickle, "wb+"))
 
 
 rule tpm_plot:
@@ -1165,3 +1150,63 @@ rule lr_cell_plot:
         fig.tight_layout()
         plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
+
+
+### Gene fusion plots
+def get_last_mdf(exprmnt, rule_name):
+    step_names = [
+        list(step)[0] for step in config["TS_experiments"][exprmnt]["pipeline"]
+    ]
+    try:
+        rule_idx = len(step_names) - 1 - step_names[::-1].index(rule_name)
+        prefix = ".".join(step_names[:rule_idx+1])
+        return f"{TS_d}/{exprmnt}/{prefix}.mdf"
+    except ValueError:
+        if step_names[0] == "Mrg":
+            sources = config["TS_experiments"][exprmnt]["pipeline"][0]["Mrg"]["sources"]
+            return get_last_mdf(sources[0], rule_name)
+        else:
+            raise Exception(f"Rule {rule_name} not found in {exprmnt} pipeline")
+
+
+rule gene_fusion_intersection:
+    input:
+        script=config["exec"]["gene_fusion_intersection"],
+        tid_to_gid=lambda wc: f"{get_sample_ref(wc.sample, 'GTF')}.tid_to_gid.pickle",
+        gname_to_gid=lambda wc: f"{get_sample_ref(wc.sample, 'GTF')}.gname_to_gid.pickle",
+        tsb=lambda wc: get_last_mdf(wc.sample, "Tsb"),
+        mrg=lambda wc: get_last_mdf(wc.sample, "Mrg"),
+        uns=lambda wc: get_last_mdf(wc.sample, "Uns"),
+        genion_pass=f"{preproc_d}/genion/{{sample}}.tsv",
+        genion_fail=f"{preproc_d}/genion/{{sample}}.tsv",
+        longGF=f"{preproc_d}/longgf/{{sample}}.tsv",
+    output:
+        pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
+    shell:
+        "python py/gene_fusion_upset.py"
+        " --tid_to_gid {input.tid_to_gid}"
+        " --gname_to_gid {input.gname_to_gid}"
+        " --tsb {input.tsb}"
+        " --mrg {input.mrg}"
+        " --uns {input.uns}"
+        " --genion_pass {input.genion_pass}"
+        " --genion_fail {input.genion_fail}"
+        " --longGF {input.longGF}"
+        " --output {output.pickle}"
+
+
+rule gene_fusion_upset_plot:
+    input:
+        pickles=lambda wc: [
+            f"{plots_d}/gene_fusion_intersection/{s}.pickle"
+            for s in wc.samples.split(".")
+        ],
+    output:
+        pdf=f"{plots_d}/gene_fusion_upset/{{samples}}.pdf",
+        png=f"{plots_d}/gene_fusion_upset/{{samples}}.png",
+    run:
+        samples = wildcards.samples.split(".")
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
+        fig.suptitle(f"X")
+        fig.savefig(output.pdf, dpi=300)
+        fig.savefig(output.png, dpi=1000)

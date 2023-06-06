@@ -9,6 +9,7 @@ dependencies:
   - numpy
   - matplotlib
   - tqdm
+  - upsetplot
   - pandas
   - scikit-learn
   - badread
