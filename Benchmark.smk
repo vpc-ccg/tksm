@@ -1159,7 +1159,7 @@ def get_last_mdf(exprmnt, rule_name):
     ]
     try:
         rule_idx = len(step_names) - 1 - step_names[::-1].index(rule_name)
-        prefix = ".".join(step_names[:rule_idx+1])
+        prefix = ".".join(step_names[: rule_idx + 1])
         return f"{TS_d}/{exprmnt}/{prefix}.mdf"
     except ValueError:
         if step_names[0] == "Mrg":

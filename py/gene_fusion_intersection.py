@@ -130,9 +130,9 @@ def add_uns_mdf(uns_mdf, mid_to_tid, gene_fusions):
             if t.startswith("Cat="):
                 mids = [mid_1] + t[4:].split(",")
                 for mid_1, mid_2 in zip(mids[:1], mids[1:]):
-                    tid_1 = mid_to_tid[mid_1].split(':')[-1]
+                    tid_1 = mid_to_tid[mid_1].split(":")[-1]
                     gid_1 = tid_to_gid[tid_1]
-                    tid_2 = mid_to_tid[mid_2].split(':')[0]
+                    tid_2 = mid_to_tid[mid_2].split(":")[0]
                     gid_2 = tid_to_gid[tid_2]
                     if gid_1 == gid_2:
                         continue
@@ -159,6 +159,7 @@ def main():
     add_genion_tsv(args.genion_fail, gene_fusions)
     pickle.dump(gene_fusions, open(args.output, "wb"))
     return 0
+
 
 if __name__ == "__main__":
     exit(main())
