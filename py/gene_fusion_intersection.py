@@ -43,7 +43,6 @@ def parse_args():
         required=True,
         help="Path to LongGF TSV file",
     )
-    parser.add_argument("--samples", type=str, required=True, help="Sample names")
     parser.add_argument(
         "--output", type=str, required=True, help="Path pickle output file"
     )
@@ -55,8 +54,8 @@ tid_to_gid = None
 gname_to_gid = None
 
 
-def get_mid_to_gid_from_mrg_mdf(mrg_mdf):
-    mid_to_gid = dict()
+def get_mid_to_tid_from_mrg_mdf(mrg_mdf):
+    mid_to_tid = dict()
     for l in tqdm(open(mrg_mdf), desc=f"Reading {mrg_mdf}"):
         if l[0] != "+":
             continue
@@ -67,8 +66,8 @@ def get_mid_to_gid_from_mrg_mdf(mrg_mdf):
             if t.startswith("tid="):
                 tid = t[4:]
                 break
-        mid_to_gid[mid] = tid_to_gid[tid]
-    return mid_to_gid
+        mid_to_tid[mid] = tid
+    return mid_to_tid
 
 
 def add_longGF_tsv(longGF_tsv, gene_fusions):
@@ -120,7 +119,7 @@ def add_tsb_mdf(tsb_mdf, gene_fusions):
         gene_fusions[k].add("Truth")
 
 
-def add_uns_mdf(uns_mdf, mid_to_gid, gene_fusions):
+def add_uns_mdf(uns_mdf, mid_to_tid, gene_fusions):
     gf_counter = Counter()
     for l in tqdm(open(uns_mdf), desc=f"Reading {uns_mdf}"):
         if l[0] != "+" or "Cat=" not in l:
@@ -131,8 +130,10 @@ def add_uns_mdf(uns_mdf, mid_to_gid, gene_fusions):
             if t.startswith("Cat="):
                 mids = [mid_1] + t[4:].split(",")
                 for mid_1, mid_2 in zip(mids[:1], mids[1:]):
-                    gid_1 = mid_to_gid[mid_1].split(":")[-1]
-                    gid_2 = mid_to_gid[mid_2].split(":")[0]
+                    tid_1 = mid_to_tid[mid_1].split(':')[-1]
+                    gid_1 = tid_to_gid[tid_1]
+                    tid_2 = mid_to_tid[mid_2].split(':')[0]
+                    gid_2 = tid_to_gid[tid_2]
                     if gid_1 == gid_2:
                         continue
                     gid_1, gid_2 = sorted((gid_1, gid_2))
@@ -149,15 +150,14 @@ def main():
     tid_to_gid = pickle.load(open(args.tid_to_gid, "rb"))
     gname_to_gid = pickle.load(open(args.gname_to_gid, "rb"))
     gene_fusions = defaultdict(set)
-    mid_to_gid = get_mid_to_gid_from_mrg_mdf(args.mrg, gene_fusions)
+    mid_to_tid = get_mid_to_tid_from_mrg_mdf(args.mrg)
     add_tsb_mdf(args.tsb, gene_fusions)
-    add_uns_mdf(args.uns, mid_to_gid, gene_fusions)
+    add_uns_mdf(args.uns, mid_to_tid, gene_fusions)
     add_genion_tsv(args.genion_pass, gene_fusions)
     add_genion_tsv(args.genion_fail, gene_fusions)
     pickle.dump(gene_fusions, open(args.output, "wb"))
+    return 0
 
 
-# fig = plt.figure(figsize=(8, 4))
-# fig.tight_layout()
-# plt.savefig(output.pdf, dpi=300)
-# plt.savefig(output.png, dpi=1000)
+if __name__ == "__main__":
+    exit(main())
