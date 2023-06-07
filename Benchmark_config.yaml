@@ -128,9 +128,8 @@ plots:
 
 exec:
     tksm: build/bin/tksm
-    tNS_analyze: simulator.py
-    lr_cell_stats: py/lr_cell_stats.py
-    lr_cell_matching: py/lr_cell_matching.py
+    lr_cell_stats: py/benchmark/lr_cell_stats.py
+    lr_cell_matching: py/benchmark/lr_cell_matching.py
 
 refs:
     Homo_sapiens:

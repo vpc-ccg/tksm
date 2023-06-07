@@ -209,10 +209,10 @@ plots:
      }
 exec:
     tksm: build/bin/tksm
-    tNS_analyze: simulator.py
-    lr_cell_stats: py/lr_cell_stats.py
-    lr_cell_matching: py/lr_cell_matching.py
-    gene_fusion_intersection: py/gene_fusion_intersection.py
+    lr_cell_stats: py/benchmark/lr_cell_stats.py
+    lr_cell_matching: py/benchmark/lr_cell_matching.py
+    gene_fusion_intersection: py/benchmark/gene_fusion_intersection.py
+    gene_fusion_upset_plot: py/benchmark/gene_fusion_upset_plot.py
 
 refs:
     Homo_sapiens:

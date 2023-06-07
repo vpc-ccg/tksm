@@ -4,22 +4,10 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - snakemake>=7.0.0
-  - python-edlib
-  - numpy
   - matplotlib
   - tqdm
   - upsetplot
-  - pandas
-  - scikit-learn
-  - badread=0.2.0
-  - genion=1.2.2
+  - genion=1.2.3
   - longgf=0.1.2
-  - sctagger=1.1
-  - minimap2
+  - minimap2=2.24
   - nanosim=3.1.0
-  - gxx=12.2.0
-  - fmt=9.1.0
-  - cxxopts=3.1.0
-  - pip:
-    - liqa

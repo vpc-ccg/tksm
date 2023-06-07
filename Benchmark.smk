@@ -15,7 +15,6 @@ import matplotlib
 from snakemake.utils import min_version
 from tqdm import tqdm
 from sklearn.metrics import r2_score, mean_squared_error
-import upsetplot
 
 min_version("6.0")
 
@@ -106,6 +105,8 @@ rule NS_analysis:
     params:
         output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
     threads: 32
+    conda:
+        "Benchmark_env.yaml",
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_analysis', exprmnt='{wildcards.sample}', prefix='')}"
         "read_analysis.py transcriptome"
@@ -130,6 +131,8 @@ rule NS_quantify:
     threads: 32
     resources:
         time=60 * 6 - 1,
+    conda:
+        "Benchmark_env.yaml",
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_quantify', exprmnt='{wildcards.sample}', prefix='')}"
         "read_analysis.py quantify"
@@ -154,6 +157,8 @@ rule NS_simulate:
         out_prefix=lambda wc: f"{NS_d}/{wc.exprmnt}/simulation",
         other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
     threads: 32
+    conda:
+        "Benchmark_env.yaml",
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_simulate', exprmnt='{wildcards.exprmnt}', prefix='')}"
         "simulator.py transcriptome"
@@ -650,14 +655,15 @@ rule genion_run:
         cdna_selfalign=lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
         gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
         dups=config["genion"]["dups"],
-        binary="/groups/hachgrp/projects/dev-genion/code/post-publish/genion/genion",
     output:
         tsv=f"{preproc_d}/genion/{{sample}}.tsv",
         fail=f"{preproc_d}/genion/{{sample}}.tsv.fail",
     params:
         min_support=3,
+    conda:
+        "Benchmark_env.yaml",
     shell:
-        "{input.binary}"
+        "genion"
         " -i {input.fastq}"
         " -g {input.dna_paf}"
         " -o {output.tsv}"
@@ -678,6 +684,8 @@ rule longgf_run:
         bin_size=4,
         min_map_len=80,
         min_support=3,
+    conda:
+        "Benchmark_env.yaml",
     shell:
         "LongGF"
         " {input.bam}"
@@ -1183,6 +1191,8 @@ rule gene_fusion_intersection:
         longGF=f"{preproc_d}/longgf/{{sample}}.tsv",
     output:
         pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
+    conda:
+        "Benchmark_env.yaml",
     shell:
         "python {input.script}"
         " --tid_to_gid {input.tid_to_gid}"
@@ -1198,50 +1208,17 @@ rule gene_fusion_intersection:
 
 rule gene_fusion_upset_plot:
     input:
+        script=config["exec"]["gene_fusion_upset_plot"],
         pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
     output:
         pdf=f"{plots_d}/gene_fusion_upset/{{sample}}.pdf",
         png=f"{plots_d}/gene_fusion_upset/{{sample}}.png",
-    run:
-        S = wildcards.sample
-        try:
-            if S.endswith("_trc"):
-                trc = True
-                S = S.rstrip("_trc")
-            else:
-                trc = False
-            S = S.lstrip("TKSM_gene_fusion")
-            rate = float(S) / 100
-            rate = f"{rate:.0%}"
-        except Exception as e:
-            print(e)
-            rate = "NA"
-            trc = False
-
-        gene_fusions = pickle.load(open(input.pickle, "rb"))
-        gf_counter = Counter()
-        for k, v in gene_fusions.items():
-            KEY = set()
-            for x in v:
-                if x.startswith("PASS"):
-                    KEY.add("Genion pass")
-                elif x.startswith("FAIL"):
-                    KEY.add("Genion fail")
-                else:
-                    KEY.add(x)
-            KEY = tuple(sorted(KEY))
-            gf_counter[KEY] += 1
-        UPSET_DATA = gf_counter.items()
-        UPSET_DATA = upsetplot.from_memberships(
-            list(zip(*gf_counter.items()))[0],
-            list(zip(*gf_counter.items()))[1],
-        )
-        fig = plt.figure(figsize=(10, 10))
-        upsetplot.plot(
-            UPSET_DATA,
-            fig=fig,
-            show_counts=True,
-        )
-        fig.suptitle(f"Rate = {rate}; Trc = {trc}")
-        fig.savefig(output.pdf, dpi=500)
-        fig.savefig(output.png, dpi=1000)
+    params:
+        outpath=f"{plots_d}/gene_fusion_upset/{{sample}}",
+    conda:
+        "Benchmark_env.yaml",
+    shell:
+        "python {input.script}"
+        " --pickle {input.pickle}"
+        " --sample {wildcards.sample}"
+        " --outpath {params.outpath}"
