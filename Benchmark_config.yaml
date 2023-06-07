@@ -146,3 +146,7 @@ samples:
         fastq:
             - data/samples/MCF7-sgnex.fastq.gz
         ref: Homo_sapiens
+    "N1":
+        fastq:
+            - data/samples/N1.fastq.gz
+        ref: Homo_sapiens
