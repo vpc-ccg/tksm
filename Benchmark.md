@@ -21,9 +21,10 @@ Also, expect a much slower installation.
 ### Environment
 Clone the repository and its submodules:
 ```bash
-git clone https://github.com/vpc-ccg/tksm --recursive
+git clone https://github.com/vpc-ccg/tksm
 cd tksm
-git checkout benchmark
+git checkout paper
+git submodule update --init --recursive
 ```
 
 Create a new Conda environment satisfying all the dependencies:
@@ -36,7 +37,7 @@ All the following commands assume that you are in the `tksm` directory and that 
 
 Install TKSM:
 ```bash
-make -j8 install
+make -j8
 ./install.sh
 ```
 
@@ -62,11 +63,19 @@ wget https://ftp.ensembl.org/pub/release-109/fasta/homo_sapiens/dna/Homo_sapiens
 wget https://ftp.ensembl.org/pub/release-109/gtf/homo_sapiens/Homo_sapiens.GRCh38.109.chr.gtf.gz -O data/refs/Homo_sapiens.GRCh38.108.chr.gtf.gz
 
 wget https://ftp.ensembl.org/pub/release-109/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz -O data/refs/Homo_sapiens.GRCh38.cdna.chr.fa.gz
+
+wget ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz -O data/refs/genomicSuperDups.txt.gz
 ```
+
+Note: `wget` can be slow especially with the references.
+Consider using [Axel](https://github.com/axel-download-accelerator/axel) which you can install using [Conda](https://anaconda.org/conda-forge/axel). 
 
 Unzip the references:
 ```bash
-gunzip data/refs/Homo_sapiens*.gz
+gunzip data/refs/genomicSuperDups.txt.gz
+gunzip data/refs/Homo_sapiens.GRCh38.108.chr.gtf.gz
+gunzip data/refs/Homo_sapiens.GRCh38.cdna.chr.fa.gz
+gunzip data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
 ```
 
 Download the 10x Genomics cellular barcode whitelist:
