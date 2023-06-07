@@ -14,7 +14,7 @@ TS_d = f"{outpath}/TS"
 time_tsv = f"{outpath}/time.tsv"
 exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
-DEBUG = False
+DEBUG = True
 
 
 def exprmnt_final_file(exprmnt):
@@ -31,7 +31,7 @@ def exprmnt_final_file(exprmnt):
         "Flp",
         "Trc",
         "Shf",
-        "Uns"
+        "Uns",
     ]:
         prefix.append("mdf")
     else:

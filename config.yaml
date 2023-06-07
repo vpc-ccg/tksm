@@ -71,7 +71,7 @@ TS_experiments:
                 model: "nanopore2020"
 
 exec:
-    tksm: tksm
+    tksm: build/bin/tksm
 
 refs:
     Homo_sapiens:

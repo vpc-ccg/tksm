@@ -11,12 +11,15 @@
 #include <variant>
 #include <vector>
 #include <fstream>
+#include <algorithm>
+
 
 #include "gtf.h"
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
 #include "util.h"
+
 
 using std::set;
 using std::string;
@@ -105,17 +108,50 @@ event_type_to_string(EventType type) -> string {
     }
 }
 
+inline auto string_to_event_type(const string &st) -> EventType {
+    string str{st};
+    sr::transform(str.begin(), str.end(), str.begin(), ::tolower);
+    if(str=="INVERSION"){
+        return EventType::INVERSION;
+    }
+    else if(str=="DELETION"){
+        return EventType::DELETION;
+    }
+    else if(str=="TRANSLOCATION"){
+        return EventType::TRANSLOCATION;
+    }
+    else if(str=="DUPLICATION"){
+        return EventType::DUPLICATION;
+    }
+    else if(str=="INSERTION"){
+        return EventType::INSERTION;
+    }
+    else if(str=="NONE"){
+        return EventType::NONE;
+    }
+    else{
+        throw runtime_error("Invalid event type " + str);
+    }
+
+}
+
 class chimeric_event : public ginterval {
 public:
     enum class CUT { HEAD, TAIL };
     EventType event_type;
     double event_ratio;
-    ginterval supplementary_interval;  // To be used for translocations
 
+    string event_name;
+    string chr2;
+    string orientation2;
+    int count;
     // Event
-    chimeric_event(EventType event_type) : ginterval{}, event_type{event_type}, event_ratio{0.5} {}
-    chimeric_event(const string &chr, int start, int end, const string &orientation, EventType event_type)
-        : ginterval{chr, start, end, orientation}, event_type{event_type}, event_ratio{0.5} {}
+    chimeric_event(EventType event_type) : ginterval{}, event_type{event_type}, event_ratio{0.5}, event_name{"::"}{}
+
+    chimeric_event(const string &chr, int start, int end, const string &orientation, const string& orientation2, const string &chr2, EventType event_type, const string &event_name, int count)
+        : ginterval{chr, start, end, orientation}, event_type{event_type}, event_ratio{0.5}, event_name{event_name}, chr2{chr2}, orientation2{orientation2}, count{count}{}
+    chimeric_event(const string &chr, int start, int end, const string &orientation, const string& orientation2, const string &chr2, EventType event_type, const string &event_name)
+        : ginterval{chr, start, end, orientation}, event_type{event_type}, event_ratio{0.5}, event_name{event_name}, chr2{chr2}, orientation2{orientation2}, count{0}{}
 
     chimeric_event(const chimeric_event &other) = default;
     auto cut_transcript(const transcript &t, int cut_position, CUT cut) const
@@ -281,7 +317,7 @@ public:
 
         vector<transcript> fused_transcripts;
 
-        double total_head_abundance = 0;
+        double total_head_abundance = count;
         for (const auto &t : start_molecules) {
             auto iter = tid_to_tpcm.find(t);
             if (iter == tid_to_tpcm.end()) {
@@ -357,7 +393,7 @@ public:
     locus get_start(bool strand = true) const { return locus{chr, start, strand}; }
     locus get_end(bool strand = true) const { return locus{chr, end, strand}; }
     friend ostream &operator<<(ostream &os, const chimeric_event &event) {
-        os << event.chr << "\t" << event.start << "\t" << event.end << "\t" << event_type_to_string(event.event_type) << "\t" << event.supplementary_interval;
+        os << event.chr << "\t" << event.start << "\t" << event.end << "\t" << event_type_to_string(event.event_type) << "\t" << event.chr2 << "\t" << event.event_name;
         return os;
     }
 };
@@ -370,10 +406,24 @@ read_fusions(std::istream &fusion_file) {
     string line;
     while (std::getline(fusion_file, line)) {
         std::istringstream iss{line};
-        string chr1, chr2, orientation1, orientation2;
-        int start1, end1, start2, end2;
-        iss >> chr1 >> start1 >> end1 >> orientation1 >> chr2 >> start2 >> end2 >> orientation2;
-        chimeric_event fusion{chr1, start1, end1, orientation1, EventType::NONE};
+        string chr1, chr2, orientation1, orientation2, event_name;
+        int start1, end1;
+        double count;
+        iss >> chr1 >> start1 >> end1 >> orientation1 >> orientation2 >> chr2 >>  event_name >> count;
+        std::stringstream oss;
+        oss << chr1 << ":" << start1 << "-" << end1 << orientation1;
+        EventType et = [&] () -> EventType {
+            if (chr1 == chr2) {
+                if (orientation1 == orientation2) {
+                    return EventType::DELETION;
+                } else {
+                    return EventType::DUPLICATION;
+                }
+            } else {
+                return EventType::TRANSLOCATION;
+            }
+        } ();
+        chimeric_event fusion{chr1, start1, end1, orientation1, orientation2, chr2, et, event_name, count};
         fusions.push_back(fusion);
     }
     return fusions;
@@ -529,7 +579,7 @@ class Fusion_submodule : public tksm_submodule {
                 locus g1 = generate_random_breakpoint(gene1);
                 locus g2 = generate_random_breakpoint(gene2);
                 chimeric_event fusion{g1.get_chr(), g1.get_position(), g2.get_position(),
-                                      g1.is_plus_strand() ? "+" : "-", event_type};
+                                      g1.is_plus_strand() ? "+" : "-",g2.is_plus_strand() ? "+" : "-", g2.get_chr(), event_type, gene1.info.at("gene_name") + "::" + gene2.info.at("gene_name")};
                 logd("Generated fusion: {}, on genes {} and {}", fusion, gene1.info["gene_name"],
                      gene2.info["gene_name"]);
                 fusions_so_far.push_back(fusion);
@@ -591,6 +641,7 @@ class Fusion_submodule : public tksm_submodule {
 
                 map<string, std::pair<gtf, vector<gtf>>> expressed_genes;
                 for (const auto &[name, gene] : genes) {
+                    if(gene.first.info.at("gene_biotype") != "protein_coding") continue;
                     auto iter = expression_map.find(name);
                     if (iter != expression_map.end() && iter->second > 0) {
                         expressed_genes[name] = gene;
