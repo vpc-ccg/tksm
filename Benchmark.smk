@@ -645,7 +645,7 @@ rule genion_run:
         dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
         cdna_selfalign=lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
         gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
-        dups=config["refs"]["genion"]["dups"],
+        dups=config["refs"]["genion_dups"],
     output:
         tsv=f"{preproc_d}/genion/{{sample}}.tsv",
         fail=f"{preproc_d}/genion/{{sample}}.tsv.fail",
