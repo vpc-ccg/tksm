@@ -51,7 +51,7 @@ mkdir -p data/samples
 
 Download the samples:
 ```bash
-wget http://sg-nex-data.s3.amazonaws.com/data/sequencing_data_ont/fastq/SGNex_MCF7_directRNA_replicate2_run2/SGNex_MCF7_directRNA_replicate2_run2.fastq.gz -O data/samples/MCF7-sgnex.fastq.gz
+wget http://sg-nex-data.s3.amazonaws.com/data/sequencing_data_ont/fastq/SGNex_MCF7_directcDNA_replicate1_run2/SGNex_MCF7_directcDNA_replicate1_run2.fastq.gz -O data/samples/MCF7-sgnex.fastq.gz
 
 wget https://figshare.com/ndownloader/files/40862291?private_link=f66abe6156696e14ced6 -O data/samples/N1.fastq.gz
 ```
