@@ -136,11 +136,9 @@ refs:
         cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr.fa
         DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
         GTF: data/refs/Homo_sapiens.GRCh38.108.chr.gtf
-    Homo_sapiens_chr21:
-        cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr21.fa
-        DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.chr21.fa
-        GTF: data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
     10x_bc: data/refs/3M-february-2018.txt.gz
+    genion:
+        dups: data/refs/genomicSuperDups.txt
 
 samples:
     "MCF7-sgnex":
