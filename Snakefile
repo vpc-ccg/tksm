@@ -13,7 +13,7 @@ preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
 exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
-DEBUG = False
+DEBUG = True
 
 
 def exprmnt_final_file(exprmnt):
@@ -29,6 +29,8 @@ def exprmnt_final_file(exprmnt):
         "Tag",
         "Flp",
         "Trc",
+        "Shf",
+        "Uns",
     ]:
         prefix.append("mdf")
     else:

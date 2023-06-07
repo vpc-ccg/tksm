@@ -33,7 +33,7 @@ else
 endif
 CXX_STD ?=c++20
 CXXFLAGS += -std=$(CXX_STD) -Wall  $(CXX_OPT) $(CXX_DBG) 
-LDFLAGS += -lz -lpthread -lfmt $(LD_DBG)
+LDFLAGS += -lz -lpthread -lfmt $(LD_DBG) -flto=auto
 
 
 ifneq ($(DEBUG),1)
