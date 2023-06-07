@@ -619,15 +619,6 @@ rule LIQA_refgene:
 
 
 # Genion Rules
-rule download_and_extract_dups:
-    output:
-        dups=config["genion"]["dups"],
-    params:
-        url="ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz",
-    shell:
-        "wget {params.url} -O {output.dups}.gz && gunzip {output.dups}.gz"
-
-
 rule self_align_cdna:
     input:
         "{sample}",

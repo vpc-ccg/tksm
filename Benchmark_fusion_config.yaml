@@ -220,9 +220,6 @@ refs:
         DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
         GTF: data/refs/Homo_sapiens.GRCh38.108.chr.gtf
     10x_bc: data/refs/3M-february-2018.txt.gz
-
-genion:
-    dups: data/refs/genomicSuperDups.txt
     
 samples:
     "MCF7-sgnex":
