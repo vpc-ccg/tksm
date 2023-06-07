@@ -207,6 +207,7 @@ plots:
              TKSM_gene_fusion008_trc,
          ],
      }
+
 exec:
     tksm: build/bin/tksm
     lr_cell_stats: py/benchmark/lr_cell_stats.py
@@ -220,8 +221,7 @@ refs:
         DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
         GTF: data/refs/Homo_sapiens.GRCh38.108.chr.gtf
     10x_bc: data/refs/3M-february-2018.txt.gz
-    genion:
-        dups: data/refs/genomicSuperDups.txt
+    genion_dups: data/refs/genomicSuperDups.txt
     
 samples:
     "MCF7-sgnex":

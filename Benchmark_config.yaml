@@ -130,6 +130,8 @@ exec:
     tksm: build/bin/tksm
     lr_cell_stats: py/benchmark/lr_cell_stats.py
     lr_cell_matching: py/benchmark/lr_cell_matching.py
+    gene_fusion_intersection: py/benchmark/gene_fusion_intersection.py
+    gene_fusion_upset_plot: py/benchmark/gene_fusion_upset_plot.py
 
 refs:
     Homo_sapiens:
@@ -137,15 +139,10 @@ refs:
         DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
         GTF: data/refs/Homo_sapiens.GRCh38.108.chr.gtf
     10x_bc: data/refs/3M-february-2018.txt.gz
-    genion:
-        dups: data/refs/genomicSuperDups.txt
-
+    genion_dups: data/refs/genomicSuperDups.txt
+    
 samples:
     "MCF7-sgnex":
         fastq:
             - data/samples/MCF7-sgnex.fastq.gz
-        ref: Homo_sapiens
-    "N1":
-        fastq:
-            - data/samples/N1.fastq.gz
         ref: Homo_sapiens
