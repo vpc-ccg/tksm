@@ -1,13 +1,27 @@
 name: tksm_bench
 channels:
-  - anaconda 
   - conda-forge
   - bioconda
+  - nodefaults
 dependencies:
-  - matplotlib
-  - tqdm
-  - upsetplot
+  - python>=3.8
   - genion=1.2.3
   - longgf=0.1.2
-  - minimap2=2.24
   - nanosim=3.1.0
+  - badread=0.2.0
+  - sctagger=1.1
+  - minimap2=2.24
+  - gxx=12.2.0
+  - fmt=9.1.0
+  - cxxopts=3.1.0
+  - snakemake
+  - pip
+  - pip:
+    - tqdm
+    - upsetplot
+    - edlib
+    - numpy
+    - matplotlib
+    - joblib
+    - pandas
+    - scikit-learn
