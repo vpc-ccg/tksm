@@ -9,7 +9,7 @@ dependencies:
   - longgf=0.1.2
   - nanosim=3.1.0
   - badread=0.2.0
-  - sctagger=1.1
+  - sctagger=1.1.1
   - minimap2=2.24
   - gxx=12.2.0
   - fmt=9.1.0
