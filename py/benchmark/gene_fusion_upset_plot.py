@@ -1,8 +1,7 @@
 import pickle
-from collections import defaultdict, Counter
+from collections import Counter
 import argparse
 
-from tqdm import tqdm
 import upsetplot
 from matplotlib import pyplot as plt
 
@@ -33,6 +32,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
 def main():
     args = parse_args()
     S = args.sample
@@ -56,25 +56,39 @@ def main():
         KEY = set()
         for x in v:
             if x.startswith("PASS"):
-                KEY.add("Genion pass")
+                x = "Genion pass"
             elif x.startswith("FAIL"):
-                KEY.add("Genion fail")
-            else:
-                KEY.add(x)
+                x = "Genion fail"
+            KEY.add(x)
         KEY = tuple(sorted(KEY))
         gf_counter[KEY] += 1
     UPSET_DATA = gf_counter.items()
     UPSET_DATA = upsetplot.from_memberships(
-        list(zip(*gf_counter.items()))[0],
-        list(zip(*gf_counter.items()))[1],
+        list(zip(*UPSET_DATA))[0],
+        list(zip(*UPSET_DATA))[1],
     )
+    order_levels = [
+        x
+        for x in [
+            "Truth",
+            "Genion pass",
+            "LongGF",
+            "Glue",
+            "Genion fail",
+        ]
+        if x in UPSET_DATA.index.names
+    ]
+    UPSET_DATA = UPSET_DATA.reorder_levels(order_levels)
     fig = plt.figure(figsize=(10, 10))
     upsetplot.plot(
         UPSET_DATA,
         fig=fig,
         show_counts=True,
+        sort_by="input",
+        sort_categories_by="input",
     )
-    fig.suptitle(f"Rate = {rate}; Trc = {trc}")
+    fig.suptitle(f"Glue rate = {rate}; Trc = {trc}")
+    fig.savefig(f"{args.outpath}.svg", dpi=500)
     fig.savefig(f"{args.outpath}.pdf", dpi=500)
     fig.savefig(f"{args.outpath}.png", dpi=1000)
 

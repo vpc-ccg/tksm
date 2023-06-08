@@ -6,7 +6,7 @@ TS_experiments:
     TKSM_gene_fusion_pre_trc:
         pipeline:
             - Tsb:
-                params: "--molecule-count 4000000 --fusion-count 50 --fusion-output fusions50.tsv"
+                params: "--molecule-count 4000000 --fusion-count 50 --fusion-output fusions50_trc.tsv"
                 model: "MCF7-sgnex"
                 mode: Xpr
             - Trc:
@@ -127,6 +127,23 @@ TS_experiments:
 
 
 plots:
+     - {
+         rules: [
+             gene_fusion_accuracy,
+         ],
+         data: [
+            TKSM_gene_fusion000,
+            TKSM_gene_fusion001,
+            TKSM_gene_fusion002,
+            TKSM_gene_fusion004,
+            TKSM_gene_fusion008,
+            TKSM_gene_fusion000_trc,
+            TKSM_gene_fusion001_trc,
+            TKSM_gene_fusion002_trc,
+            TKSM_gene_fusion004_trc,
+            TKSM_gene_fusion008_trc,
+         ],
+     }
      - {
          rules: [
              gene_fusion_upset,

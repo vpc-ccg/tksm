@@ -2,6 +2,7 @@ import sys
 import gzip
 from multiprocessing import Pool
 import pickle
+import glob
 
 import re
 import itertools
@@ -106,7 +107,7 @@ rule NS_analysis:
         output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
     threads: 32
     conda:
-        "Benchmark_env.yaml",
+        "Benchmark_env.yaml"
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_analysis', exprmnt='{wildcards.sample}', prefix='')}"
         "read_analysis.py transcriptome"
@@ -132,7 +133,7 @@ rule NS_quantify:
     resources:
         time=60 * 6 - 1,
     conda:
-        "Benchmark_env.yaml",
+        "Benchmark_env.yaml"
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_quantify', exprmnt='{wildcards.sample}', prefix='')}"
         "read_analysis.py quantify"
@@ -158,7 +159,7 @@ rule NS_simulate:
         other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
     threads: 32
     conda:
-        "Benchmark_env.yaml",
+        "Benchmark_env.yaml"
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_simulate', exprmnt='{wildcards.exprmnt}', prefix='')}"
         "simulator.py transcriptome"
@@ -249,11 +250,17 @@ def reverse_complement(seq):
     complement = {"A": "T", "C": "G", "G": "C", "T": "A", "N": "N"}
     return "".join(complement.get(base, base) for base in reversed(seq))
 
+def get_rule_extension(r):
+    if r.startswith("tpm_plot"):
+        return "pdf"
+    if r == "gene_fusion_accuracy":
+        return "csv"
+    return "png"
 
 rule all:
     input:
         [
-            f"{plots_d}/{r}/{'.'.join(p['data'])}.{'png' if r.startswith('tpm_plot') else 'pdf'}"
+            f"{plots_d}/{r}/{'.'.join(p['data'])}.{get_rule_extension(r)}"
             for p in config["plots"]
             for r in p["rules"]
         ],
@@ -652,7 +659,7 @@ rule genion_run:
     params:
         min_support=3,
     conda:
-        "Benchmark_env.yaml",
+        "Benchmark_env.yaml"
     shell:
         "genion"
         " -i {input.fastq}"
@@ -676,7 +683,7 @@ rule longgf_run:
         min_map_len=80,
         min_support=3,
     conda:
-        "Benchmark_env.yaml",
+        "Benchmark_env.yaml"
     shell:
         "LongGF"
         " {input.bam}"
@@ -1183,7 +1190,7 @@ rule gene_fusion_intersection:
     output:
         pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
     conda:
-        "Benchmark_env.yaml",
+        "Benchmark_env.yaml"
     shell:
         "python {input.script}"
         " --tid_to_gid {input.tid_to_gid}"
@@ -1207,9 +1214,68 @@ rule gene_fusion_upset_plot:
     params:
         outpath=f"{plots_d}/gene_fusion_upset/{{sample}}",
     conda:
-        "Benchmark_env.yaml",
+        "Benchmark_env.yaml"
     shell:
         "python {input.script}"
         " --pickle {input.pickle}"
         " --sample {wildcards.sample}"
         " --outpath {params.outpath}"
+
+
+rule gene_fusion_accuracy:
+    input:
+        pickles=lambda wc: [
+            f"{plots_d}/gene_fusion_intersection/{s}.pickle"
+            for s in wc.samples.split(".")
+        ],
+    output:
+        csv=f"{plots_d}/gene_fusion_accuracy/{{samples}}.csv",
+    run:
+        tools = ["LongGF", "PASS:GF", "Truth"]
+        delim = ","
+        outfile = open(output.csv, "w+")
+        record = list()
+        record.append("Truncation")
+        record.append("Glue rate")
+        record.append("Tool")
+        record.append("#")
+        record.append("TP")
+        record.append("FP")
+        record.append("FN")
+        record.append("F1")
+        print(delim.join(record), file=outfile)
+        for p in input.pickles:
+            gene_fusions = pickle.load(open(p, "rb"))
+            p = p.split("/")[-1][len("TKSM_gene_fusion") :][: -len(".pickle")]
+            trc = False
+            if p.endswith("_trc"):
+                trc = True
+                p = p[: -len("_trc")]
+            rate = float(p) / 100
+            tool_gf = {t: set() for t in tools}
+            for k, v in gene_fusions.items():
+                for t in v:
+                    if not t in tool_gf:
+                        continue
+                    tool_gf[t].add(k)
+            X = tool_gf["Truth"]
+            for t in tools:
+                Y = tool_gf[t]
+                TP = len(Y & X)
+                FP = len(Y - X)
+                FN = len(X - Y)
+                F1 = TP / (TP + 0.5 * (FP + FN))
+
+                if t == "PASS:GF":
+                    t = "Genion"
+                record = [
+                    f"{trc}",
+                    f"{rate:.0%}",
+                    t,
+                    f"{len(Y):d}",
+                    f"{TP:d}",
+                    f"{FP:d}",
+                    f"{FN:d}",
+                    f"{F1:.2f}",
+                ]
+                print(delim.join(record), file=outfile)
