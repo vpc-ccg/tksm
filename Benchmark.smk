@@ -252,10 +252,10 @@ def reverse_complement(seq):
 
 def get_rule_extension(r):
     if r.startswith("tpm_plot"):
-        return "pdf"
+        return "png"
     if r == "gene_fusion_accuracy":
         return "csv"
-    return "png"
+    return "pdf"
 
 rule all:
     input:
