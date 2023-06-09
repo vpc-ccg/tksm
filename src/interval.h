@@ -307,7 +307,8 @@ class transcript : public gtf {
     string comment;
 
 public:
-    transcript(const transcript &other) : gtf{other}, abundance{other.abundance}, exons{other.exons}, comment{other.comment}  {}
+    transcript(const transcript &other)
+        : gtf{other}, abundance{other.abundance}, exons{other.exons}, comment{other.comment} {}
     transcript(const gtf &entry) : gtf(entry), abundance(0.0) {}
     transcript(const gtf &entry, double abundance) : gtf(entry), abundance(abundance) {}
     transcript(const gtf &entry, double abundance, const string &comment)
@@ -747,7 +748,7 @@ struct molecule_descriptor {
     //    vector<std::pair<int, char>> errors_so_far;
 
 public:
-    molecule_descriptor() : _id(""), _reversed{false}, _depth{0}{}
+    molecule_descriptor() : _id(""), _reversed{false}, _depth{0} {}
 
     molecule_descriptor(const string &id, bool reversed) : _id(id), _reversed(reversed), _depth(1) {}
 
@@ -758,12 +759,9 @@ public:
           _segments(other._segments.begin(), other._segments.end()),
           meta{other.meta} {}
 
-    molecule_descriptor(const transcript &trans) : 
-        _id(trans.info.at("transcript_id")),
-        _reversed(!trans.plus_strand),
-        _depth(trans.get_abundance())
-    {
-        for(const gtf &gi : trans.cget_exons()){
+    molecule_descriptor(const transcript &trans)
+        : _id(trans.info.at("transcript_id")), _reversed(!trans.plus_strand), _depth(trans.get_abundance()) {
+        for (const gtf &gi : trans.cget_exons()) {
             append_segment(gi);
         }
     }
@@ -876,7 +874,7 @@ public:
         }
         return buffer.str();
     }
-    
+
     molecule_descriptor *concat(const molecule_descriptor &other) {
         _segments.insert(_segments.end(), other._segments.begin(), other._segments.end());
         return this;
@@ -892,11 +890,11 @@ public:
     }
 };
 
-inline
-molecule_descriptor flip_molecule(const molecule_descriptor &md){
+inline molecule_descriptor
+flip_molecule(const molecule_descriptor &md) {
     molecule_descriptor flipped_md{md.get_id(), md._reversed};
-    for(const auto &segment : md.cget_segments() | std::views::reverse){
-        auto flipped_segment = segment;
+    for (const auto &segment : md.cget_segments() | std::views::reverse) {
+        auto flipped_segment        = segment;
         flipped_segment.plus_strand = !flipped_segment.plus_strand;
         flipped_md.append_segment(flipped_segment);
     }

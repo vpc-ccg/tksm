@@ -11,18 +11,16 @@
 #include "model_truncation.h"
 #include "pcr.h"
 #include "polyA.h"
-
 #include "random_wgs.h"
-#include "sequence.h"
 #include "scb.h"
-#include "transcribe.h"
-
+#include "sequence.h"
+#include "shuffle.h"
 #include "strand_man.h"
 #include "tag.h"
+#include "transcribe.h"
 #include "truncate.h"
-#include "util.h"
-#include "shuffle.h"
 #include "unsegment.h"
+#include "util.h"
 
 using std::set;
 using std::string;

@@ -59,4 +59,3 @@ read_fasta_fast(const string& fasta_path) {
     return contig2seq;
 }
 #endif
-

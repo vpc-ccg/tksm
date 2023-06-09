@@ -1,5 +1,5 @@
 #include "model_truncation.h"
-#include "pimpl.h"
+
 #include <fmt/format.h>
 #include <truncate_kde.h>
 
@@ -7,11 +7,11 @@
 #include <string>
 
 #include "module.h"
+#include "pimpl.h"
 #include "python_runner.h"
 #include "util.h"
 
 using std::string;
-
 
 class KDE_module::impl : public tksm_module {
     MAKE_PYTHON_RUNNER(static, run_kde, py_truncate_kde_py, NO_MODULES);
@@ -28,7 +28,6 @@ public:
             return 1;
         }
         describe_program();
-
 
         return run_kde(argc, argv);
     }

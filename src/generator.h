@@ -2,8 +2,8 @@
 #define GENERATOR_H
 
 #include <coroutine>
-#include <exception>
 #include <cppcoro/generator.hpp>
+#include <exception>
 using cppcoro::generator;
 
 #endif  // GENERATOR_H

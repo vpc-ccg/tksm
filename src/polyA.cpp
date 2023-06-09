@@ -9,7 +9,6 @@
 #include "pimpl.h"
 #include "util.h"
 
-
 using namespace std::string_literals;
 #ifndef POLYA_REF_PREFIX
 #define POLYA_REF_PREFIX ""s
@@ -61,7 +60,7 @@ private:
 
     int validate_arguments() {
         vector<string> mandatory = {"input", "output"};
-        int missing_arguments = 0;
+        int missing_arguments    = 0;
         for (auto &arg : mandatory) {
             if (!args.count(arg)) {
                 report_missing_parameter(arg);
@@ -116,22 +115,23 @@ private:
             loge("Minimum length of polyA cannot be greater than maximum length of polyA");
             missing_arguments++;
         }
-        if(missing_arguments > 0){
-            std::cerr << options.help() <<  std::endl;
+        if (missing_arguments > 0) {
+            std::cerr << options.help() << std::endl;
         }
         fmtlog::poll(true);
         return missing_arguments;
     }
     string ctg;
+
 public:
     impl(int argc, char **argv)
         : tksm_module("polyA module", "Adds polyA tails to molecules with given size distribution"),
-          args(parse(argc, argv)), ctg(args["max-length"].as<int>(), 'A'){
-
-    }
+          args(parse(argc, argv)),
+          ctg(args["max-length"].as<int>(), 'A') {}
 
     template <class Distribution>
-    static molecule_descriptor add_polyA(const molecule_descriptor &md, Distribution &dist, int min_polya_len, int max_polya_len, const string &ctg,auto &rand_gen) {
+    static molecule_descriptor add_polyA(const molecule_descriptor &md, Distribution &dist, int min_polya_len,
+                                         int max_polya_len, const string &ctg, auto &rand_gen) {
         int poly_a_len = dist(rand_gen);
         if (poly_a_len < min_polya_len) {
             poly_a_len = min_polya_len;
@@ -141,15 +141,16 @@ public:
         }
 
         molecule_descriptor new_md = md;
-        if(poly_a_len > 0) {
-            new_md.append_segment(ginterval{ctg.substr(0,poly_a_len), 0, poly_a_len, true});
+        if (poly_a_len > 0) {
+            new_md.append_segment(ginterval{ctg.substr(0, poly_a_len), 0, poly_a_len, true});
         }
         return new_md;
     }
 
     static auto polya_transformer(int min_length, int max_length, const string &ctg, auto &dist, auto &rand_gen) {
         return std::ranges::views::transform([&, min_length, max_length, dist](const auto &md) {
-            return std::visit([&](auto dist) { return add_polyA(md, dist, min_length, max_length, ctg, rand_gen); }, dist);
+            return std::visit([&](auto dist) { return add_polyA(md, dist, min_length, max_length, ctg, rand_gen); },
+                              dist);
         });
     }
     auto get_dist() -> std::variant<std::gamma_distribution<double>, std::poisson_distribution<int>,
@@ -173,7 +174,7 @@ public:
         return std::gamma_distribution<double>(1, 1);
     }
     auto operator()() {
-        auto dist =  get_dist();
+        auto dist = get_dist();
         return polya_transformer(args["min-length"].as<int>(), args["max-length"].as<int>(), ctg, dist, rand_gen);
     }
     int run() {
@@ -198,7 +199,8 @@ public:
         }
 
         auto dist = get_dist();
-        for (const auto &md : stream_mdf(input_file, true) | polya_transformer(min_length, max_length, ctg, dist, rand_gen)) {
+        for (const auto &md :
+             stream_mdf(input_file, true) | polya_transformer(min_length, max_length, ctg, dist, rand_gen)) {
             output << md;
         }
 

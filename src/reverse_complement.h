@@ -1,9 +1,9 @@
 #ifndef REVERSE_COMPLEMENT_H
 #define REVERSE_COMPLEMENT_H
 
+#include <algorithm>
 #include <array>
 #include <string>
-#include <algorithm>
 
 namespace reverse_complement {
 template <char C>

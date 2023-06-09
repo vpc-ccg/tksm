@@ -62,28 +62,25 @@ class Splicer_module::impl : public tksm_module {
         return options.parse(argc, argv);
     }
 
-    auto process_file_weights(const cxxopts::ParseResult&args){
-
-
-        auto W  = args["weights"].as<vector<double>>();
-        if(W.size() == 1){
-            return vector<double>(W.size(), W[0]/args["abundance"].as<vector<string>>().size());
+    auto process_file_weights(const cxxopts::ParseResult& args) {
+        auto W = args["weights"].as<vector<double>>();
+        if (W.size() == 1) {
+            return vector<double>(W.size(), W[0] / args["abundance"].as<vector<string>>().size());
         }
         assert(v_strings.size() == args["abundance"].as<vector<string>>().size());
-    
 
         double sum = std::accumulate(W.begin(), W.end(), 0.0);
-        for(auto& w : W){
+        for (auto& w : W) {
             w /= sum;
         }
         return W;
     }
 
-
     Fusion_submodule fusion_submodule;
     cxxopts::ParseResult args;
 
     friend class Fusion_submodule;
+
 public:
     impl(int argc, char** argv)
         : tksm_module{"Splicer", "RNA Splicing module"}, fusion_submodule(options, rand_gen), args(parse(argc, argv)) {}
@@ -119,26 +116,26 @@ public:
         }
         describe_program();
 
-        vector<string> gtf_files               = args["gtf"].as<vector<string>>();
-        vector<string> abundance_files        = args["abundance"].as<vector<string>>();
-        string output_file            = args["output"].as<string>();
+        vector<string> gtf_files           = args["gtf"].as<vector<string>>();
+        vector<string> abundance_files     = args["abundance"].as<vector<string>>();
+        string output_file                 = args["output"].as<string>();
         int molecule_count                 = args["molecule-count"].as<int>();
         [[maybe_unused]] bool use_whole_id = args["use-whole-id"].as<bool>();
         [[maybe_unused]] bool non_coding   = args["non-coding"].as<bool>();
         int default_depth                  = args["default-depth"].as<int>();
         string molecule_prefix             = args["molecule-prefix"].as<string>();
-        vector<double> file_weights                =  process_file_weights(args);
+        vector<double> file_weights        = process_file_weights(args);
 
         std::uniform_real_distribution<> dist(0, 1);
         std::ofstream outfile{output_file};
 
         logi("Reading GTF files {}", fmt::join(gtf_files, ", "));
         std::unordered_map<string, transcript> isoforms;
-        for(auto& gtf_file : gtf_files) {
+        for (auto& gtf_file : gtf_files) {
             isoforms.merge(read_gtf_transcripts_deep(gtf_file, default_depth));
         }
         auto w_iter = file_weights.begin();
-        for(const string &abundance_file : abundance_files) {
+        for (const string& abundance_file : abundance_files) {
             double file_W = *w_iter;
             ++w_iter;
             std::ifstream abundance_file_stream{abundance_file};
@@ -169,9 +166,8 @@ public:
 
             size_t index = 0;
 
-            double sum_tpm = std::accumulate(abundances.begin(), abundances.end(), 0.0, [](double sum, auto& t) {
-                return sum + std::get<1>(t);
-            });
+            double sum_tpm = std::accumulate(abundances.begin(), abundances.end(), 0.0,
+                                             [](double sum, auto& t) { return sum + std::get<1>(t); });
 
             for (auto& [tid, tpm, comment] : abundances) {
                 format_annot_id(tid, !args["use-whole-id"].as<bool>());
@@ -204,9 +200,9 @@ public:
 
     void describe_program() {
         logi("Splicer module");
-        string gtf_files = fmt::format("{}",fmt::join(args["gtf"].as<vector<string>>(), ", "));
+        string gtf_files = fmt::format("{}", fmt::join(args["gtf"].as<vector<string>>(), ", "));
         logi("Input GTF files: {}", gtf_files);
-        string abundance_files = fmt::format("{}",fmt::join(args["abundance"].as<vector<string>>(), ", "));
+        string abundance_files = fmt::format("{}", fmt::join(args["abundance"].as<vector<string>>(), ", "));
         logi("Input abundance files: {}", abundance_files);
         logi("Output file: {}", args["output"].as<string>());
         logi("Molecule count: {}", args["molecule-count"].as<int>());

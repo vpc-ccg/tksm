@@ -81,7 +81,6 @@ public:
 
         double probability = args["probability"].as<double>();
 
-
         ifstream input(input_file);
 
         ofstream output(output_file);
@@ -95,7 +94,6 @@ public:
                 continue;
             }
             if (dist(rand_gen) < probability) {
-
                 current.concat(md);
 
                 current.add_comment("Cat", md.get_id());
@@ -118,4 +116,3 @@ public:
 };
 
 MODULE_IMPLEMENT_PIMPL_CLASS(Unsegment_module);
-

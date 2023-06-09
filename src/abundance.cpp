@@ -1,12 +1,13 @@
 #include "abundance.h"
-#include "pimpl.h"
-#include <fmt/format.h>
 
+#include <fmt/format.h>
 #include <transcript_abundance.h>
+
 #include <cstdlib>
 #include <string>
 
 #include "module.h"
+#include "pimpl.h"
 #include "python_runner.h"
 #include "util.h"
 

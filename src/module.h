@@ -33,7 +33,6 @@ public:
     virtual void describe_program(const cxxopts::ParseResult &args) = 0;
 };
 
-
 using tksm_submodule = tksm_submodule_base<std::mt19937>;
 
 template <class RAND_GENERATOR>

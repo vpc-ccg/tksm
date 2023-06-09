@@ -5,15 +5,14 @@
 #include <string>
 #include <vector>
 
-#include "pimpl.h"
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
+#include "pimpl.h"
 #include "util.h"
 
 using std::string;
 using std::vector;
-
 
 class TAG_module::impl : public tksm_module {
     cxxopts::ParseResult parse(int argc, char **argv) {
@@ -80,9 +79,6 @@ public:
 
         string mdf_file_path{args["input"].as<string>()};
 
-
-
-
         logi("Adding tags");
 
         if (isdigit(format5[0])) {
@@ -97,18 +93,15 @@ public:
         fmt2seq make_seq5(format5);
         fmt2seq make_seq3(format3);
 
-
-
         string outfile_name = args["output"].as<string>();
         logi("Adding TAGs and printing to: {}", outfile_name);
         fmtlog::poll(true);
         std::ofstream outfile{outfile_name};
-        
 
-        for(auto &md : stream_mdf(mdf_file_path, true)) {
-            string umi_seq5        = make_seq5[rand_gen];
+        for (auto &md : stream_mdf(mdf_file_path, true)) {
+            string umi_seq5 = make_seq5[rand_gen];
 
-            string umi_seq3        = make_seq3[rand_gen];
+            string umi_seq3 = make_seq3[rand_gen];
 
             int len5 = static_cast<int>(umi_seq5.size());
             int len3 = static_cast<int>(umi_seq3.size());
@@ -116,12 +109,10 @@ public:
                 md.prepend_segment(ginterval{umi_seq5, 0, len5, true});
             }
             if (len3 > 0) {
-
                 md.append_segment(ginterval{umi_seq3, 0, len3, true});
             }
             outfile << md;
         }
-
 
         return 0;
     }
@@ -138,6 +129,5 @@ public:
         fmtlog::poll(true);
     }
 };
-
 
 MODULE_IMPLEMENT_PIMPL_CLASS(TAG_module)

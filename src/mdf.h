@@ -2,11 +2,11 @@
 #pragma once
 #ifndef MDF_H
 #define MDF_H
+#include <cstdio>
 #include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
-#include <cstdio>
 
 #include "generator.h"
 #include "interval.h"
@@ -30,7 +30,7 @@ stream_mdf(FILE *file, bool unroll = false){
         char mutations[10000];
         molecule_descriptor md{id, strand == '-'};
         md.depth(depth)->comment(comment);
-        
+
         vector<std::pair<int, char>> errors_so_far;
         while(std::scanf("%s\t%d\t%d\t%c\t%s", chr, &start, &end, &strand, mutations) == 5){
 
@@ -112,10 +112,9 @@ stream_mdf(std::istream &ist, bool unroll = false) {
 inline generator<molecule_descriptor>
 stream_mdf(const string &filename, bool unroll = false) {
     std::basic_ifstream<char> ist{filename};
-    if(!ist){
+    if (!ist) {
         throw std::runtime_error("Could not open file " + filename);
     }
-
 
     string buffer;
     buffer.reserve(1000);
@@ -166,7 +165,7 @@ stream_mdf(const string &filename, bool unroll = false) {
 inline vector<molecule_descriptor>
 parse_mdf(std::istream &ist, bool unroll = false) {
     vector<molecule_descriptor> mdfs;
-    for(const molecule_descriptor &md : stream_mdf(ist, unroll)){
+    for (const molecule_descriptor &md : stream_mdf(ist, unroll)) {
         mdfs.push_back(md);
     }
     return mdfs;
@@ -256,4 +255,3 @@ print_all_mdf(ostream &ost, const vector<pcr_copy> &molecules) {
 }
 */
 #endif
-

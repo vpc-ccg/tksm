@@ -1,6 +1,9 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#include <fmt/core.h>
+
+#include <algorithm>
 #include <array>
 #include <map>
 #include <ostream>
@@ -8,26 +11,18 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <algorithm>
-
-#include <fmt/core.h>
 #define FMTLOG_HEADER_ONLY
 #include <fmtlog/fmtlog.h>
 
-
-
-class runtime_error :   public std::runtime_error {
+class runtime_error : public std::runtime_error {
 public:
-    runtime_error(const std::string &msg) : std::runtime_error(msg) {
-        fmtlog::poll(true);
-    }
+    runtime_error(const std::string &msg) : std::runtime_error(msg) { fmtlog::poll(true); }
 };
 
 using std::map;
 using std::ostream;
 using std::string;
 using std::vector;
-
 
 static const string ASCII_ART = R"(
  _______  ___   _  _______  __   __    
@@ -126,9 +121,8 @@ public:
 
 inline void
 report_missing_parameter(const std::string &param_name) {
-    loge( "Missing parameter: {}", param_name);
+    loge("Missing parameter: {}", param_name);
 }
-
 
 template <class B>
 inline void

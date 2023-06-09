@@ -35,8 +35,7 @@ class SingleCellBarcoder_module::impl : public tksm_module {
     cxxopts::ParseResult args;
 
 public:
-    impl(int argc, char **argv)
-        : tksm_module{"scb", "Single cell barcode module"}, args(parse(argc, argv)) {}
+    impl(int argc, char **argv) : tksm_module{"scb", "Single cell barcode module"}, args(parse(argc, argv)) {}
     ~impl() {}
 
     int validate_arguments() {
@@ -71,8 +70,8 @@ public:
         fmtlog::poll(true);
         std::ofstream outfile{outfile_name};
 
-        for(auto &md : stream_mdf(mdf_file_path, true)){
-            const string &barcode_str   = md.get_comment("CB")[0];
+        for (auto &md : stream_mdf(mdf_file_path, true)) {
+            const string &barcode_str = md.get_comment("CB")[0];
             if (barcode_str != ".") {
                 md.append_segment(ginterval{barcode_str, 0, (int)barcode_str.size(), true});
             }

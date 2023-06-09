@@ -1,43 +1,43 @@
 #include "shuffle.h"
+
 #include <cxxopts.hpp>
+#include <fstream>
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
-#include <fstream>
-#include <limits>
 
 #include "interval.h"
 #include "mdf.h"
 #include "module.h"
 #include "util.h"
 
-using std::string;
-using std::vector;
 using std::ifstream;
 using std::ofstream;
+using std::string;
+using std::vector;
 
 #include "pimpl.h"
 
-
 class Shuffle_module::impl : public tksm_module {
-
-    void shuffle_stream( const string &input_file, ostream &output, size_t buffer_size = std::numeric_limits<size_t>::max()) {
+    void shuffle_stream(const string &input_file, ostream &output,
+                        size_t buffer_size = std::numeric_limits<size_t>::max()) {
         std::uniform_int_distribution<size_t> disko(0, buffer_size - 1);
         vector<molecule_descriptor> buffer;
 
-        for(auto &md : stream_mdf(input_file, true)) {
-            if(buffer_size > buffer.size()){
+        for (auto &md : stream_mdf(input_file, true)) {
+            if (buffer_size > buffer.size()) {
                 buffer.push_back(md);
             }
-            else{
+            else {
                 size_t pos = disko(rand_gen);
                 output << buffer[pos];
                 buffer[pos] = md;
             }
         }
-        if(buffer.size() > 0) {
+        if (buffer.size() > 0) {
             std::ranges::shuffle(buffer, rand_gen);
-            for(auto &md : buffer) {
+            for (auto &md : buffer) {
                 output << md;
             }
         }
@@ -97,22 +97,21 @@ public:
         }
         describe_program();
 
-        string input_file  = args["input"].as<string>();
+        string input_file = args["input"].as<string>();
 
         string output_file = args["output"].as<string>();
         ofstream output(output_file);
 
-        size_t buffer_size = [&] () ->size_t{
-            if(args["buffer-size"].count() > 0 ){
+        size_t buffer_size = [&]() -> size_t {
+            if (args["buffer-size"].count() > 0) {
                 return args["buffer-size"].as<size_t>();
             }
-            else{
+            else {
                 return std::numeric_limits<size_t>::max();
             }
-        }
-        ();
+        }();
 
-        shuffle_stream( input_file, output, buffer_size);
+        shuffle_stream(input_file, output, buffer_size);
         return 0;
     }
 
@@ -120,10 +119,9 @@ public:
         logi("Running Shuffle Module");
         logi("Input file: {}", args["input"].as<string>());
         logi("Output file: {}", args["output"].as<string>());
-        //Other parameters logs are here
+        // Other parameters logs are here
         fmtlog::poll(true);
     }
 };
 
 MODULE_IMPLEMENT_PIMPL_CLASS(Shuffle_module);
-

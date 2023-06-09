@@ -229,4 +229,3 @@ public:
 };
 
 MODULE_IMPLEMENT_PIMPL_CLASS(RWGS_module);
-

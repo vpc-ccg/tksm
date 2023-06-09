@@ -41,7 +41,7 @@ public:
         describe_program();
 
         int count = args["count"].as<int>();
-        for(auto &md : stream_mdf(std::cin, true)) {
+        for (auto &md : stream_mdf(std::cin, true)) {
             std::cout << md;
             if (--count == 0) {
                 break;
