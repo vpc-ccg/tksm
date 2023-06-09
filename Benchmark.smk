@@ -2,11 +2,12 @@ import sys
 import gzip
 from multiprocessing import Pool
 import pickle
+import glob
 
 import re
 import itertools
 import functools
-from collections import Counter
+from collections import Counter, defaultdict
 
 import numpy as np
 import pandas as pd
@@ -105,6 +106,8 @@ rule NS_analysis:
     params:
         output_prefix=f"{NS_d}/{{sample}}/analysis/sim",
     threads: 32
+    conda:
+        "Benchmark_env.yaml"
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_analysis', exprmnt='{wildcards.sample}', prefix='')}"
         "read_analysis.py transcriptome"
@@ -129,6 +132,8 @@ rule NS_quantify:
     threads: 32
     resources:
         time=60 * 6 - 1,
+    conda:
+        "Benchmark_env.yaml"
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_quantify', exprmnt='{wildcards.sample}', prefix='')}"
         "read_analysis.py quantify"
@@ -153,6 +158,8 @@ rule NS_simulate:
         out_prefix=lambda wc: f"{NS_d}/{wc.exprmnt}/simulation",
         other=lambda wc: config["NS_experiments"][wc.exprmnt]["simulation_params"],
     threads: 32
+    conda:
+        "Benchmark_env.yaml"
     shell:
         f"{TS_smk.format_gnu_time_string(process='NS_simulate', exprmnt='{wildcards.exprmnt}', prefix='')}"
         "simulator.py transcriptome"
@@ -244,10 +251,18 @@ def reverse_complement(seq):
     return "".join(complement.get(base, base) for base in reversed(seq))
 
 
+def get_rule_extension(r):
+    if r.startswith("tpm_plot"):
+        return "png"
+    if r == "gene_fusion_accuracy":
+        return "csv"
+    return "pdf"
+
+
 rule all:
     input:
         [
-            f"{plots_d}/{r}/{'.'.join(p['data'])}.{'png' if r.startswith('tpm_plot') else 'pdf'}"
+            f"{plots_d}/{r}/{'.'.join(p['data'])}.{get_rule_extension(r)}"
             for p in config["plots"]
             for r in p["rules"]
         ],
@@ -611,14 +626,17 @@ rule LIQA_refgene:
         " -out {output.refgen}"
         " -m 1"
 
+
 # Genion Rules
 rule self_align_cdna:
     input:
-        "{sample}"
+        "{sample}",
     output:
-        "{sample}.selfalign"
-    threads:
-        32
+        "{sample}.selfalign",
+    threads: 32
+    resources:
+        time=60 * 24 - 1,
+        mem_mb=64 * 1024,
     shell:
         "minimap2  -X -2 -c "
         " -t {threads}"
@@ -633,38 +651,20 @@ rule self_align_cdna:
         " > {output}"
 
 
-rule genion_run_new:
-    input:
-        fastq=lambda wc: get_sample_fastqs(wc.sample),
-        dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
-        cdna_selfalign =lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
-        gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
-        dups=config["genion"]["dups"],
-    output:
-        tsv=f"{preproc_d}/genion121/{{sample}}.tsv",
-    params:
-        min_support=3,
-    shell:
-        "/groups/hachgrp/projects/dev-genion/code/post-publish/genion/genion"
-        " -i {input.fastq}"
-        " -g {input.dna_paf}"
-        " -o {output.tsv}"
-        " --gtf {input.gtf}"
-        " -s {input.cdna_selfalign}"
-        " -d {input.dups}"
-        " --min-support={params.min_support}"
-
 rule genion_run:
     input:
         fastq=lambda wc: get_sample_fastqs(wc.sample),
         dna_paf=lambda wc: f"{preproc_d}/minimap2/{wc.sample}.DNA.paf",
-        cdna_selfalign =lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
+        cdna_selfalign=lambda wc: get_sample_ref(wc.sample, "cDNA") + ".selfalign",
         gtf=lambda wc: get_sample_ref(wc.sample, "GTF"),
-        dups=config["genion"]["dups"],
+        dups=config["refs"]["genion_dups"],
     output:
         tsv=f"{preproc_d}/genion/{{sample}}.tsv",
+        fail=f"{preproc_d}/genion/{{sample}}.tsv.fail",
     params:
         min_support=3,
+    conda:
+        "Benchmark_env.yaml"
     shell:
         "genion"
         " -i {input.fastq}"
@@ -674,6 +674,7 @@ rule genion_run:
         " -s {input.cdna_selfalign}"
         " -d {input.dups}"
         " --min-support={params.min_support}"
+
 
 rule longgf_run:
     input:
@@ -686,6 +687,8 @@ rule longgf_run:
         bin_size=4,
         min_map_len=80,
         min_support=3,
+    conda:
+        "Benchmark_env.yaml"
     shell:
         "LongGF"
         " {input.bam}"
@@ -693,11 +696,12 @@ rule longgf_run:
         " {params.min_overlap}"
         " {params.bin_size}"
         " {params.min_map_len}"
-        " min_sup_read:{params.min_support}"
+        " 0 0 {params.min_support}"
         " > {output.tsv}"
 
 
 # Genion Rules End
+
 
 rule minimap_dna_paf:
     input:
@@ -732,6 +736,7 @@ rule minimap_ns_dna:
         " {input.reads}"
         " | samtools view -hb "
         " -o {output.bam}"
+
 
 rule minimap_dna:
     input:
@@ -810,9 +815,11 @@ rule tid_to_gid:
     input:
         gtf="{prefix}.gtf",
     output:
-        pickle="{prefix}.gtf.tid_to_gid.pickle",
+        tid_to_gid_pickle="{prefix}.gtf.tid_to_gid.pickle",
+        gname_to_gid_pickle="{prefix}.gtf.gname_to_gid.pickle",
     run:
         tid_to_gid = dict()
+        gname_to_gid = dict()
         for l in tqdm(open(input.gtf), desc=f"[tid_to_gid] Processing {input.gtf}"):
             if l[0] == "#":
                 continue
@@ -824,9 +831,13 @@ rule tid_to_gid:
             info = {x[0]: x[1].strip('"') for x in info}
             tid = info["transcript_id"]
             gid = info["gene_id"]
+            gname = info.get("gene_name", gid)
             assert tid not in tid_to_gid
             tid_to_gid[tid] = gid
-        pickle.dump(tid_to_gid, open(output.pickle, "wb+"))
+
+            gname_to_gid[gname] = gid
+        pickle.dump(tid_to_gid, open(output.tid_to_gid_pickle, "wb+"))
+        pickle.dump(gname_to_gid, open(output.gname_to_gid_pickle, "wb+"))
 
 
 rule tpm_plot:
@@ -1151,3 +1162,125 @@ rule lr_cell_plot:
         fig.tight_layout()
         plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
+
+
+### Gene fusion plots
+def get_last_mdf(exprmnt, rule_name):
+    step_names = [
+        list(step)[0] for step in config["TS_experiments"][exprmnt]["pipeline"]
+    ]
+    try:
+        rule_idx = len(step_names) - 1 - step_names[::-1].index(rule_name)
+        prefix = ".".join(step_names[: rule_idx + 1])
+        return f"{TS_d}/{exprmnt}/{prefix}.mdf"
+    except ValueError:
+        if step_names[0] == "Mrg":
+            sources = config["TS_experiments"][exprmnt]["pipeline"][0]["Mrg"]["sources"]
+            return get_last_mdf(sources[0], rule_name)
+        else:
+            raise Exception(f"Rule {rule_name} not found in {exprmnt} pipeline")
+
+
+rule gene_fusion_intersection:
+    input:
+        script=config["exec"]["gene_fusion_intersection"],
+        tid_to_gid=lambda wc: f"{get_sample_ref(wc.sample, 'GTF')}.tid_to_gid.pickle",
+        gname_to_gid=lambda wc: f"{get_sample_ref(wc.sample, 'GTF')}.gname_to_gid.pickle",
+        tsb=lambda wc: get_last_mdf(wc.sample, "Tsb"),
+        mrg=lambda wc: get_last_mdf(wc.sample, "Mrg"),
+        uns=lambda wc: get_last_mdf(wc.sample, "Uns"),
+        genion_pass=f"{preproc_d}/genion/{{sample}}.tsv",
+        genion_fail=f"{preproc_d}/genion/{{sample}}.tsv.fail",
+        longGF=f"{preproc_d}/longgf/{{sample}}.tsv",
+    output:
+        pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
+    conda:
+        "Benchmark_env.yaml"
+    shell:
+        "python {input.script}"
+        " --tid_to_gid {input.tid_to_gid}"
+        " --gname_to_gid {input.gname_to_gid}"
+        " --tsb {input.tsb}"
+        " --mrg {input.mrg}"
+        " --uns {input.uns}"
+        " --genion_pass {input.genion_pass}"
+        " --genion_fail {input.genion_fail}"
+        " --longGF {input.longGF}"
+        " --output {output.pickle}"
+
+
+rule gene_fusion_upset_plot:
+    input:
+        script=config["exec"]["gene_fusion_upset_plot"],
+        pickle=f"{plots_d}/gene_fusion_intersection/{{sample}}.pickle",
+    output:
+        pdf=f"{plots_d}/gene_fusion_upset/{{sample}}.pdf",
+        png=f"{plots_d}/gene_fusion_upset/{{sample}}.png",
+    params:
+        outpath=f"{plots_d}/gene_fusion_upset/{{sample}}",
+    conda:
+        "Benchmark_env.yaml"
+    shell:
+        "python {input.script}"
+        " --pickle {input.pickle}"
+        " --sample {wildcards.sample}"
+        " --outpath {params.outpath}"
+
+
+rule gene_fusion_accuracy:
+    input:
+        pickles=lambda wc: [
+            f"{plots_d}/gene_fusion_intersection/{s}.pickle"
+            for s in wc.samples.split(".")
+        ],
+    output:
+        csv=f"{plots_d}/gene_fusion_accuracy/{{samples}}.csv",
+    run:
+        tools = ["LongGF", "PASS:GF", "Truth"]
+        delim = ","
+        outfile = open(output.csv, "w+")
+        record = list()
+        record.append("Truncation")
+        record.append("Glue rate")
+        record.append("Tool")
+        record.append("#")
+        record.append("TP")
+        record.append("FP")
+        record.append("FN")
+        record.append("F1")
+        print(delim.join(record), file=outfile)
+        for p in input.pickles:
+            gene_fusions = pickle.load(open(p, "rb"))
+            p = p.split("/")[-1][len("TKSM_gene_fusion") :][: -len(".pickle")]
+            trc = False
+            if p.endswith("_trc"):
+                trc = True
+                p = p[: -len("_trc")]
+            rate = float(p) / 100
+            tool_gf = {t: set() for t in tools}
+            for k, v in gene_fusions.items():
+                for t in v:
+                    if not t in tool_gf:
+                        continue
+                    tool_gf[t].add(k)
+            X = tool_gf["Truth"]
+            for t in tools:
+                Y = tool_gf[t]
+                TP = len(Y & X)
+                FP = len(Y - X)
+                FN = len(X - Y)
+                F1 = TP / (TP + 0.5 * (FP + FN))
+
+                if t == "PASS:GF":
+                    t = "Genion"
+                record = [
+                    f"{trc}",
+                    f"{rate:.0%}",
+                    t,
+                    f"{len(Y):d}",
+                    f"{TP:d}",
+                    f"{FP:d}",
+                    f"{FN:d}",
+                    f"{F1:.2f}",
+                ]
+                print(delim.join(record), file=outfile)

@@ -1,0 +1,247 @@
+outpath: output
+enable_piping: false
+benchmark_time: true
+
+TS_experiments:
+    TKSM_gene_fusion_pre_trc:
+        pipeline:
+            - Tsb:
+                params: "--molecule-count 4000000 --fusion-count 50 --fusion-output fusions50_trc.tsv"
+                model: "MCF7-sgnex"
+                mode: Xpr
+            - Trc:
+                params: ""
+                model: "MCF7-sgnex"
+            - plA:
+                params: "--normal=15,7.5"
+            - Flp:
+                params: "-p 0.5"
+            - Tag:
+                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
+            - Shf:
+                params: ""
+    TKSM_gene_fusion_pre:
+        pipeline:
+            - Tsb:
+                params: "--molecule-count 4000000 --fusion-count 50 --fusion-output fusions50.tsv"
+                model: "MCF7-sgnex"
+                mode: Xpr
+            - plA:
+                params: "--normal=15,7.5"
+            - Flp:
+                params: "-p 0.5"
+            - Tag:
+                params: "--format5 AATGTACTTCGTTCAGTTACGTATTGCT --format3 GCAATACGTAACTGAACGAAGT"
+            - Shf:
+                params: ""
+    TKSM_gene_fusion000_trc:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre_trc', ]
+            - Uns:
+                params: "-p 0"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion001_trc:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre_trc', ]
+            - Uns:
+                params: "-p 0.01"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion002_trc:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre_trc', ]
+            - Uns:
+                params: "-p 0.02"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion004_trc:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre_trc', ]
+            - Uns:
+                params: "-p 0.04"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion008_trc:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre_trc', ]
+            - Uns:
+                params: "-p 0.08"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion000:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre', ]
+            - Uns:
+                params: "-p 0"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion001:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre', ]
+            - Uns:
+                params: "-p 0.01"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion002:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre', ]
+            - Uns:
+                params: "-p 0.02"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion004:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre', ]
+            - Uns:
+                params: "-p 0.04"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+    TKSM_gene_fusion008:
+        pipeline:
+            - Mrg:
+                sources: ['TKSM_gene_fusion_pre', ]
+            - Uns:
+                params: "-p 0.08"
+            - Seq:
+                params: "--skip-qual-compute"
+                model: "MCF7-sgnex"
+
+
+plots:
+     - {
+         rules: [
+             gene_fusion_accuracy,
+         ],
+         data: [
+            TKSM_gene_fusion000,
+            TKSM_gene_fusion001,
+            TKSM_gene_fusion002,
+            TKSM_gene_fusion004,
+            TKSM_gene_fusion008,
+            TKSM_gene_fusion000_trc,
+            TKSM_gene_fusion001_trc,
+            TKSM_gene_fusion002_trc,
+            TKSM_gene_fusion004_trc,
+            TKSM_gene_fusion008_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion000,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion001,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion002,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion004,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion008,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion000_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion001_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion002_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion004_trc,
+         ],
+     }
+     - {
+         rules: [
+             gene_fusion_upset,
+         ],
+         data: [
+             TKSM_gene_fusion008_trc,
+         ],
+     }
+
+exec:
+    tksm: build/bin/tksm
+    lr_cell_stats: py/benchmark/lr_cell_stats.py
+    lr_cell_matching: py/benchmark/lr_cell_matching.py
+    gene_fusion_intersection: py/benchmark/gene_fusion_intersection.py
+    gene_fusion_upset_plot: py/benchmark/gene_fusion_upset_plot.py
+
+refs:
+    Homo_sapiens:
+        cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr.fa
+        DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+        GTF: data/refs/Homo_sapiens.GRCh38.108.chr.gtf
+    10x_bc: data/refs/3M-february-2018.txt.gz
+    genion_dups: data/refs/genomicSuperDups.txt
+    
+samples:
+    "MCF7-sgnex":
+        fastq:
+            - data/samples/MCF7-sgnex.fastq.gz
+        ref: Homo_sapiens

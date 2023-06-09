@@ -22,3 +22,4 @@ py_header
 bin
 *.pyc
 test/build
+output/
