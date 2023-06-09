@@ -250,12 +250,14 @@ def reverse_complement(seq):
     complement = {"A": "T", "C": "G", "G": "C", "T": "A", "N": "N"}
     return "".join(complement.get(base, base) for base in reversed(seq))
 
+
 def get_rule_extension(r):
     if r.startswith("tpm_plot"):
         return "png"
     if r == "gene_fusion_accuracy":
         return "csv"
     return "pdf"
+
 
 rule all:
     input:

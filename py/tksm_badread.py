@@ -13,6 +13,7 @@ import scipy
 from sklearn.neighbors import KernelDensity
 
 import edlib
+
 ### START OF BADREAD CODE ###
 """
 
@@ -82,8 +83,7 @@ class ERROR_MODEL_PY:
                 self.kmer_size = 1
             elif model_name in ERROR_MODEL_PY.error_model_names:
                 self.load_from_file(
-                    ERROR_MODEL_PY.error_model_names[model_name],
-                    output
+                    ERROR_MODEL_PY.error_model_names[model_name], output
                 )
             else:
                 self.load_from_file(model_name, output)
@@ -337,7 +337,7 @@ class SIMULATE_PY:
             MISC_PY.get_random_sequence(k_size)
             + fragment
             + tail_noise_seq
-            + ''.join([MISC_PY.get_random_sequence(k_size) for _ in range(1)])
+            + "".join([MISC_PY.get_random_sequence(k_size) for _ in range(1)])
         )
         frag_len = len(fragment)
 
@@ -457,8 +457,8 @@ class SIMULATE_PY:
 ### START OF QSCORE_MODEL.PY ###
 class QSCOREMODEL_PY:
     qscore_model_names = {
-        "random" : None,
-        "ideal" : None,
+        "random": None,
+        "ideal": None,
     }
 
     class QScoreModel(object):
@@ -473,8 +473,7 @@ class QSCOREMODEL_PY:
                 self.set_up_ideal_model(output)
             elif model_name in QSCOREMODEL_PY.qscore_model_names:
                 self.load_from_file(
-                    QSCOREMODEL_PY.qscore_model_names[model_name],
-                    output
+                    QSCOREMODEL_PY.qscore_model_names[model_name], output
                 )
             else:
                 self.load_from_file(model_name, output)

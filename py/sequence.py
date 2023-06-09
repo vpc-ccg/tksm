@@ -13,27 +13,29 @@ import gzip
 from tqdm import tqdm
 import tksm_badread
 
+
 def set_tksm_models_dicts(env_var="TKSM_MODELS"):
     var = os.getenv(env_var)
     if var is None:
         return
     for model_dir in reversed(var.split(":")):
         print(f"Loading models from {model_dir}")
-        for tool,kind,dictionary in [
-            ('badread','error', tksm_badread.ERROR_MODEL_PY.error_model_names),
-            ('badread','qscore', tksm_badread.QSCOREMODEL_PY.qscore_model_names),
-            ('badread','tail', tksm_badread.TAIL_NOISE_MODEL_PY.tail_model_names),
+        for tool, kind, dictionary in [
+            ("badread", "error", tksm_badread.ERROR_MODEL_PY.error_model_names),
+            ("badread", "qscore", tksm_badread.QSCOREMODEL_PY.qscore_model_names),
+            ("badread", "tail", tksm_badread.TAIL_NOISE_MODEL_PY.tail_model_names),
         ]:
             for path in glob(f"{model_dir}/{tool}/*.{kind}.gz"):
                 name = os.path.basename(path)
-                name = name[:-len(f".{kind}.gz")]
+                name = name[: -len(f".{kind}.gz")]
                 dictionary[name] = path
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Sequencer module of tksm. Generates FASTQ/A file from MDF (molecule description file) and reference FASTA files. " + \
-                    "Note: tksm looks for sequencing model names in colon sperated paths in $TKSM_MODELS environment variable. " + \
-                    f"Current $TKSM_MODELS value: {os.getenv('TKSM_MODELS')}",
+        description="Sequencer module of tksm. Generates FASTQ/A file from MDF (molecule description file) and reference FASTA files. "
+        + "Note: tksm looks for sequencing model names in colon sperated paths in $TKSM_MODELS environment variable. "
+        + f"Current $TKSM_MODELS value: {os.getenv('TKSM_MODELS')}",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("-i", "--input", type=str, required=True, help="MDF file.")
@@ -52,9 +54,7 @@ def parse_args():
         help="Badread reads output file. Default: no output.",
     )
     parser.add_argument(
-        "--perfect", 
-        type=str,
-        help="Perfect reads output file. Default: no output."
+        "--perfect", type=str, help="Perfect reads output file. Default: no output."
     )
     parser.add_argument(
         "--skip-qual-compute",
@@ -86,27 +86,27 @@ def parse_args():
     parser.add_argument(
         "--badread-error-model",
         type=str,
-        default= "nanopore2020"
-            if "nanopore2020" in tksm_badread.ERROR_MODEL_PY.error_model_names
-            else "random",
-        help="Badread tail model name or file path. " + \
-            f"Available model names: [{', '.join(tksm_badread.ERROR_MODEL_PY.error_model_names)}]",
+        default="nanopore2020"
+        if "nanopore2020" in tksm_badread.ERROR_MODEL_PY.error_model_names
+        else "random",
+        help="Badread tail model name or file path. "
+        + f"Available model names: [{', '.join(tksm_badread.ERROR_MODEL_PY.error_model_names)}]",
     )
     parser.add_argument(
         "--badread-qscore-model",
         type=str,
-        default= "nanopore2020"
-            if "nanopore2020" in tksm_badread.QSCOREMODEL_PY.qscore_model_names
-            else "random",
-        help="Badread qscore model name or file path. " + \
-            f"Available model names: [{', '.join(tksm_badread.QSCOREMODEL_PY.qscore_model_names)}]",
+        default="nanopore2020"
+        if "nanopore2020" in tksm_badread.QSCOREMODEL_PY.qscore_model_names
+        else "random",
+        help="Badread qscore model name or file path. "
+        + f"Available model names: [{', '.join(tksm_badread.QSCOREMODEL_PY.qscore_model_names)}]",
     )
     parser.add_argument(
         "--badread-tail-model",
         type=str,
-        default= "no_noise",
-        help="Badread tail model name or file path. " + \
-            f"Available model names: [{', '.join(tksm_badread.TAIL_NOISE_MODEL_PY.tail_model_names)}]",
+        default="no_noise",
+        help="Badread tail model name or file path. "
+        + f"Available model names: [{', '.join(tksm_badread.TAIL_NOISE_MODEL_PY.tail_model_names)}]",
     )
     args = parser.parse_args()
 

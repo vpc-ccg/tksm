@@ -1,14 +1,15 @@
-# Benchmarking TKSM
-Welcome to the benchmarking branch of TKSM!
+# Paper results of TKSM
+Welcome to the paper benchmarking branch of TKSM!
 This document will help you reproduce all the results presented in the manuscript.
 
-- [Benchmarking TKSM](#benchmarking-tksm)
+- [Paper results of TKSM](#paper-results-of-tksm)
   - [Setup](#setup)
     - [Environment](#environment)
     - [Data](#data)
   - [Running](#running)
     - [Regular run](#regular-run)
     - [Piped](#piped)
+    - [Gene fusion run](#gene-fusion-run)
   - [Results](#results)
 
 
@@ -67,8 +68,30 @@ wget https://ftp.ensembl.org/pub/release-109/fasta/homo_sapiens/cdna/Homo_sapien
 wget ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz -O data/refs/genomicSuperDups.txt.gz
 ```
 
+Download the 10x Genomics cellular barcode whitelist:
+```bash
+wget https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/translation/3M-february-2018.txt.gz -O data/refs/3M-february-2018.txt.gz
+```
+
+
 Note: `wget` can be slow especially with the references.
-Consider using [Axel](https://github.com/axel-download-accelerator/axel) which you can install using [Conda](https://anaconda.org/conda-forge/axel). 
+Consider using [Axel](https://github.com/axel-download-accelerator/axel) which you can install using [Conda](https://anaconda.org/conda-forge/axel).
+The Axel commands for downloading the same files are these:
+```bash
+axel -n <num_connections> http://sg-nex-data.s3.amazonaws.com/data/sequencing_data_ont/fastq/SGNex_MCF7_directcDNA_replicate1_run2/SGNex_MCF7_directcDNA_replicate1_run2.fastq.gz -o data/samples/MCF7-sgnex.fastq.gz
+
+axel -n <num_connections> https://figshare.com/ndownloader/files/40862291?private_link=f66abe6156696e14ced6 -o data/samples/N1.fastq.gz
+
+axel -n <num_connections> https://ftp.ensembl.org/pub/release-109/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa.gz -o data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
+
+axel -n <num_connections> https://ftp.ensembl.org/pub/release-109/gtf/homo_sapiens/Homo_sapiens.GRCh38.109.chr.gtf.gz -o data/refs/Homo_sapiens.GRCh38.108.chr.gtf.gz
+
+axel -n <num_connections> https://ftp.ensembl.org/pub/release-109/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz -o data/refs/Homo_sapiens.GRCh38.cdna.chr.fa.gz
+
+axel -n <num_connections> ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz -o data/refs/genomicSuperDups.txt.gz
+
+axel -n <num_connections> https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/translation/3M-february-2018.txt.gz -o data/refs/3M-february-2018.txt.gz
+```
 
 Unzip the references:
 ```bash
@@ -78,10 +101,6 @@ gunzip data/refs/Homo_sapiens.GRCh38.cdna.chr.fa.gz
 gunzip data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
 ```
 
-Download the 10x Genomics cellular barcode whitelist:
-```bash
-wget https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/translation/3M-february-2018.txt.gz -O data/refs/3M-february-2018.txt.gz
-```
 
 ## Running
 The benchmark pipelines are specified by the following files:
@@ -127,8 +146,17 @@ Note that if you changed the output path in the `config_piped.yaml` file, you wi
 
 Repeat the above steps for each experiment you want to run.
 
+### Gene fusion run
+To run the benchmarking pipelines, run the following command:
+```bash
+snakemake -s Benchmark.smk --configfile Benchmark_fusion_config.yaml -j <threads>
+```
+
+This will run all the pipelines specified in `Benchmark_fusion_config.yaml` and output the results in `output` directory.
+The fusion runs have 10 output read files so we separated them from the other experiments.
+
 ## Results
-The results are all under the `output` directory (unless you changed the output path in the `Benchmakr_config.yaml` or `config_piped.yaml` files).
+The results are all under the `output` directory (unless you changed the output path in the `Benchmakr_config.yaml`, `config_piped.yaml`, or `Benchmark_fusion_config.yaml` files).
 The main files of interest are:
 
 - `time.tsv`: Contains the time and memory usage of each pipeline (headers are in the file).

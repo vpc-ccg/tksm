@@ -180,7 +180,7 @@ def get_lr_states(
     pickle.dump(
         seqs,
         open(f"{pickle_path}.seqs.pickle", "wb+"),
-    )        
+    )
 
 
 def main():
