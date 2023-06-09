@@ -632,6 +632,9 @@ rule self_align_cdna:
     output:
         "{sample}.selfalign",
     threads: 32
+    resources:
+        time=60 * 24 - 1,
+        mem_mb=64 * 1024,
     shell:
         "minimap2  -X -2 -c "
         " -t {threads}"

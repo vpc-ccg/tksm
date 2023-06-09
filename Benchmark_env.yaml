@@ -25,3 +25,4 @@ dependencies:
     - joblib
     - pandas
     - scikit-learn
+    - lifelines
