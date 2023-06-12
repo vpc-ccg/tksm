@@ -208,7 +208,7 @@ This molecule header line is parsed by TKSM to:
 The header line is followed by a variable number of interval lines which are quite similar to the BED format:
 
 ```
-chr	start	end	orientation	mods	comment
+chr	start	end	orientation	mods
 ```
 
 The fields are tab-separated.
@@ -218,7 +218,6 @@ The fields are tab-separated.
 - The `orientation` field is the orientation of the interval (`+` or `-`). Different intervals of the same molecule can have different orientations.
 - The `<mods>` field can be empty but the tab character preceding it is required. The `<mods>` is a list of comma separated base substitutions (no indels) local to the interval sequence represented in the current line.
 The substitutions are applied to the interval sequence before the strand is flipped (if the strand is `-`).
-- The `<comment>` field can be empty but the tab character preceding it is required. The `<comment>` field is used by some TKSM modules to pass meta information between them (e.g. the splicer passing cellular barcode information to the single-cell-barcoder).
 
 For example, consider the following FASTA contig and MDF entry:
 
