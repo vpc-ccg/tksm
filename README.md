@@ -650,8 +650,11 @@ tksm sequence --help
 ```
 
 ## Cite
-If you like and use TKSM, please cite our paper:
-TKSM: Highly modular, user-customizable, and scalable transcriptomic sequencing long-read simulator
+If you like and use TKSM, please cite our manuscript:
+
+[_TKSM: Highly modular, user-customizable, and scalable transcriptomic sequencing long-read simulator_](https://doi.org/10.1101/2023.06.12.544410).
+Fatih Karaoglanoglu, Baraa Orabi, Ryan Flannigan, Cedric Chauve and Faraz Hach.
+bioRxiv 2023.06.12.544410; DOI: 10.1101/2023.06.12.544410
 
 ## Contributing
 Wanna contribute? That's great!
