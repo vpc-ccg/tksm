@@ -8,7 +8,7 @@ If you are interested in the paper results, please check out the [paper branch](
 
 ## Installation
 
-### Conda
+### Conda (only available for Linux at the moment.)
 The easiest installation method is to use [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) or, much prefereblally, [Mamba](https://github.com/conda-forge/miniforge#mambaforge).
 If you are using Conda, replace `mamba` with `conda` in the following commands.
 
