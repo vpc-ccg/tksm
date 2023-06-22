@@ -141,7 +141,7 @@ def parse_args():
     if args.badread_identity_stdev < 0.0:
         sys.exit("Error: read identity stdev cannot be negative")
     if not args.badread and not args.perfect:
-        parser.error("Must specify either --output or --perfect-reads.")
+        parser.error("Must specify either --output or --perfect.")
     return args
 
 
