@@ -1,5 +1,7 @@
+[![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/tksm/README.html)
+
 # TKSM
-TKSM (Turkish: ***Taksim***, Arabic: *تقسيم*, both meaning *division*) is a modular software for simulating long-read sequencing.
+TKSM (Turkish: [*Taksim*](https://en.wiktionary.org/wiki/taksim), Arabic: [*تقسيم*](https://en.wiktionary.org/wiki/%D8%AA%D9%82%D8%B3%D9%8A%D9%85), both meaning *to divide*) is a modular software for simulating long-read sequencing.
 Each module is meant to simulate a specific step in the sequencing process.
 The modules are designed to be piped together to form a pipeline which is specified in the configuration file.
 The pipelines are executed using Snakemake.
