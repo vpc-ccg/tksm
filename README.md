@@ -70,7 +70,7 @@ wget ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt
 
 Download the 10x Genomics cellular barcode whitelist:
 ```bash
-wget https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/translation/3M-february-2018.txt.gz -O data/refs/3M-february-2018.txt.gz
+wget https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/3M-february-2018.txt.gz -O data/refs/3M-february-2018.txt.gz
 ```
 
 
@@ -90,7 +90,7 @@ axel -n <num_connections> https://ftp.ensembl.org/pub/release-109/fasta/homo_sap
 
 axel -n <num_connections> ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz -o data/refs/genomicSuperDups.txt.gz
 
-axel -n <num_connections> https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/translation/3M-february-2018.txt.gz -o data/refs/3M-february-2018.txt.gz
+axel -n <num_connections> https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/3M-february-2018.txt.gz -o data/refs/3M-february-2018.txt.gz
 ```
 
 Unzip the references:
