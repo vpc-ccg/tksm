@@ -3,7 +3,6 @@
 #include <fmt/format.h>
 #include <sequence.h>
 #include <tksm_badread.h>
-#include <truncate_kde.h>
 
 #include <cstdlib>
 #include <string>
