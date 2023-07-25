@@ -12,6 +12,7 @@
 
 inline void
 truncate(molecule_descriptor &md, int truncated_length, int min_val = 100) {
+    using namespace std::string_literals;
     if (min_val > truncated_length) {
         truncated_length = min_val;
     }
@@ -29,12 +30,18 @@ truncate(molecule_descriptor &md, int truncated_length, int min_val = 100) {
         std::stringstream ss;
         ss << segments[i].chr << ':' << segments[i].end - (len_so_far - truncated_length) << '-' << segments[i].end;
         md.add_comment("truncated", ss.str());
-        segments[i].truncate(0, segments[i].end - segments[i].start - (len_so_far - truncated_length));
+        int segment_trunc_len = (len_so_far - truncated_length);
+        if (segments[i].plus_strand) {
+            segments[i].truncate(0, segments[i].size() - segment_trunc_len);
+        }
+        else {
+            segments[i].truncate(segment_trunc_len, segments[i].size());
+        }
         for (size_t j = i + 1; j < segments.size(); ++j) {
             std::stringstream ss;
             ss << segments[j];
 
-            md.add_comment("truncated", ss.str());
+            md.add_comment("truncated"s, ss.str());
         }
         logd("Before resize: {}", md.cget_segments().size());
         segments.resize(i + 1);
@@ -288,8 +295,6 @@ public:
         std::ofstream output_file{output_file_path};
         auto disko = get_dist();
 
-        //        std::ranges::copy( stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko),
-        //                std::ostream_iterator<molecule_descriptor>{output_file});
         for (const auto &md : stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko, rand_gen)) {
             output_file << md;
         }
