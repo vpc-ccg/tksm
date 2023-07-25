@@ -56,15 +56,13 @@ public:
         }
         return 0;
     }
-    friend int larger_interval(const interval &i1, const interval &i2) {
-        return std::max(i1.end - i1.start, i2.end - i2.start);
-    }
+    friend int larger_interval(const interval &i1, const interval &i2) { return std::max(i1.size(), i2.size()); }
     double reciprocal(const interval &other) const {
         return static_cast<double>(overlap(other)) / larger_interval(*this, other);
     }
-    bool contains(int pos) const { return pos > start && pos < end; }
+    constexpr bool contains(int pos) const { return pos > start && pos < end; }
 
-    int size() const { return end - start; }
+    constexpr int size() const { return end - start; }
 };
 
 class contig_str : public string {
@@ -857,10 +855,9 @@ public:
         return this;
     }
 
-    size_t size() const {
-        return std::accumulate(
-            _segments.begin(), _segments.end(), 0L,
-            [](size_t sum_so_far, const ginterval &g) -> size_t { return sum_so_far + g.end - g.start; });
+    constexpr size_t size() const {
+        return std::accumulate(_segments.begin(), _segments.end(), 0L,
+                               [](size_t sum_so_far, const ginterval &g) -> size_t { return sum_so_far + g.size(); });
     }
 
     string dump_comment() const {
@@ -903,66 +900,5 @@ flip_molecule(const molecule_descriptor &md) {
 
     return flipped_md;
 }
-/*
-// pcr copy structure that tracks pcr errors introduced
-struct pcr_copy {
-    string id;
-    vector<ginterval> segments;
-    vector<std::pair<int, char>> errors_so_far;
-    bool reversed;
-    int depth;
-    string comment;
 
-    pcr_copy() {}
-    pcr_copy(const string &id) : id(id), depth(1) {}
-
-    pcr_copy(const string &id, const isoform &iso) : id(id), depth(iso.depth) {
-        for (const exon &e : iso.segments) {
-            segments.push_back(e);
-        }
-    }
-    pcr_copy(const isoform &iso) : id(iso.transcript_id), depth(iso.depth) {
-        for (const exon &e : iso.segments) {
-            segments.push_back(e);
-        }
-    }
-    pcr_copy(const string &id, const vector<ginterval> &segments, const vector<std::pair<int, char>> &errors_so_far)
-        : id(id), segments(segments), errors_so_far(errors_so_far), depth(1) {}
-    pcr_copy(const string &id, const vector<ginterval> &segments, const vector<std::pair<int, char>> &errors_so_far,
-             int depth)
-        : id(id), segments(segments), errors_so_far(errors_so_far), depth(depth) {}
-    pcr_copy(const vector<ginterval> &segments, const vector<std::pair<int, char>> &errors_so_far)
-        : id("copy"), segments(segments), errors_so_far(errors_so_far), depth(1) {}
-    pcr_copy(const vector<ginterval> &segments) : id("copy"), segments(segments), depth(1) {}
-
-    void append(const ginterval &g) { segments.push_back(g); }
-    void prepend(const ginterval &g) {
-        segments.insert(segments.begin(), g);
-        for (std::pair<int, char> &errs : errors_so_far) {
-            errs = std::make_pair(errs.first + g.end - g.start, errs.second);
-        }
-    }
-    size_t size() const {
-        return std::accumulate(
-            segments.begin(), segments.end(), 0L,
-            [](size_t sum_so_far, const ginterval &g) -> size_t { return sum_so_far + g.end - g.start; });
-    }
-};
-
-// pcr molecule structure that can model paired molecules
-struct pcr_molecule {
-    vector<molecule_descriptor> paired;
-
-    pcr_molecule() {}
-
-    pcr_molecule(const pcr_molecule &other) : paired(other.paired) {}
-
-    pcr_molecule(const molecule_descriptor &other) { paired.push_back(other); }
-    pcr_molecule(const string &id, const isoform &other) { paired.push_back(*molecule_descriptor{other}.id(id)); }
-    pcr_molecule(const pcr_molecule &first, const pcr_molecule &second) : paired(first.paired) {
-        paired.reserve(first.paired.size() + second.paired.size());
-        paired.insert(paired.end(), second.paired.begin(), second.paired.end());
-    }
-};
-*/
 #endif

@@ -1,5 +1,8 @@
 #include "truncate.h"
 
+#include <fmt/compile.h>
+#include <fmt/core.h>
+
 #include <cxxopts.hpp>
 #include <npy/npy.hpp>
 #include <random>
@@ -11,40 +14,44 @@
 #include "pimpl.h"
 
 inline void
-truncate(molecule_descriptor &md, int truncated_length, int min_val = 100) {
-    if (min_val > truncated_length) {
-        truncated_length = min_val;
+truncate(molecule_descriptor &md, int post_truncation_length, int min_val = 100) {
+    if (min_val > post_truncation_length) {
+        post_truncation_length = min_val;
     }
-    size_t i       = 0;
-    int len_so_far = 0;
-    auto &segments = md.get_segments();
+    size_t i        = 0;
+    int kept_so_far = 0;
+    auto &segments  = md.get_segments();
     for (const ginterval &g : segments) {
-        len_so_far += (g.end - g.start);
-        if (len_so_far >= truncated_length) {
+        if (kept_so_far + g.size() >= post_truncation_length) {
             break;
         }
+        kept_so_far += g.size();
         ++i;
     }
     if (i != segments.size()) {
-        std::stringstream ss;
-        ss << segments[i].chr << ':' << segments[i].end - (len_so_far - truncated_length) << '-' << segments[i].end;
-        md.add_comment("truncated", ss.str());
-        segments[i].truncate(0, segments[i].end - segments[i].start - (len_so_far - truncated_length));
-        for (size_t j = i + 1; j < segments.size(); ++j) {
-            std::stringstream ss;
-            ss << segments[j];
+        int segment_kept_len = (post_truncation_length - kept_so_far);
 
-            md.add_comment("truncated", ss.str());
+        int trunc_start, trunc_end;
+        if (segments[i].plus_strand) {
+            trunc_start = segments[i].start + segment_kept_len;
+            trunc_end   = segments[i].end;
+            segments[i].truncate(0, segment_kept_len);
+        }
+        else {
+            trunc_start = segments[i].start;
+            trunc_end   = segments[i].end - segment_kept_len;
+            segments[i].truncate(segments[i].size() - segment_kept_len, segments[i].size());
+        }
+
+        md.add_comment("truncated", fmt::format(FMT_COMPILE("{}:{}-{}"), segments[i].chr, trunc_start, trunc_end));
+        for (size_t j = i + 1; j < segments.size(); ++j) {
+            md.add_comment("truncated",
+                           fmt::format(FMT_COMPILE("{}:{}-{}"), segments[j].chr, segments[j].start, segments[j].end));
         }
         logd("Before resize: {}", md.cget_segments().size());
         segments.resize(i + 1);
         logd("After resize: {}", md.cget_segments().size());
     }
-    int sum = 0;
-    for (const auto &g : md.cget_segments()) {
-        sum += g.end - g.start;
-    }
-    logd("sum: {} truncated_len: {}", sum, truncated_length);
 }
 
 template <class RealType = double, class IndexType = long>
@@ -288,8 +295,6 @@ public:
         std::ofstream output_file{output_file_path};
         auto disko = get_dist();
 
-        //        std::ranges::copy( stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko),
-        //                std::ostream_iterator<molecule_descriptor>{output_file});
         for (const auto &md : stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko, rand_gen)) {
             output_file << md;
         }
