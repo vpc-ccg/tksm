@@ -22,7 +22,7 @@ truncate(molecule_descriptor &md, int post_truncation_length, int min_val = 100)
     int kept_so_far = 0;
     auto &segments  = md.get_segments();
     for (const ginterval &g : segments) {
-        if (kept_so_far + g.size() > post_truncation_length) {
+        if (kept_so_far + g.size() >= post_truncation_length) {
             break;
         }
         kept_so_far += g.size();
