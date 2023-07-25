@@ -52,11 +52,6 @@ truncate(molecule_descriptor &md, int post_truncation_length, int min_val = 100)
         segments.resize(i + 1);
         logd("After resize: {}", md.cget_segments().size());
     }
-    int sum = 0;
-    for (const auto &g : md.cget_segments()) {
-        sum += g.end - g.start;
-    }
-    logd("sum: {} truncated_len: {}", sum, post_truncation_length);
 }
 
 template <class RealType = double, class IndexType = long>
