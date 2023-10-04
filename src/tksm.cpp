@@ -41,7 +41,7 @@ vector<std::pair<string, string>> kisims = {
     {"flip", "Simulates strand flipping"},
     {"truncate", "Simulates read truncation"},
     {"shuffle", "Shuffles an mdf file"},
-    {"append-noise", "Adds noise sequence to the molecules"},
+    {"tail-noise", "Adds noise sequence to the molecules"},
     {"sequence", "Simulates reads given molecules"},
     {"random-wgs", "Simulates random WGS reads"},
     {"unsegment", "Concatenate adjacent molecules with random probability"},
@@ -163,7 +163,7 @@ main(int argc, char **argv) {
     else if (kisim == "unsegment") {
         return Unsegment_module{argc - 1, argv + 1}.run();
     }
-    else if (kisim == "append-noise"){
+    else if (kisim == "tail-noise"){
         return AppendNoise_module{argc-1, argv+1}.run();
     }
     else if (kisim == "model-errors") {

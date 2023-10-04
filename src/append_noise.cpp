@@ -55,16 +55,21 @@ class NoiseAdder{
     string alphabet;
     DistVisitor length_dist_picker;
     std::uniform_int_distribution<size_t> character_picker;
+    std::uniform_real_distribution<double> error_dist;
+    double error_rate;
     public:
         NoiseAdder(
                 bool palindromic,
                 const string &alphabet,
-                const vector<string> &length_dist_str
+                const vector<string> &length_dist_str,
+                double error_rate //if palindormic
                 ) :
             palindromic{ palindromic},
             alphabet{ alphabet},
             length_dist_picker{ length_dist_str},
-            character_picker{0, alphabet.size()-1}{}
+            character_picker{0, alphabet.size()-1},
+            error_dist{0, 1},
+            error_rate {error_rate} {}
 
         string generate_sequence(int length, auto &rand_gen){
             string seq;
@@ -82,11 +87,38 @@ class NoiseAdder{
             }
             else if (palindromic){
                 // TO DO
+                int pal_len_so_far = 0;
+                const auto &mdseg = md.cget_segments();
+                std::remove_const<std::remove_reference<decltype(mdseg)>::type>::type new_segments;
+                for(auto it = mdseg.rbegin(); it != mdseg.rend(); ++it){
+                    pal_len_so_far += it->size();
+                    new_segments.push_back(*it);
+                    new_segments.back().plus_strand = !new_segments.back().plus_strand; 
+                    if(pal_len_so_far > noise_length){
+                        int extra_len =  pal_len_so_far - noise_length;
+                        if(it->plus_strand){
+                            new_segments.back().end -= extra_len; 
+                        }
+                        else{
+                            new_segments.back().start += extra_len; 
+                        }
+                        break;
+                    }
+                }
+                for(auto &seg : new_segments){
+                    
+                    for(int i =0; i < seg.size(); ++i){
+                        if(error_dist(rand_gen) < error_rate){
+                            seg.add_error(i, alphabet[character_picker(rand_gen)]);
+                        }
+                    }
+                    md.append_segment(seg);
+                }
             }
             else{
                 string noise_seq = generate_sequence(noise_length, rand_gen);
                 if(prepend){
-                    md.prepend_segment({noise_seq, 0, static_cast<int>(noise_seq.size()), "+"});
+                    md.prepend_segment({noise_seq, 0, static_cast<int>(noise_seq.size()), true});
                 }
                 else{
                     md.append_segment({noise_seq, 0, static_cast<int>(noise_seq.size()), true}); // Fix this difference :)
@@ -117,6 +149,10 @@ class AppendNoise_module::impl : public tksm_module {
                 "palindromic",
                 "Generate palindromic noise (Instead of random)",
                 cxxopts::value<bool>()->default_value("false")
+             )(
+                "error-rate",
+                "Error rate of the palindromic sequences",
+                cxxopts::value<double>()->default_value("0.5")
              )(
                 "length-dist",
                 "Noise length distribution comma separated list of distribution_name,args,... (normal,0,0.5 for example for normal distribution with 0 mean and 0.5 stddev)",
@@ -168,7 +204,8 @@ public:
         NoiseAdder noiser {
             args["palindromic"].as<bool>(),
             args["alphabet"].as<string>(),
-            args["length-dist"].as<vector<string>>()
+            args["length-dist"].as<vector<string>>(),
+            args["error-rate"].as<double>()
         };
 
         ifstream input(input_file);

@@ -688,6 +688,8 @@ class einterval : public ginterval {
 public:
     einterval() : ginterval() {}
     einterval(const ginterval &gi) : ginterval(gi) {}
+
+    einterval(string chr, int start, int end, const bool plus_strand) : ginterval(chr, start, end, plus_strand) {}
     einterval(string chr, int start, int end, const string &strand) : ginterval(chr, start, end, strand) {}
 
     void add_error(int position, char base) { errors.emplace_back(position, base); }
@@ -834,7 +836,7 @@ public:
         return this;
     }
 
-    molecule_descriptor *append_segment(const ginterval &i) {
+    molecule_descriptor *append_segment(const einterval &i) {
         _segments.push_back(i);
         return this;
     }
