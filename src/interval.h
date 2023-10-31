@@ -689,6 +689,15 @@ public:
     einterval() : ginterval() {}
     einterval(const ginterval &gi) : ginterval(gi) {}
     einterval(string chr, int start, int end, const string &strand) : ginterval(chr, start, end, strand) {}
+    
+    einterval(const einterval &ei, int start, int end): ginterval(ei.chr, ei.start + start, ei.start + end, ei.plus_strand) {
+        for(const base_mod &e : ei.errors){
+            if(e.position < start || e.position > end){
+                continue;
+            }
+            errors.emplace_back(e.position - start, e.base);
+        }
+    }
 
     void add_error(int position, char base) { errors.emplace_back(position, base); }
 
@@ -696,6 +705,9 @@ public:
     void add_error(const base_mod &error) { errors.emplace_back(error); }
 
     void add_errors(const vector<base_mod> &err) { errors.insert(errors.end(), err.begin(), err.end()); }
+
+
+
 
     void truncate(int start, int end) {
         sort_errors();

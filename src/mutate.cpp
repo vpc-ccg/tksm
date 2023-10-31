@@ -8,6 +8,8 @@
 #include <vector>
 #include <sstream>
 #include <algorithm>
+#include <tuple>
+#include <list>
 
 #include "interval.h"
 #include "mdf.h"
@@ -19,8 +21,16 @@ using std::ofstream;
 using std::string;
 using std::vector;
 using std::map;
+using std::tuple;
 #include "pimpl.h"
 
+template<class K>
+inline tuple<K,K> sort2(const K&a, const K&b){
+    if(a>b){
+        return {b,a};
+    }
+    return {a,b};
+}
 class Mutate_module::impl : public tksm_module {
 
     using position_type = int;
@@ -33,36 +43,50 @@ class Mutate_module::impl : public tksm_module {
         using einterval_or_null = std::optional<einterval>;
         struct snv {
             char replacement;
-            std::pair<std::nullopt_t, std::nullopt_t> operator () (einterval &i, position_type pos) const {
+            vector<einterval> operator () (einterval &i, position_type pos) const {
+                if (pos < i.start || pos > i.end){
+                    return {i};
+                }
                 i.add_error(pos - i.start, replacement); // Needs strand logic
-                return {std::nullopt, std::nullopt};
+                return {i};
             }
         };
         struct ins { //TODO DISTRIBUTE THE EXISTING MODS
             string insertion;
-            std::pair<einterval, einterval> operator() (einterval &i, position_type pos) const {
-                position_type end = i.end;
-                i.end = pos;
-                if(insertion[0] != '.'){
-                    
+            vector<einterval> operator() (einterval &i, position_type pos) const {
+                if (insertion[0] != '.'){
+                    i.add_error(pos-i.start,insertion[0]);
                 }
-                return std::make_pair(einterval{insertion.substr(1),0,(int)insertion.size()-1, "+"}, einterval{i.chr, pos, end, "+"}); // Make sure end is correct
+                return {
+                        einterval{i, 0, pos-i.start},
+                        einterval{insertion.substr(1), 0, (int) insertion.size()-1, "+"},
+                        einterval{i, pos+1-i.start, i.end-i.start}
+                };    
             }
         };//TODO DISTRIBUTE THE EXISTING MODS
         struct del { // Add 2 mods per deletion execute both (Only one should work).
             position_type pos1;
             position_type pos2;
-            std::pair<einterval, std::nullopt_t> operator() (einterval &i, position_type pos) const {
-                position_type from, to;
-                if( pos == pos1){
-                    from = pos;
-                    to = pos2;
+            vector<einterval> operator() (einterval &i, position_type pos) const {
                 
-                }else if (pos == pos2){
-                    
+                auto [from,to] = sort2(pos1, pos2);
+
+                if(i.start > from && i.end < to){ // FULL DELETION
+                    return {};
+                }
+                else if (i.start < from && i.end < to){ // END DELETION
+                    return {einterval{i, 0, from - i.start}};
+                }
+                else if (i.start > from && i.end > to){ // START DELETION
+                    return {einterval{i, from - i.start, i.end - i.start}}; 
+                }
+                else if (i.start < from && i.end > to){ // MID DELETION
+                    return {
+                        einterval{i, 0, from - i.start},
+                        einterval{i, to - i.start, i.end - i.start}
+                    };
                 }
 
-                return {i, std::nullopt};
             }
             del reversed(){
                 return {pos2, pos1};
@@ -84,7 +108,7 @@ class Mutate_module::impl : public tksm_module {
                 }
             }
         
-            auto operator () (einterval &i) const -> std::pair<einterval_or_null, einterval_or_null> {
+            auto operator () (einterval &i) const -> vector<einterval> {
                 return std::visit( [ &i, this] (auto var) -> decltype(this->operator()(i)){
                         return var(i,pos);
                         }, this->vari);
@@ -98,16 +122,37 @@ class Mutate_module::impl : public tksm_module {
 
     };
     static void apply_mods(molecule_descriptor &md, const map<string, vector<Mod>> &mods){
-        for(einterval &e : md.get_segments()){
+        auto &seg = md.get_segments();
+        vector<einterval>out_segs;
+        for(auto segit = seg.begin(); segit!=seg.end();++segit){
+            auto &e = *segit;
             if(!mods.contains(e.chr)){
                 continue;
             }
             const vector<Mod> &mods_in_chr = mods.at(e.chr);
             auto iter = std::ranges::lower_bound(mods_in_chr, e.start, std::ranges::less{}, &Mod::pos);
+
+            std::list<einterval> bin_a{e};
+            std::list<einterval> bin_b;
             while(iter != mods_in_chr.end() && iter->pos < e.end){
-                (*iter)(e);
+                for(auto segit2 =  bin_a.begin();segit2!=bin_a.end();++segit2){
+                    auto &ee=*segit2;
+                    if(ee.chr !=e.chr || (iter->pos < ee.start || iter->pos > ee.end)){
+                        bin_b.push_back(ee);
+                        continue;
+                    }
+                    auto vals = (*iter)(ee);
+                    bin_b.insert(bin_b.end(),vals.begin(),vals.end());
+                }
+                bin_a = bin_b;
+                bin_b.clear();
+                ++iter;
             }
+
+            out_segs.insert(out_segs.end(), bin_a.begin(), bin_a.end());
+
         }
+        md.assign_segments( out_segs);
     }
     auto read_modifications(const string &path) -> map<string, vector< Mod>>{
         

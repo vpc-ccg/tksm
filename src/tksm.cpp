@@ -21,6 +21,7 @@
 #include "truncate.h"
 #include "unsegment.h"
 #include "util.h"
+#include "mutate.h"
 
 using std::set;
 using std::string;
@@ -43,6 +44,7 @@ vector<std::pair<string, string>> kisims = {
     {"sequence", "Simulates reads given molecules"},
     {"random-wgs", "Simulates random WGS reads"},
     {"unsegment", "Concatenate adjacent molecules with random probability"},
+    {"mutate", "Mutate molecules given mutations"},
 };
 
 vector<std::pair<string,string>> utility = {
@@ -160,6 +162,9 @@ main(int argc, char **argv) {
     }
     else if (kisim == "unsegment") {
         return Unsegment_module{argc - 1, argv + 1}.run();
+    }
+    else if (kisim == "mutate"){
+        return Mutate_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "model-errors") {
         fmt::print("Model errors\n");
