@@ -105,13 +105,13 @@ def get_merge_mdf_input(wc):
     return mdfs
 
 
-def get_sequencer_model_input(wc, model_type):
+def get_sequencer_model_name_and_input(wc, model_type):
     step = get_step(wc.exprmnt, f"{wc.prefix}.Seq")
     model = step["model"]
     if model in config["samples"] or model in config["TS_experiments"]:
-        return f"{preproc_d}/models/badread/{model}.{model_type}.gz"
+        return model,f"{preproc_d}/models/badread/{model}.{model_type}.gz"
     else:
-        return list()
+        return model,list()
 
 
 def get_kde_model_input(wc):
@@ -204,8 +204,8 @@ rule sequence:
         obj=["build/obj/sequence.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        qscore_model=lambda wc: get_sequencer_model_input(wc, "qscore"),
-        error_model=lambda wc: get_sequencer_model_input(wc, "error"),
+        qscore_model=lambda wc: get_sequencer_model_name_and_input(wc, "qscore")[1],
+        error_model=lambda wc: get_sequencer_model_name_and_input(wc, "error")[1],
         time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         fastq=f"{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq",
@@ -214,6 +214,8 @@ rule sequence:
         other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Seq")["params"],
         binary=config["exec"]["tksm"],
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
+        qscore_model=lambda wc: get_sequencer_model_name_and_input(wc, "qscore")[0],
+        error_model=lambda wc: get_sequencer_model_name_and_input(wc, "error")[0],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
@@ -223,8 +225,8 @@ rule sequence:
         " --references {params.fastas}"
         " -o {output.fastq}"
         " --threads {threads}"
-        " --badread-error-model={input.error_model}"
-        " --badread-qscore-model={input.qscore_model}"
+        " --badread-error-model={params.error_model}"
+        " --badread-qscore-model={params.qscore_model}"
         " {params.other}"
 
 
