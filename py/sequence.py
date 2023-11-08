@@ -108,7 +108,27 @@ def parse_args():
         help="Badread tail model name or file path. "
         + f"Available model names: [{', '.join(tksm_badread.TAIL_NOISE_MODEL_PY.tail_model_names)}]",
     )
+    class ListPrinter(argparse.Action):
+        def __call__(self, parser, namespace ,values, option_string):
+            txt =  '\n'.join([getattr(k, 'dest') for k in parser._actions]) 
+            print(txt)
+            parser.exit()
+
+    parser.add_argument(
+        "--list",
+        nargs=0,
+        action=ListPrinter
+    )
+
+
     args = parser.parse_args()
+    
+    if args.list:
+
+        options = parser._actions
+        for k in options:
+            print(getattr(k, 'dest'))  
+        exit(0)
 
     # Process arguments and check for errors
     try:

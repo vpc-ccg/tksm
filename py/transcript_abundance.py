@@ -36,6 +36,18 @@ def parse_args():
     )
     parser.add_argument("-em", "--em-iterations", type=int, default=10)
     parser.add_argument("-v", "--verbose", type=int, default=0)
+    class ListPrinter(argparse.Action):
+        def __call__(self, parser, namespace ,values, option_string):
+            txt =  '\n'.join([getattr(k, 'dest') for k in parser._actions]) 
+            print(txt)
+            parser.exit()
+
+    parser.add_argument(
+        "--list",
+        nargs=0,
+        action=ListPrinter
+    )
+
     args = parser.parse_args()
     return args
 

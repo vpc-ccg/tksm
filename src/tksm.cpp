@@ -61,7 +61,8 @@ vector<std::pair<string,string>> utility = {
 
 vector<string> info = {
     "version",
-    "help"
+    "help",
+    "list"
 };
 // clang-format on
 
@@ -124,6 +125,18 @@ main(int argc, char **argv) {
         help(argv, stdout);
         return 0;
     }
+    else if (kisim == "list"){
+        for(const auto &kv : kisims){
+            fmt::print("{}\n", kv.first);
+        }
+        for(const auto &kv : utility){
+            fmt::print("{}\n", kv.first);
+        }
+        for(const auto &k : info){
+            fmt::print("{}\n", k);
+        }
+
+    }
     else if (kisim == "abundance") {
         return Abundance_module{argc - 1, argv + 1}.run();
     }
@@ -173,10 +186,10 @@ main(int argc, char **argv) {
         return AppendNoise_module{argc-1, argv+1}.run();
     }
     else if (kisim == "model-errors") {
-        fmt::print("Model errors\n");
+        fmt::print("Model errors using Badread\n");
     }
     else if (kisim == "model-qscores") {
-        fmt::print("Model qscores\n");
+        fmt::print("Model qscores using Badread\n");
     }
     else if (kisim == "random-wgs") {
         return RWGS_module{argc - 1, argv + 1}.run();

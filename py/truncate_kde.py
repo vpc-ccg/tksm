@@ -61,6 +61,18 @@ def parse_args():
         default=1,
         help="Number of threads to run KDE and GridSearchCV.",
     )
+    class ListPrinter(argparse.Action):
+        def __call__(self, parser, namespace ,values, option_string):
+            txt =  '\n'.join([getattr(k, 'dest') for k in parser._actions]) 
+            print(txt)
+            parser.exit()
+
+    parser.add_argument(
+        "--list",
+        nargs=0,
+        action=ListPrinter
+    )
+
     args = parser.parse_args()
     return args
 
