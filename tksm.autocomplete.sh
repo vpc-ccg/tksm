@@ -7,7 +7,7 @@ _tksm_auto_comp(){
     submodule="${COMP_WORDS[1]}"
     if [[ $COMP_CWORD == 1 ]]; then
         COMPREPLY=($(compgen -W "$(tksm list)" -- "${submodule}"));
-    elif [[ "$cur" == --* ]]; then
+    elif [[ "$cur" == -* ]]; then
         COMPREPLY=($(compgen -W "$(tksm ${submodule} --list | awk '{print "--"$0;}')" -- "${cur}"))
     else
         COMPREPLY=()
