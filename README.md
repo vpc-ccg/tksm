@@ -45,6 +45,15 @@ INSTALL_PREFIX="/usr" make -j <threads>
 
 The `install.sh` script will copy the TKSM executable and some predefined models to the `bin` directory under the `INSTALL_PREFIX` directory.
 
+## Quick testing
+Install TKSM from source and run the following commands to test the installation:
+
+```bash
+wget https://figshare.com/ndownloader/files/43059307 -O tksm-test-data.tar.gz
+tar -zvxf tksm-test-data.tar.gz
+snakemake --configfile config-test.yaml -j32
+```
+
 ## Running using Snakemake
 Snakemake assumes that TKSM is installed in your `$PATH` and can be run by simply calling `tksm`.
 You can modify the `exec` parameter in the `config.yaml` file to specify the path to the TKSM executable.

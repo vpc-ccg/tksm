@@ -27,7 +27,7 @@ def parse_args():
         "--output",
         type=str,
         required=True,
-        help="Path prefix for the output files: <>.X_idxs.npy, <>.Y_idxs.npy, <>.grid.npy",
+        help="Path prefix for the output files: <>.X_idxs.npy, <>.Y_idxs.npy, <>.grid.npy, <>.sider.tsv",
     )
     parser.add_argument(
         "-b",
@@ -72,8 +72,17 @@ def parse_args():
         nargs=0,
         action=ListPrinter
     )
-
+    parser.add_argument(
+        "--end-ratio",
+        type=float,
+        default=-1,
+        help="Ratio of truncation from the end of the molecule. "
+        + "If set to -1, TKSM will build a distribution of the end ratios from the PAF file."
+        + "If set between 0 and 1, TKSM will use this value as the end ratio for all molecules.",
+    )
     args = parser.parse_args()
+    if args.end_ratio != -1:
+        assert 0 <= args.end_ratio <= 1
     return args
 
 
@@ -84,15 +93,26 @@ def score_samples_runner(xy):
 def get_alignment_lens(paf):
     tlens = list()
     alens = list()
+    end_ratios = list()
     for line in tqdm(open(paf, "r")):
         if "tp:A:P" not in line:
             continue
         line = line.rstrip("\n").split("\t")
+        strand = line[4]
         tlen = int(line[6])
-        alen = int(line[3]) - int(line[2])
+        start = int(line[7])
+        end = int(line[8])
+        alen = end - start
         tlens.append(tlen)
         alens.append(alen)
-    return tlens, alens
+        trunc_len = tlen - alen
+        if strand == "+":
+            end_trunc = tlen - end
+            end_ratios.append(end_trunc / trunc_len)
+        else:
+            end_trunc = start
+            end_ratios.append(end_trunc / trunc_len)
+    return tlens, alens, end_ratios
 
 
 def sort_pp(X, Y, p):
@@ -114,7 +134,12 @@ def main():
 
     print("Reading {}".format(args.input))
 
-    tlens, alens = get_alignment_lens(args.input)
+    tlens, alens, end_ratios = get_alignment_lens(args.input)
+    if args.end_ratio == -1:
+        end_ratios = [args.end_ratio] * len(end_ratios)
+    with open(f"{args.output}.sider.tsv", "w+") as outfile:
+        for w, v in zip(*np.histogram(end_ratios, bins=np.arange(0, 1.01, 0.01))):
+            outfile.write(f"{w:d}\t{v:.5f}\n")
     len_values = np.vstack([tlens, alens]).T
     if args.bandwidth <= 0:
         print(
