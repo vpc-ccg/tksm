@@ -59,7 +59,7 @@ class Mutate_module::impl : public tksm_module {
                 }
                 return {
                         einterval{i, 0, pos-i.start},
-                        einterval{insertion.substr(1), 0, (int) insertion.size()-1, "+"},
+                        einterval{insertion.substr(1), 0, (int) insertion.size()-1, true},
                         einterval{i, pos+1-i.start, i.end-i.start}
                 };    
             }
@@ -86,7 +86,7 @@ class Mutate_module::impl : public tksm_module {
                         einterval{i, to - i.start, i.end - i.start}
                     };
                 }
-
+                return {};
             }
             del reversed(){
                 return {pos2, pos1};
