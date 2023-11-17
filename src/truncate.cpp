@@ -71,14 +71,14 @@ struct dist_picker<N>{
 template <class RealType = double, class IndexType = long>
 class custom_distribution {
     using result_type = RealType;
-    using smoot_dist_type = dist_picker<IndexType>::type;
+    using index_type = IndexType;
+    using smoot_dist_type = dist_picker<index_type>::type;
     std::uniform_real_distribution<> uniform_dist;
 
     vector<RealType> pdfv;
     vector<RealType> cdfv;
     vector<IndexType> bins;
     vector<smoot_dist_type> smoother_distros;
-
 public:
     // clang-format off
     template <class IterType, class IterTypeV>
@@ -87,15 +87,16 @@ public:
             pdfv{pdf_beg, pdf_end},
             cdfv{0},
             bins{bins_beg, bins_end} {
-        double sum_pdf = std::accumulate(pdf_beg, pdf_end, 0.0L);
+        double sum_pdf = std::accumulate(pdf_beg, pdf_end, RealType{0});
         for (double d : pdfv) {
             cdfv.push_back(d / sum_pdf + cdfv.back());
         }
         smoother_distros.reserve(bins.size());
         smoother_distros.emplace_back(0, bins.front());
         for (auto it = bins.begin(); std::next(it) != bins.end(); ++it){
-            int current = *it;
-            int next = *(it + 1);
+            index_type current = *it;
+            index_type next = *(it + 1);
+
             smoother_distros.emplace_back(current, next);
         }
     }
@@ -287,7 +288,7 @@ public:
             auto md_reversed = flip_molecule(md);
             truncate(md_reversed, md_reversed.size() - truncate_length * (1-side_ratio));
             md =  flip_molecule(md_reversed);
-            md.add_comment("TR", fmt::format("{},{}",truncate_length, side_ratio));
+            md.add_comment("TR", fmt::format("{},{:.2f}",truncate_length, side_ratio));
             return md;
         });
     }
@@ -332,7 +333,8 @@ public:
                 double pdf_val, bin_val;
                 bufst >> pdf_val >> bin_val;
                 pdfs.push_back(pdf_val);
-                bins.push_back(bin_val);
+                bins.push_back(bin_val*1.0);
+
             }
 
             custom_distribution<double, double> sider_decider{pdfs.begin(), pdfs.end(), bins.begin(), bins.end()};
