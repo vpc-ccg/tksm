@@ -7,6 +7,7 @@
 #include <npy/npy.hpp>
 #include <random>
 #include <variant>
+#include <concepts>
 
 #include "interval.h"
 #include "mdf.h"
@@ -54,16 +55,26 @@ truncate(molecule_descriptor &md, int post_truncation_length, int min_val = 100)
     }
 }
 
+template<class N>
+struct dist_picker{
+    using type = std::uniform_real_distribution<N>;
+};
+
+template<std::integral N>
+struct dist_picker<N>{
+    using type = std::uniform_int_distribution<N>;
+};
+
 template <class RealType = double, class IndexType = long>
 class custom_distribution {
     using result_type = RealType;
-
+    using smoot_dist_type = dist_picker<IndexType>::type;
     std::uniform_real_distribution<> uniform_dist;
 
     vector<RealType> pdfv;
     vector<RealType> cdfv;
     vector<IndexType> bins;
-    vector<std::uniform_int_distribution<int>> smoother_distros;
+    vector<smoot_dist_type> smoother_distros;
 
 public:
     // clang-format off
@@ -264,6 +275,19 @@ public:
             return std::lognormal_distribution<>{lognormal_params[0], lognormal_params[1]};
         }
     }
+    static auto truncate_transformer_kde(auto &disko, auto &sider_decider, auto &rand_gen) {
+        return std::ranges::views::transform([&](auto &md) {
+            auto truncated_length = disko(rand_gen, md.size());
+            auto truncate_length = md.size() - truncated_length;
+            double side_ratio = sider_decider(rand_gen);
+            truncate(md, md.size() - truncate_length * side_ratio);
+            auto md_reversed = flip_molecule(md);
+            truncate(md_reversed, md_reversed.size() - truncate_length * (1-side_ratio));
+            md =  flip_molecule(md_reversed);
+            return md;
+        });
+    }
+
 
     static auto truncate_transformer(auto &disko, auto &rand_gen) {
         return std::ranges::views::transform([&](auto &md) {
@@ -294,11 +318,30 @@ public:
         string output_file_path{args["output"].as<string>()};
         std::ofstream output_file{output_file_path};
         auto disko = get_dist();
+        if(args["kdefiles"].count() > 0 ){
+            std::ifstream side_pdf_tsv(args["kdefiles"].as<vector<string>>().back());
+            vector<double> pdfs;
+            vector<double> bins;
+            string buffer;
+            while(std::getline(side_pdf_tsv, buffer)){
+                std::istringstream bufst{buffer};
+                double pdf_val, bin_val;
+                bufst >> pdf_val >> bin_val;
+                pdfs.push_back(pdf_val);
+                bins.push_back(bin_val);
+            }
 
-        for (const auto &md : stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko, rand_gen)) {
-            output_file << md;
+            custom_distribution<double, double> sider_decider{pdfs.begin(), pdfs.end(), bins.begin(), bins.end()};
+
+            for (const auto &md : stream_mdf(args["input"].as<string>(), true) | truncate_transformer_kde(std::get<custom_distribution2D<>>(disko), sider_decider, rand_gen)) {
+                output_file << md;
+            }
         }
-
+        else{
+            for (const auto &md : stream_mdf(args["input"].as<string>(), true) | truncate_transformer(disko, rand_gen)) {
+                output_file << md;
+            }
+        }
         return 0;
     }
 
