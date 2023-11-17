@@ -120,8 +120,13 @@ def get_kde_model_input(wc):
     step = get_step(wc.exprmnt, f"{wc.prefix}.Kde")
     model = step["model"]
     kde_input = [
-        f"{preproc_d}/models/truncate/{model}.{x}.npy"
-        for x in ["grid", "X_idxs", "Y_idxs"]
+        f"{preproc_d}/models/truncate/{model}.{x}"
+        for x in [
+            "grid.npy",
+            "X_idxs.npy",
+            "Y_idxs.npy",
+            "sider.tsv",
+        ]
     ]
     return kde_input
 
@@ -509,6 +514,7 @@ rule model_truncation:
         x=f"{preproc_d}/models/truncate/{{sample}}.X_idxs.npy",
         y=f"{preproc_d}/models/truncate/{{sample}}.Y_idxs.npy",
         g=f"{preproc_d}/models/truncate/{{sample}}.grid.npy",
+        s=f"{preproc_d}/models/truncate/{{sample}}.sider.tsv",
     params:
         out_prefix=f"{preproc_d}/models/truncate/{{sample}}",
         binary=config["exec"]["tksm"],
