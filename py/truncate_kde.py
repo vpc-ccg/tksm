@@ -61,17 +61,14 @@ def parse_args():
         default=1,
         help="Number of threads to run KDE and GridSearchCV.",
     )
+
     class ListPrinter(argparse.Action):
-        def __call__(self, parser, namespace ,values, option_string):
-            txt =  '\n'.join([getattr(k, 'dest') for k in parser._actions]) 
+        def __call__(self, parser, namespace, values, option_string):
+            txt = "\n".join([getattr(k, "dest") for k in parser._actions])
             print(txt)
             parser.exit()
 
-    parser.add_argument(
-        "--list",
-        nargs=0,
-        action=ListPrinter
-    )
+    parser.add_argument("--list", nargs=0, action=ListPrinter)
     parser.add_argument(
         "--end-ratio",
         type=float,
@@ -106,6 +103,8 @@ def get_alignment_lens(paf):
         tlens.append(tlen)
         alens.append(alen)
         trunc_len = tlen - alen
+        if trunc_len == 0:
+            continue
         if strand == "+":
             end_trunc = tlen - end
             end_ratios.append(end_trunc / trunc_len)
@@ -135,7 +134,7 @@ def main():
     print("Reading {}".format(args.input))
 
     tlens, alens, end_ratios = get_alignment_lens(args.input)
-    if args.end_ratio == -1:
+    if args.end_ratio != -1:
         end_ratios = [args.end_ratio] * len(end_ratios)
     with open(f"{args.output}.sider.tsv", "w+") as outfile:
         for w, v in zip(*np.histogram(end_ratios, bins=np.arange(0, 1.01, 0.01))):
