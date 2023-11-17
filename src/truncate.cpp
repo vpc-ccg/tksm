@@ -318,8 +318,8 @@ public:
         string output_file_path{args["output"].as<string>()};
         std::ofstream output_file{output_file_path};
         auto disko = get_dist();
-        if(args["kdefiles"].count() > 0 ){
-            std::ifstream side_pdf_tsv(args["kdefiles"].as<vector<string>>().back());
+        if(args["kde-model"].count() > 0 ){
+            std::ifstream side_pdf_tsv(args["kde-model"].as<vector<string>>().back());
             vector<double> pdfs;
             vector<double> bins;
             string buffer;
