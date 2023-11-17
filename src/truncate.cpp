@@ -15,7 +15,10 @@
 #include "pimpl.h"
 
 inline void
-truncate(molecule_descriptor &md, int post_truncation_length, int min_val = 1) {
+truncate(molecule_descriptor &md, int post_truncation_length, int min_val = 100) {
+    if (post_truncation_length == (int) md.size()){
+        return;
+    }
     if (min_val > post_truncation_length) {
         post_truncation_length = min_val;
     }
