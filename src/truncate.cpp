@@ -287,6 +287,7 @@ public:
             auto md_reversed = flip_molecule(md);
             truncate(md_reversed, md_reversed.size() - truncate_length * (1-side_ratio));
             md =  flip_molecule(md_reversed);
+            md.add_comment("TR", fmt::format("{},{}",truncate_length, side_ratio));
             return md;
         });
     }
