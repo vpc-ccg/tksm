@@ -288,11 +288,12 @@ public:
         return std::ranges::views::transform([&,always_end](auto &md) {
             auto truncated_length = disko(rand_gen, md.size());
             auto truncate_length  = md.size() - truncated_length;
-            double side_ratio     = 1;
+            double side_ratio     = sider_decider(rand_gen);
 
-            if (!always_end) {
-                side_ratio = sider_decider(rand_gen);
+            if (always_end) {
+                side_ratio = 1;
             }
+
             truncate(md, md.size() - truncate_length * side_ratio);
             auto md_reversed = flip_molecule(md);
             truncate(md_reversed, md_reversed.size() - truncate_length * (1 - side_ratio));
