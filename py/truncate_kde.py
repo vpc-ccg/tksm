@@ -61,7 +61,13 @@ def parse_args():
         default=1,
         help="Number of threads to run KDE and GridSearchCV.",
     )
-
+    parser.add_argument(
+        "-l",
+        "--model-lengths",
+        default=False,
+        action='store_true',
+        help="Model read lengths instead of truncation lengths",
+    )
     class ListPrinter(argparse.Action):
         def __call__(self, parser, namespace, values, option_string):
             txt = "\n".join([getattr(k, "dest") for k in parser._actions])
@@ -86,6 +92,28 @@ def parse_args():
 def score_samples_runner(xy):
     return xy, kde_vals.score_samples(xy)
 
+
+def get_truncation_lens_paired_with_transcript_lens(paf):
+    tra_lens = list()
+    trc_lens = list()
+    end_rati = list()
+    for line in tqdm(open(paf, "r")):
+        if "tp:A:P" not in line:
+            continue
+        line = line.rstrip("\n").split("\t")
+        strand = line[4]
+        tlen = int(line[6])
+        start = int(line[7])
+        end = int(line[8])
+        truncation_length = start + tlen - end # head_truncation (start) + tail_truncation  (tlen-end)
+        trc_lens.append(tlen)
+        tra_lens.append(truncation_length)
+        if truncation_length != 0:
+            end_truncation = tlen - end if strand == "+" else start
+
+            end_rati.append(end_truncation/truncation_length)
+
+    return tra_lens, trc_lens, end_rati
 
 def get_alignment_lens(paf):
     tlens = list()
@@ -132,8 +160,12 @@ def main():
     args = parse_args()
 
     print("Reading {}".format(args.input))
+    
+    if args.model_lengths:
+        tlens, alens, end_ratios = get_alignment_lens(args.input)
+    else:
+        tlens, alens, end_ratios = get_truncation_lens_paired_with_transcript_lens(args.input)
 
-    tlens, alens, end_ratios = get_alignment_lens(args.input)
     if args.end_ratio != -1:
         end_ratios = [args.end_ratio] * len(end_ratios)
     with open(f"{args.output}.sider.tsv", "w+") as outfile:
@@ -205,7 +237,10 @@ def main():
     print("Writing output...")
     np.save(f"{args.output}.X_idxs.npy", X_idxs)
     np.save(f"{args.output}.Y_idxs.npy", Y_idxs)
-    np.save(f"{args.output}.grid.npy", P)
+    if args.model_lengths:
+        np.save(f"{args.output}.grid.npy", P)
+    else:
+        np.save(f"{args.output}.grid.npy", np.transpose(P))
 
 
 if __name__ == "__main__":

@@ -224,7 +224,11 @@ class Truncate_module::impl : public tksm_module {
                 "always-end",
                 "Ignore sider.tsv and always 3' end truncate",
                 cxxopts::value<bool>()->default_value("false")->implicit_value("true")
-             )(
+            )(
+                "kde-models-length",
+                "KDE models read length instead of truncation length",
+                cxxopts::value<bool>()->default_value("false")->implicit_value("true")
+            )(
                 "normal",
                 "Use Normal distribution [μ,σ]",
                 cxxopts::value<vector<double>>()
@@ -284,15 +288,27 @@ public:
             return std::lognormal_distribution<>{lognormal_params[0], lognormal_params[1]};
         }
     }
-    static auto truncate_transformer_kde(auto &disko, auto &sider_decider, auto &rand_gen, bool always_end) {
-        return std::ranges::views::transform([&,always_end](auto &md) {
-            auto truncated_length = disko(rand_gen, md.size());
-            auto truncate_length  = md.size() - truncated_length;
-            double side_ratio     = sider_decider(rand_gen);
+    static auto truncate_transformer_kde(auto &disko, auto &sider_decider, auto &rand_gen, bool always_end,
+                                         bool models_length) {
+        return std::ranges::views::transform([&, always_end, models_length](auto &md) {
+            auto truncate_length = [models_length, &disko, &rand_gen](auto &md) {
+                if (models_length) {
+                    return md.size() - disko(rand_gen, md.size());
+                }
+                else {
+                    return disko(rand_gen, md.size());
+                }
+            }(md);
 
-            if (always_end) {
-                side_ratio = 1;
-            }
+            auto side_ratio = [always_end, &sider_decider, &rand_gen]() {
+                if (always_end) {
+                    sider_decider(rand_gen);  // Move random seed forward;
+                    return 1.0;
+                }
+                else {
+                    return sider_decider(rand_gen);
+                }
+            }();
 
             truncate(md, md.size() - truncate_length * side_ratio);
             auto md_reversed = flip_molecule(md);
@@ -348,11 +364,11 @@ public:
 
             custom_distribution<double, double> sider_decider{pdfs.begin(), pdfs.end(), bins.begin(), bins.end()};
 
-            bool always_end = args["always-end"].as<bool>();
+            bool always_end      = args["always-end"].as<bool>();
+            bool model_is_length = args["kde-models-length"].as<bool>();
             for (const auto &md : stream_mdf(args["input"].as<string>(), true) |
                                       truncate_transformer_kde(std::get<custom_distribution2D<>>(disko), sider_decider,
-                                                               rand_gen, always_end)
-                ) {
+                                                               rand_gen, always_end, model_is_length)) {
                 output_file << md;
             }
         }
