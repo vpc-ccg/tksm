@@ -227,8 +227,9 @@ rule sequence:
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='sequence')}"
-        "{params.model_var} {params.binary} sequence"
+        "{params.model_var}"  
+        f" {format_gnu_time_string(process='sequence')}"
+        " {params.binary} sequence"
         " -i {input.mdf}"
         " --references {params.fastas}"
         " -o {output.fastq}"
