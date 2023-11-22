@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument(
         "--grid-end",
         type=int,
-        default=5000,
+        default=10000,
         help="Read/transcript length end of the KDE grid.",
     )
     parser.add_argument(
