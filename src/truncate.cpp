@@ -58,12 +58,12 @@ truncate(molecule_descriptor &md, int post_truncation_length, int min_val = 100)
     }
 }
 
-template <class N>
+template <class N>  //Continiuous
 struct dist_picker {
     using type = std::uniform_real_distribution<N>;
 };
 
-template <std::integral N>
+template <std::integral N> // Discrete
 struct dist_picker<N> {
     using type = std::uniform_int_distribution<N>;
 };
@@ -110,6 +110,13 @@ public:
         return smoother_distros[bin_index](g);
     }
 
+    template <class Generator>
+    result_type operator()(Generator &g, double uniform_random_value) {
+        auto cdf_index_iter = std::lower_bound(cdfv.cbegin(), cdfv.cend(), uniform_random_value);
+        auto cdf_index      = std::distance(cdfv.cbegin(), cdf_index_iter);
+        auto bin_index      = cdf_index - 1;  // Because we add 0 to cdf
+        return smoother_distros[bin_index](g);
+    }
     const vector<result_type> &cdf() const { return cdfv; }
     const vector<result_type> &pdf() const { return pdfv; }
 };
@@ -117,12 +124,15 @@ public:
 template <class RealType = double, class IndexType = long>
 class custom_distribution2D {
     using result_type = RealType;
+    using index_type  = IndexType;
     vector<IndexType> x_axis_index;
     vector<IndexType> y_axis_index;
     vector<custom_distribution<>> distillery;
+    std::uniform_real_distribution<> uniform_dist;
 
 public:
-    custom_distribution2D(const string &pfile, const string &x_axis_file, const string &y_axis_file) {
+    custom_distribution2D(const string &pfile, const string &x_axis_file, const string &y_axis_file) :
+        uniform_dist{0.0, 1}{
         vector<unsigned long> shape;
 
         bool fortran_order;
@@ -153,13 +163,19 @@ public:
     }
 
     template <class Generator>
-    result_type operator()(Generator &g, IndexType slice) {
+    result_type operator()(Generator &g, IndexType slice, bool smoothed= true) {
         auto iter = std::lower_bound(y_axis_index.begin(), y_axis_index.end(), slice);
         if (iter != y_axis_index.begin() && std::abs(*iter - slice) > std::abs(*(iter - 1) - slice)) {
             --iter;
         }
         logd("Slice: {}, index: {}", slice, std::distance(y_axis_index.begin(), iter));
-        return distillery.at(std::distance(y_axis_index.begin(), iter))(g);
+        auto didx = std::distance(y_axis_index.begin(), iter);
+        double uidx = uniform_dist(g);
+        result_type val = distillery.at(didx)(g, uidx);
+        if(smoothed && didx+1 < distillery.size()){
+            val = (val + distillery.at(didx+1)(g,uidx))/2;
+        }
+        return val;
     }
 
     vector<result_type> cdf(IndexType slice) {
@@ -309,7 +325,7 @@ public:
                     return sider_decider(rand_gen);
                 }
             }();
-
+            fmt::print("{}\t{}\t{}\t{}\n", md.get_id(), md.size(), truncate_length, side_ratio);
             truncate(md, md.size() - truncate_length * side_ratio);
             auto md_reversed = flip_molecule(md);
             truncate(md_reversed, md_reversed.size() - truncate_length * (1 - side_ratio));
