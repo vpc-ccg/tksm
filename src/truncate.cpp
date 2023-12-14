@@ -325,7 +325,6 @@ public:
                     return sider_decider(rand_gen);
                 }
             }();
-            fmt::print("{}\t{}\t{}\t{}\n", md.get_id(), md.size(), truncate_length, side_ratio);
             truncate(md, md.size() - truncate_length * side_ratio);
             auto md_reversed = flip_molecule(md);
             truncate(md_reversed, md_reversed.size() - truncate_length * (1 - side_ratio));
