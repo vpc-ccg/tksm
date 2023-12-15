@@ -48,13 +48,17 @@ endif
 
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
+MAIN_FILE =  tksm.cpp
+MAIN_OBJECT = $(OBJ_PATH)/tksm.o
 
-SRC_FILES = tksm.cpp tag.cpp truncate.cpp transcribe.cpp scb.cpp sequence.cpp polyA.cpp pcr.cpp model_truncation.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp shuffle.cpp unsegment.cpp append_noise.cpp mutate.cpp
+SRC_FILES =  tag.cpp truncate.cpp transcribe.cpp scb.cpp sequence.cpp polyA.cpp pcr.cpp model_truncation.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp shuffle.cpp unsegment.cpp append_noise.cpp mutate.cpp
 
 #Append SRC_PATH to SRC_FILES
 SRC_FILES := $(addprefix $(SRC_PATH)/,$(SRC_FILES))
 
 OBJECTS = $(SRC_FILES:$(SRC_PATH)/%.cpp=$(OBJ_PATH)/%.o)
+
+SPLIT_EXECS = $(SRC_FILES:$(SRC_PATH)/%.cpp=$(BIN_PATH)/%.exe)
 
 PCH_HEADER = $(SRC_PATH)/headers.h
 PCH_OBJECT = $(PCH_HEADER:$(SRC_PATH)/%.h=$(OBJ_PATH)/%.gch)
@@ -62,13 +66,23 @@ PCH_OBJECT = $(PCH_HEADER:$(SRC_PATH)/%.h=$(OBJ_PATH)/%.gch)
 PY_FILES = $(wildcard py/*.py)
 PY_HEADERS = $(PY_FILES:py/%.py=py_header/%.h)
 
-$(EXEC): $(OBJECTS) $(PY_HEADERS) install.sh $(PCH_OBJECT)
+$(EXEC): $(MAIN_OBJECT) $(OBJECTS) $(PY_HEADERS) install.sh $(PCH_OBJECT)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $(OBJECTS) $(PY_LDFLAGS) $(LDFLAGS) -include $(PCH_OBJECT)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(PY_LDFLAGS) $(LDFLAGS) -include $(PCH_OBJECT)
+
+.PHONY: split_binary
+split_binary: $(SPLIT_EXECS)
+
+$(BIN_PATH)/%.exe: $(OBJ_PATH)/%_m.o 
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(EXTERN_HEADER_PATH) -I$(PY_HEADER_PATH) $(PY_LDFLAGS) $(LDFLAGS) -o $@ $< -DMULTI_BINARY
 
 $(BIN_PATH)/%: $(SRC_PATH)/%.cpp $(PY_HEADERS) 
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(PY_HEADER_PATH) -I$(EXTERN_HEADER_PATH) -o $@ $< $(PY_LDFLAGS) $(LDFLAGS)
+
+$(OBJ_PATH)/%_m.o: $(SRC_PATH)/%.cpp $(PY_HEADERS) 
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(PY_CXXFLAGS) -I$(EXTERN_HEADER_PATH) -I$(PY_HEADER_PATH) -c -o $@ $< -DMULTI_BINARY
 
 $(OBJ_PATH)/%.o: $(SRC_PATH)/%.cpp $(PY_HEADERS) 
 	@mkdir -p $(dir $@)
