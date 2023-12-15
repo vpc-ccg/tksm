@@ -310,7 +310,7 @@ rule raw_lengths:
                 bins=params.bins if bb is None else bb,
                 density=True,
                 label=sample,
-                alpha=0.3,
+                histtype="step",
             )
             print(f"{sample} length mean: {np.mean(lens):.2f}")
             print(f"{sample} length std: {np.std(lens):.2f}")
@@ -364,7 +364,7 @@ rule mapped_raw_lengths:
                 bins=params.bins if bb is None else bb,
                 density=True,
                 label=sample,
-                alpha=0.3,
+                histtype="step",
             )
             print(f"{sample} length (PAF) mean: {np.mean(lens):.2f}")
             print(f"{sample} length (PAF) std: {np.std(lens):.2f}")
@@ -406,20 +406,20 @@ rule mapped_lengths:
                 if rid in rids:
                     continue
                 rids.add(rid)
-                start = int(fields[2])
-                end = int(fields[3])
+                start = int(fields[7])
+                end = int(fields[8])
                 lens.append(end - start)
             lens = np.array(lens)
             lens_arrays.append(lens)
-            max_up = max(max_up, np.percentile(lens, 99))
+        max_up = 5_000
         for lens, sample in zip(lens_arrays, samples):
             lens = lens[lens < max_up]
-            _, bb, _ = plt.hist(
+            _, _, _ = plt.hist(
                 lens,
-                bins=params.bins if bb is None else bb,
+                bins=np.arange(0, max_up, 100),
                 density=True,
                 label=sample,
-                alpha=0.3,
+                histtype="step",
             )
             print(f"{sample} mapping length (PAF) mean: {np.mean(lens):.2f}")
             print(f"{sample} mapping length (PAF) std: {np.std(lens):.2f}")
@@ -427,6 +427,77 @@ rule mapped_lengths:
         plt.xlim(left=0, right=max_up)
         plt.legend()
         plt.title("Length distribution (mapping part of reads from PAF)")
+        plt.savefig(output.pdf, dpi=300)
+        plt.savefig(output.png, dpi=1000)
+
+
+rule mapped_truncated_ratio:
+    input:
+        pafs=lambda wc: [
+            f"{preproc_d}/minimap2/{s}.cDNA.paf" for s in wc.samples.split(".")
+        ],
+    output:
+        pdf=f"{plots_d}/mapped_truncated_ratio/{{samples}}.pdf",
+        png=f"{plots_d}/mapped_truncated_ratio/{{samples}}.png",
+    params:
+        bins=50,
+    run:
+        end_fracts = list()
+        samples = wildcards.samples.split(".")
+        print("Reading PAF files")
+        for paf in tqdm(
+            input.pafs,
+            total=len(input.pafs),
+            desc="[mapped_truncated_ratio] Reading PAF",
+        ):
+            cur_end_fracs = list()
+            for line in tqdm(
+                open(paf), desc=f"[mapped_truncated_ratio] Processing {paf}"
+            ):
+                if "tp:A:P" not in line:
+                    continue
+                line = line.rstrip("\n").split("\t")
+                strand = line[4]
+                tlen = int(line[6])
+                start = int(line[7])
+                end = int(line[8])
+                alen = end - start
+                trunc_len = tlen - alen
+                if trunc_len == 0:
+                    continue
+                if strand == "+":
+                    end_trunc = tlen - end
+                else:
+                    end_trunc = start
+                cur_end_fracs.append(end_trunc / trunc_len)
+            end_fracts.append(cur_end_fracs)
+        fig, axes = plt.subplots(2, 1, figsize=(12, 10))
+        for sample, V in zip(samples, end_fracts):
+            counts, bins = np.histogram(V, bins=np.arange(0, 1.01, 0.01), density=True)
+            axes[0].stairs(
+                counts,
+                bins,
+                label=sample,
+            )
+            counts = np.cumsum(counts)
+            axes[1].stairs(
+                counts,
+                bins,
+                label=sample,
+            )
+        
+        for ax in axes:
+            ax.set_xlim(left=0, right=1)
+            ax.grid(
+                linestyle="-",
+                alpha=0.5,
+            )
+        axes[0].set_ylabel("Density")
+        axes[1].set_ylabel("Cumulative density")
+        fig.suptitle("5' truncation fraction of total truncation length")
+
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, loc="upper right")
         plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
 
@@ -579,7 +650,7 @@ rule polyA:
                 bins=params.bins if bb is None else bb,
                 density=True,
                 label=f"{sample} (µ={np.mean(polys):.2f}, σ={np.std(polys):.2f})",
-                alpha=0.5,
+                histtype="step",
             )
         plt.legend()
         plt.title("Poly(A,T) length distribution")

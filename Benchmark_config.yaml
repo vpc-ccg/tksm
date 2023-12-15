@@ -118,6 +118,7 @@ plots:
             tpm_plot_liqa,
             tpm_plot_minimap2,
             tpm_plot_nanosim,
+            mapped_truncated_ratio,
         ],
         data: [
             MCF7-sgnex,
