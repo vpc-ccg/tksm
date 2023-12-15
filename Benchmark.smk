@@ -474,6 +474,7 @@ rule mapped_truncated_ratio:
         fig, axes = plt.subplots(2, 1, figsize=(12, 10))
         for sample, V in zip(samples, end_fracts):
             counts, bins = np.histogram(V, bins=np.arange(0, 1.01, 0.01), density=True)
+            counts /= 100
             axes[0].stairs(
                 counts,
                 bins,
@@ -485,19 +486,19 @@ rule mapped_truncated_ratio:
                 bins,
                 label=sample,
             )
-        
+
         for ax in axes:
             ax.set_xlim(left=0, right=1)
             ax.grid(
                 linestyle="-",
                 alpha=0.5,
             )
+            ax.legend(loc="upper center")
         axes[0].set_ylabel("Density")
         axes[1].set_ylabel("Cumulative density")
         fig.suptitle("5' truncation fraction of total truncation length")
 
-        handles, labels = axes[0].get_legend_handles_labels()
-        fig.legend(handles, labels, loc="upper right")
+        fig.tight_layout()
         plt.savefig(output.pdf, dpi=300)
         plt.savefig(output.png, dpi=1000)
 
