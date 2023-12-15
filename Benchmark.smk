@@ -471,7 +471,7 @@ rule mapped_truncated_ratio:
                     end_trunc = start
                 cur_end_fracs.append(end_trunc / trunc_len)
             end_fracts.append(cur_end_fracs)
-        fig, axes = plt.subplots(2, 1, figsize=(12, 10))
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
         for sample, V in zip(samples, end_fracts):
             counts, bins = np.histogram(V, bins=np.arange(0, 1.01, 0.01), density=True)
             counts /= 100
