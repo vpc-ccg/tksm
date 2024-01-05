@@ -49,7 +49,7 @@ def parse_args():
         help="TSV output of the long-reads barcode matching from scTager (e.g. S1.lr_matches.tsv.gz)",
     )
     parser.add_argument(
-        "--cell-barcode-count",
+        "--cb-count",
         type=int,
         default=0,
         help="Number of cell barcodes to simulate."
@@ -57,31 +57,31 @@ def parse_args():
         + " Cannot be used with --lr-br parameter.",
     )
     parser.add_argument(
-        "--cell-barcode-lognorm-params",
+        "--cb-lognorm-params",
         type=str,
         default="10,1",
         help="Parameters for the lognormal distribution of cell barcodes abundance. "
         + " Takes two comma-separated values: mean and standard deviation.",
     )
     parser.add_argument(
-        "--cell-barcode-pattern",
+        "--cb-pattern",
         type=str,
         default="NNNNNNNNNNNN",
-        help="FASTA pattern for the cell barcode. If used, --cell-barcode-count parameter must also be used.",
+        help="FASTA pattern for the cell barcode. If used, --cb-count parameter must also be used.",
     )
     parser.add_argument(
-        "--cell-barcode-dropout",
+        "--cb-dropout",
         type=float,
-        default=0.0,
-        help="Fraction of reads without cell barcodes. If used, --cell-barcode-count parameter must also be used.",
+        default=0.2,
+        help="Fraction of reads without cell barcodes. If used, --cb-count parameter must also be used.",
     )
     parser.add_argument(
-        "--cell-barcode-txt",
+        "--cb-txt",
         type=str,
         default="",
         help="Path to a text file of cell barcodes whitelist, one per line."
-        + "If used, --cell-barcode-count parameter must also be used."
-        + "Do not use with --cell-barcode-pattern parameter.",
+        + "If used, --cb-count parameter must also be used."
+        + "Do not use with --cb-pattern parameter.",
     )
     parser.add_argument(
         "-o",
@@ -120,15 +120,15 @@ def parse_args():
     args = parser.parse_args()
     if args.cell_barcode_count > 0:
         if args.lr_br != "":
-            parser.error("--lr-br must not be set with --cell-barcode-count")
+            parser.error("--lr-br must not be set with --cb-count")
         if args.cell_barcode_pattern == "":
-            parser.error("--cell-barcode-pattern must be set with --cell-barcode-count")
+            parser.error("--cb-pattern must be set with --cb-count")
         if {c for c in args.cell_barcode_pattern} <= set(IUPAC_nts.keys()):
             parser.error(
-                "--cell-barcode-pattern must contain only valid IUPAC nucleotide letters"
+                "--cb-pattern must contain only valid IUPAC nucleotide letters"
             )
         if args.cell_barcode_dropout < 0 or args.cell_barcode_dropout > 1:
-            parser.error("--cell-barcode-dropout must be between 0 and 1")
+            parser.error("--cb-dropout must be between 0 and 1")
         args.cell_barcode_lognorm_params = tuple(
             float(x) for x in args.cell_barcode_lognorm_params.split(",")
         )
