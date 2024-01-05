@@ -2,7 +2,7 @@
 import argparse
 import gzip
 from collections import defaultdict
-from typing import List
+from typing import List, Tuple
 import numpy as np
 
 from tqdm import tqdm
@@ -57,6 +57,13 @@ def parse_args():
         + " Cannot be used with --lr-br parameter.",
     )
     parser.add_argument(
+        "--cell-barcode-lognorm-params",
+        type=str,
+        default="10,1",
+        help="Parameters for the lognormal distribution of cell barcodes abundance. "
+        + " Takes two comma-separated values: mean and standard deviation.",
+    )
+    parser.add_argument(
         "--cell-barcode-pattern",
         type=str,
         default="NNNNNNNNNNNN",
@@ -91,6 +98,11 @@ def parse_args():
         default=10,
     )
     parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=42,
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         type=int,
@@ -117,6 +129,11 @@ def parse_args():
             )
         if args.cell_barcode_dropout < 0 or args.cell_barcode_dropout > 1:
             parser.error("--cell-barcode-dropout must be between 0 and 1")
+        args.cell_barcode_lognorm_params = tuple(
+            float(x) for x in args.cell_barcode_lognorm_params.split(",")
+        )
+        assert len(args.cell_barcode_lognorm_params) == 2
+        assert args.cell_barcode_lognorm_params[1] > 0
     return args
 
 
@@ -283,8 +300,10 @@ def calculate_split_abundance(compatibility, rid_to_bc):
     return abundance
 
 
-def generate_rid_to_bc(barcodes: List[str], dropout: float):
-    weights = np.random.lognormal(10, 1, size=len(barcodes))
+def generate_rid_to_bc(
+    barcodes: List[str], dropout: float, lognorm_params: Tuple[float, float]
+):
+    weights = np.random.lognormal(*lognorm_params, size=len(barcodes))
     dropout_weight: float = weights.sum() * dropout  # type: ignore
     barcodes.append(".")
     weights = np.append(weights, np.array([dropout_weight]))
@@ -303,7 +322,7 @@ def generate_rid_to_bc(barcodes: List[str], dropout: float):
 
 def main():
     args = parse_args()
-
+    np.random.seed(args.random_seed)
     if args.lr_br == "":
         if args.cell_barcode_count <= 0:
             rid_to_bc: defaultdict[str, str] = defaultdict(lambda: ".")
@@ -321,7 +340,9 @@ def main():
                     args.cell_barcode_pattern,
                     args.cell_barcode_count,
                 )
-            rid_to_bc = generate_rid_to_bc(barcodes, args.cell_barcode_dropout)
+            rid_to_bc = generate_rid_to_bc(
+                barcodes, args.cell_barcode_dropout, args.cell_barcode_lognorm_params
+            )
     else:
         rid_to_bc = parse_lr_bc_matches(args.lr_br)
     tid_to_tname, alignments = parse_paf(args.paf)
