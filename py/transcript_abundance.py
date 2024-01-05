@@ -2,16 +2,37 @@
 import argparse
 import gzip
 from collections import defaultdict
+from typing import List
+import numpy as np
 
 from tqdm import tqdm
 
 # Includes EM code by Jared Simpson from
 # https://github.com/jts/nanopore-rna-analysis/blob/master/nanopore_transcript_abundance.py
 
+IUPAC_nts = {
+    "A": "A",
+    "C": "C",
+    "G": "G",
+    "T": "T",
+    "R": "AG",
+    "Y": "CT",
+    "K": "GT",
+    "M": "AC",
+    "S": "CG",
+    "W": "AT",
+    "B": "CGT",
+    "D": "AGT",
+    "H": "ACT",
+    "V": "ACG",
+    "N": "ACGT",
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Output a TSV file of the long-read trasncript expresion."
+        description="Output a TSV file of the long-read trasncript expresion.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "-p",
@@ -28,42 +49,111 @@ def parse_args():
         help="TSV output of the long-reads barcode matching from scTager (e.g. S1.lr_matches.tsv.gz)",
     )
     parser.add_argument(
+        "--cell-barcode-count",
+        type=int,
+        default=0,
+        help="Number of cell barcodes to simulate."
+        + " If >0, then the abundance will be split by cell barcodes according to a normal distribution."
+        + " Cannot be used with --lr-br parameter.",
+    )
+    parser.add_argument(
+        "--cell-barcode-pattern",
+        type=str,
+        default="NNNNNNNNNNNN",
+        help="FASTA pattern for the cell barcode. If used, --cell-barcode-count parameter must also be used.",
+    )
+    parser.add_argument(
+        "--cell-barcode-dropout",
+        type=float,
+        default=0.0,
+        help="Fraction of reads without cell barcodes. If used, --cell-barcode-count parameter must also be used.",
+    )
+    parser.add_argument(
+        "--cell-barcode-txt",
+        type=str,
+        default="",
+        help="Path to a text file of cell barcodes whitelist, one per line."
+        + "If used, --cell-barcode-count parameter must also be used."
+        + "Do not use with --cell-barcode-pattern parameter.",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         type=str,
         required=True,
-        help="Path for the output file (e.g cDNA.abundance.tsv.tsv.gz or cDNA.abundance.tsv). Will be gzipped if it ends with .gz extenstion.",
+        help="Path for the output file (e.g cDNA.abundance.tsv.tsv.gz or cDNA.abundance.tsv)."
+        + "Will be gzipped if it ends with .gz extenstion.",
     )
-    parser.add_argument("-em", "--em-iterations", type=int, default=10)
-    parser.add_argument("-v", "--verbose", type=int, default=0)
+    parser.add_argument(
+        "-em",
+        "--em-iterations",
+        type=int,
+        default=10,
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        type=int,
+        default=0,
+    )
+
     class ListPrinter(argparse.Action):
-        def __call__(self, parser, namespace ,values, option_string):
-            txt =  '\n'.join([getattr(k, 'dest') for k in parser._actions]) 
+        def __call__(self, parser, namespace, values, option_string):
+            txt = "\n".join([getattr(k, "dest") for k in parser._actions])
             print(txt)
             parser.exit()
 
-    parser.add_argument(
-        "--list",
-        nargs=0,
-        action=ListPrinter
-    )
+    parser.add_argument("--list", nargs=0, action=ListPrinter)
 
     args = parser.parse_args()
+    if args.cell_barcode_count > 0:
+        if args.lr_br != "":
+            parser.error("--lr-br must not be set with --cell-barcode-count")
+        if args.cell_barcode_pattern == "":
+            parser.error("--cell-barcode-pattern must be set with --cell-barcode-count")
+        if {c for c in args.cell_barcode_pattern} <= set(IUPAC_nts.keys()):
+            parser.error(
+                "--cell-barcode-pattern must contain only valid IUPAC nucleotide letters"
+            )
+        if args.cell_barcode_dropout < 0 or args.cell_barcode_dropout > 1:
+            parser.error("--cell-barcode-dropout must be between 0 and 1")
     return args
 
 
+def generate_barcodes_from_pattern(pattern: str, count: int):
+    barcodes: List[str] = list()
+    for _ in range(count):
+        barcode: List[str] = list()
+        for p in pattern:
+            c: str = np.random.choice(IUPAC_nts[p])
+            barcode.append(c)
+        barcodes.append("".join(barcode))
+    return barcodes
+
+
+def parse_barcodes_txt(barcode_txt: str):
+    barcodes: List[str] = list()
+    if barcode_txt.endswith(".gz"):
+        infile = gzip.open(barcode_txt, "rt")
+    else:
+        infile = open(barcode_txt, "r")
+    for l in infile:
+        l: str = l
+        barcode = l.rstrip("\n")
+        barcodes.append(barcode)
+    return barcodes
+
+
 def parse_lr_bc_matches(lr_br_tsv):
-    rid_to_bc = defaultdict(lambda: ".")
-    if lr_br_tsv == "":
-        return rid_to_bc
-    elif lr_br_tsv.endswith(".gz"):
+    rid_to_bc: defaultdict[str, str] = defaultdict(lambda: ".")
+    if lr_br_tsv.endswith(".gz"):
         infile = gzip.open(lr_br_tsv, "rt")
     else:
         infile = open(lr_br_tsv, "r")
     print("Parsing LR barcode matches TSV...")
-    for l in tqdm(infile):
-        l = l.rstrip("\n").split("\t")
-        rid, _, c, _, bc = l
+    for l in tqdm(infile):  # type: ignore
+        l: str = l
+        rid, _, c, _, bc = l.rstrip("\n").split("\t")
         if c != "1":
             continue
         rid_to_bc[rid] = bc
@@ -193,10 +283,47 @@ def calculate_split_abundance(compatibility, rid_to_bc):
     return abundance
 
 
+def generate_rid_to_bc(barcodes: List[str], dropout: float):
+    weights = np.random.lognormal(10, 1, size=len(barcodes))
+    dropout_weight: float = weights.sum() * dropout  # type: ignore
+    barcodes.append(".")
+    weights = np.append(weights, np.array([dropout_weight]))
+    weights = weights / weights.sum()
+
+    rid_to_bc: defaultdict[str, str] = defaultdict(
+        lambda: np.random.choice(
+            a=np.array(barcodes, dtype=str),
+            size=1,
+            p=weights,
+            replace=True,
+        )[0]
+    )
+    return rid_to_bc
+
+
 def main():
     args = parse_args()
 
-    rid_to_bc = parse_lr_bc_matches(args.lr_br)
+    if args.lr_br == "":
+        if args.cell_barcode_count <= 0:
+            rid_to_bc: defaultdict[str, str] = defaultdict(lambda: ".")
+        else:
+            if args.cell_barcode_txt != "":
+                barcodes = parse_barcodes_txt(args.cell_barcode_txt)
+                assert len(barcodes) >= args.cell_barcode_count
+                barcodes = np.random.choice(
+                    barcodes,
+                    size=args.cell_barcode_count,
+                    replace=True,
+                )
+            else:
+                barcodes = generate_barcodes_from_pattern(
+                    args.cell_barcode_pattern,
+                    args.cell_barcode_count,
+                )
+            rid_to_bc = generate_rid_to_bc(barcodes, args.cell_barcode_dropout)
+    else:
+        rid_to_bc = parse_lr_bc_matches(args.lr_br)
     tid_to_tname, alignments = parse_paf(args.paf)
     transcript_compatibility = get_compatibility(alignments)
     del alignments
@@ -217,7 +344,7 @@ def main():
         outfile = open(args.output, "w+")
     total_reads = len(transcript_compatibility)
     print(f"Parsed alignments for {total_reads} reads")
-    outfile.write("target_id\ttpm\tcell\n")
+    outfile.write("target_id\ttpm\tcell\n")  # type: ignore
     for (tid, cell), a in abundance.items():
         tpm = a * 1_000_000
         # if you need >100M reads to see this transcript, then skip
@@ -230,9 +357,9 @@ def main():
                     f"{tpm:.3f}",
                     f"{cell}",
                 ]
-            )
+            )  # type: ignore
         )
-        outfile.write("\n")
+        outfile.write("\n")  # type: ignore
     outfile.close()
 
 
