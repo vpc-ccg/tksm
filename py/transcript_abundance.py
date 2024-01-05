@@ -11,21 +11,21 @@ from tqdm import tqdm
 # https://github.com/jts/nanopore-rna-analysis/blob/master/nanopore_transcript_abundance.py
 
 IUPAC_nts = {
-    "A": "A",
-    "C": "C",
-    "G": "G",
-    "T": "T",
-    "R": "AG",
-    "Y": "CT",
-    "K": "GT",
-    "M": "AC",
-    "S": "CG",
-    "W": "AT",
-    "B": "CGT",
-    "D": "AGT",
-    "H": "ACT",
-    "V": "ACG",
-    "N": "ACGT",
+    "A": np.array(["A"], dtype=str),
+    "C": np.array(["C"], dtype=str),
+    "G": np.array(["G"], dtype=str),
+    "T": np.array(["T"], dtype=str),
+    "R": np.array(["A", "G"], dtype=str),
+    "Y": np.array(["C", "T"], dtype=str),
+    "K": np.array(["G", "T"], dtype=str),
+    "M": np.array(["A", "C"], dtype=str),
+    "S": np.array(["C", "G"], dtype=str),
+    "W": np.array(["A", "T"], dtype=str),
+    "B": np.array(["C", "G", "T"], dtype=str),
+    "D": np.array(["A", "G", "T"], dtype=str),
+    "H": np.array(["A", "C", "T"], dtype=str),
+    "V": np.array(["A", "C", "G"], dtype=str),
+    "N": np.array(["A", "C", "G", "T"], dtype=str),
 }
 
 
@@ -118,22 +118,24 @@ def parse_args():
     parser.add_argument("--list", nargs=0, action=ListPrinter)
 
     args = parser.parse_args()
-    if args.cell_barcode_count > 0:
+    if args.cb_count > 0:
         if args.lr_br != "":
             parser.error("--lr-br must not be set with --cb-count")
-        if args.cell_barcode_pattern == "":
+        if args.cb_pattern == "":
             parser.error("--cb-pattern must be set with --cb-count")
-        if {c for c in args.cell_barcode_pattern} <= set(IUPAC_nts.keys()):
-            parser.error(
-                "--cb-pattern must contain only valid IUPAC nucleotide letters"
-            )
-        if args.cell_barcode_dropout < 0 or args.cell_barcode_dropout > 1:
+        for c in args.cb_pattern:
+            if c not in IUPAC_nts.keys():
+                parser.error(
+                    "--cb-pattern must contain only valid IUPAC nucleotide letters: "
+                    + f"<{c}> not in {','.join(IUPAC_nts.keys())}"
+                )
+        if args.cb_dropout < 0 or args.cb_dropout > 1:
             parser.error("--cb-dropout must be between 0 and 1")
-        args.cell_barcode_lognorm_params = tuple(
-            float(x) for x in args.cell_barcode_lognorm_params.split(",")
+        args.cb_lognorm_params = tuple(
+            float(x) for x in args.cb_lognorm_params.split(",")
         )
-        assert len(args.cell_barcode_lognorm_params) == 2
-        assert args.cell_barcode_lognorm_params[1] > 0
+        assert len(args.cb_lognorm_params) == 2
+        assert args.cb_lognorm_params[1] > 0
     return args
 
 
@@ -304,7 +306,8 @@ def generate_rid_to_bc(
     barcodes: List[str], dropout: float, lognorm_params: Tuple[float, float]
 ):
     weights = np.random.lognormal(*lognorm_params, size=len(barcodes))
-    dropout_weight: float = weights.sum() * dropout  # type: ignore
+    total_with_dropout: float = weights.sum() / (1 - dropout)
+    dropout_weight: float = total_with_dropout * dropout
     barcodes.append(".")
     weights = np.append(weights, np.array([dropout_weight]))
     weights = weights / weights.sum()
@@ -324,24 +327,24 @@ def main():
     args = parse_args()
     np.random.seed(args.random_seed)
     if args.lr_br == "":
-        if args.cell_barcode_count <= 0:
+        if args.cb_count <= 0:
             rid_to_bc: defaultdict[str, str] = defaultdict(lambda: ".")
         else:
-            if args.cell_barcode_txt != "":
-                barcodes = parse_barcodes_txt(args.cell_barcode_txt)
-                assert len(barcodes) >= args.cell_barcode_count
+            if args.cb_txt != "":
+                barcodes = parse_barcodes_txt(args.cb_txt)
+                assert len(barcodes) >= args.cb_count
                 barcodes = np.random.choice(
                     barcodes,
-                    size=args.cell_barcode_count,
+                    size=args.cb_count,
                     replace=True,
                 )
             else:
                 barcodes = generate_barcodes_from_pattern(
-                    args.cell_barcode_pattern,
-                    args.cell_barcode_count,
+                    args.cb_pattern,
+                    args.cb_count,
                 )
             rid_to_bc = generate_rid_to_bc(
-                barcodes, args.cell_barcode_dropout, args.cell_barcode_lognorm_params
+                barcodes, args.cb_dropout, args.cb_lognorm_params
             )
     else:
         rid_to_bc = parse_lr_bc_matches(args.lr_br)
