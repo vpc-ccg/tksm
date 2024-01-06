@@ -121,8 +121,8 @@ def parse_args():
     if args.cb_count > 0:
         if args.lr_br != "":
             parser.error("--lr-br must not be set with --cb-count")
-        if args.cb_pattern == "":
-            parser.error("--cb-pattern must be set with --cb-count")
+        if args.cb_pattern == "" and args.cb_txt == "":
+            parser.error("--cb-pattern or --cb-txt must be set with --cb-count")
         for c in args.cb_pattern:
             if c not in IUPAC_nts.keys():
                 parser.error(
