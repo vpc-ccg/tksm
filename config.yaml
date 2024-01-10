@@ -33,9 +33,10 @@ TS_experiments:
         pipeline:
             - Tsb:
                 params: "--molecule-count 200000"
+                model: "N1"
             - Trc:
                 params: ""
-                model: "MCF7-sgnex"
+                model: "N1"
             - plA:
                 params: ""
     head_2:
@@ -64,8 +65,7 @@ TS_experiments:
             - Flp:
                 params: "-p 0.5"
             - Seq:
-                params: "--skip-qual-compute"
-                model: "nanopore2020"
+                params: "--skip-qual-compute --badread-model nanopore2020"
 
 exec:
     tksm: build/bin/tksm
@@ -87,28 +87,16 @@ samples:
         fastq:
             - data/samples/MCF7-sgnex.fastq.gz
         ref: Homo_sapiens
-    "MCF7-sgnex_chr21":
-        fastq:
-            - data/samples/MCF7-sgnex_subsample.fastq.gz
-        ref: Homo_sapiens_chr21
     "N1":
         fastq:
             - data/samples/N1.fastq
         ref: Homo_sapiens
         cb_wl: 10x
-    "N1_chr21":
-        fastq:
-            - data/samples/N1_subsample.fastq.gz
-        ref: Homo_sapiens_chr21
-        cb_wl: 10x
 
 models:
     Tsb:
-        MCF7-sgnex:
+        M:
             sample: MCF7-sgnex
-            params: "--cb-count 500"
-        MCF7-sgnex_2:
-            paf: experiment_1
             params: "--cb-count 500"
         N1_lr-br:
             sample: N1
@@ -118,11 +106,3 @@ models:
             sample: N1
             cb-txt: refs/barcodes/10x_bc
             params: "--cb-count 500"
-    Trc:
-        N1:
-            sample: N1
-            params: ""
-    Seq:
-        N1:
-            paf: N1
-            params: ""

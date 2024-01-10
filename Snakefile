@@ -16,6 +16,14 @@ exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
 DEBUG = False
 
+for sample in config["samples"]:
+    for mtype in ["Tsb", "Trc", "Seq"]:
+        k = (mtype, sample)
+        if k not in config["models"]:
+            config["models"][mtype][sample] = {
+                "sample": sample,
+                "params": "",
+            }
 
 model_details_t = NamedTuple(
     "model_details_t",
@@ -206,8 +214,19 @@ def get_merge_mdf_input(wc):
 
 
 def get_model(wc, rule_name):
-    model_name = get_step(wc.exprmnt, f"{wc.prefix}.{rule_name}")["model"]
-    return models[mtype, model_name]
+    step = get_step(wc.exprmnt, f"{wc.prefix}.{rule_name}")
+    if "model" in step:
+        model_name = ["model"]
+        return models[mtype, model_name]
+    else:
+        return model_details_t(
+            name="",
+            sample="",
+            inputs=list(),
+            outputs=list(),
+            params_build="",
+            params_run="",
+        )
 
 
 rule all:
@@ -257,7 +276,6 @@ else:
 
 rule sequence:
     input:
-        obj=["build/obj/sequence.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
         model=lambda wc: get_model(wc, "Seq").outputs,
@@ -283,7 +301,6 @@ rule sequence:
 
 rule filter:
     input:
-        obj=["build/obj/filter.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flt.mdf"),
@@ -301,7 +318,6 @@ rule filter:
 
 rule truncate:
     input:
-        obj=["build/obj/truncate.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         model=lambda wc: get_model(wc, "Trc").outputs,
     output:
@@ -322,7 +338,6 @@ rule truncate:
 
 rule unsegment:
     input:
-        obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Uns.mdf"),
@@ -340,7 +355,6 @@ rule unsegment:
 
 rule shuffle:
     input:
-        obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Shf.mdf"),
@@ -358,7 +372,6 @@ rule shuffle:
 
 rule flip:
     input:
-        obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flp.mdf"),
@@ -376,7 +389,6 @@ rule flip:
 
 rule pcr:
     input:
-        obj=["build/obj/pcr.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.PCR.mdf"),
@@ -394,7 +406,6 @@ rule pcr:
 
 rule tag:
     input:
-        obj=["build/obj/tag.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.mdf"),
@@ -412,7 +423,6 @@ rule tag:
 
 rule single_cell_barcoder:
     input:
-        obj=["build/obj/scb.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.mdf"),
@@ -430,7 +440,6 @@ rule single_cell_barcoder:
 
 rule polyA:
     input:
-        obj=["build/obj/polyA.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.plA.mdf"),
@@ -449,7 +458,6 @@ rule polyA:
 ### Entry rules ###
 rule transcribe:
     input:
-        obj=["build/obj/transcribe.o", "build/obj/tksm.o"] if DEBUG else list(),
         model=lambda wc: get_model(wc, "Tsb").outputs,
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/Tsb.mdf"),
@@ -491,7 +499,6 @@ else:
 ### Model rules ###
 rule model_transcribe:
     input:
-        obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
         model=lambda wc: get_model(wc, "Tsb").inputs,
     output:
         model=lambda wc: get_model(wc, "Tsb").outputs,
@@ -499,13 +506,11 @@ rule model_transcribe:
         binary=config["exec"]["tksm"],
         model=lambda wc: get_model(wc, "Tsb").params_build,
     shell:
-        "{params.binary} abundance"
-        " {params.model}"
+        "{params.binary} abundance {params.model}"
 
 
 rule model_truncation:
     input:
-        obj=["build/obj/model_truncation.o", "build/obj/tksm.o"] if DEBUG else list(),
         model=lambda wc: get_model(wc, "Trc").inputs,
     output:
         model=lambda wc: get_model(wc, "Trc").outputs,
@@ -514,10 +519,7 @@ rule model_truncation:
         model=lambda wc: get_model(wc, "Trc").params_build,
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='model_truncation', exprmnt='{wildcards.sample}', prefix='')}"
-        "{params.binary} model-truncation"
-        " --threads {threads}"
-        " {params.model}"
+        "{params.binary} model-truncation {params.model} --threads {threads}"
 
 
 rule model_sequence:
