@@ -33,8 +33,6 @@ TS_experiments:
         pipeline:
             - Tsb:
                 params: "--molecule-count 200000"
-                model: "MCF7-sgnex"
-                mode: Xpr
             - Trc:
                 params: ""
                 model: "MCF7-sgnex"
@@ -45,7 +43,6 @@ TS_experiments:
             - Tsb:
                 params: "--molecule-count 100000"
                 model: "N1"
-                mode: Xpr_sc
             - Trc:
                 params: ""
                 model: "N1"
@@ -82,7 +79,8 @@ refs:
         cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr21.fa
         DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.chr21.fa
         GTF: data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
-    10x_bc: data/refs/3M-february-2018.txt.gz
+    barcodes:
+        10x: data/refs/3M-february-2018.txt.gz
 
 samples:
     "MCF7-sgnex":
@@ -97,7 +95,34 @@ samples:
         fastq:
             - data/samples/N1.fastq
         ref: Homo_sapiens
+        cb_wl: 10x
     "N1_chr21":
         fastq:
             - data/samples/N1_subsample.fastq.gz
         ref: Homo_sapiens_chr21
+        cb_wl: 10x
+
+models:
+    Tsb:
+        MCF7-sgnex:
+            sample: MCF7-sgnex
+            params: "--cb-count 500"
+        MCF7-sgnex_2:
+            paf: experiment_1
+            params: "--cb-count 500"
+        N1_lr-br:
+            sample: N1
+            lr-br: N1
+            params: ""
+        N1_cb-gen:
+            sample: N1
+            cb-txt: refs/barcodes/10x_bc
+            params: "--cb-count 500"
+    Trc:
+        N1:
+            sample: N1
+            params: ""
+    Seq:
+        N1:
+            paf: N1
+            params: ""

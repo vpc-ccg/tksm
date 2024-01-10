@@ -2,6 +2,7 @@ import sys
 import re
 from collections import Counter
 from datetime import datetime
+from typing import NamedTuple
 
 if len(config) == 0:
 
@@ -11,10 +12,101 @@ if len(config) == 0:
 outpath = config["outpath"]
 preproc_d = f"{outpath}/preprocess"
 TS_d = f"{outpath}/TS"
-time_tsv = f"{outpath}/time.tsv"
 exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
 DEBUG = False
+
+
+model_details_t = NamedTuple(
+    "model_details_t",
+    [
+        ("name", str),
+        ("sample", str),
+        ("inputs", list),
+        ("outputs", list),
+        ("params_build", str),
+        ("params_run", str),
+    ],
+)
+
+
+def get_model_details(mtype, name):
+    model_dict = config["models"][mtype][name]
+    sample = model_dict["sample"]
+    inputs = list()
+    outputs = list()
+    params_build = list()
+    params_run = list()
+    params_build.append(model_dict.get("params", ""))
+    if mtype == "Tsb":
+        # Inputs / Build params
+        paf = get_sample_paf(sample, "cDNA")
+        params_build.append(f"-p {paf}")
+        inputs.append(paf)
+        Xpr_tsv = f"{preproc_d}/tksm_abundance/{name}.Xpr.tsv"
+        params_build.append(f"-o {Xpr_tsv}")
+        if "cb-txt" in model_dict:
+            cb_txt = get_barcode_whitelist(model_dict["cb-txt"])
+            params_build.append(f"--cb-txt {cb_txt}")
+            inputs.append(cb_txt)
+        if "lr-bc" in model_dict:
+            lr_matches_tsv = f"{preproc_d}/scTagger/{name}/{name}.lr_matches.tsv.gz"
+            params_build.append(f"--lr-bc {lr_matches_tsv}")
+            inputs.append(lr_matches_tsv)
+        # Outputs / Run params
+        params_run.append(f"-a {Xpr_tsv}")
+        outputs.append(Xpr_tsv)
+    elif mtype == "Trc":
+        # Inputs / Build params
+        paf = get_sample_paf(model_sample, "cDNA")
+        params_build.append(f"-i {paf}")
+        inputs.append(paf)
+        out_prefix = f"{preproc_d}/models/truncate/{name}"
+        params_build.append(f"-o {out_prefix}")
+        # Outputs / Run params
+        kde_files = [
+            f"{out_prefix}.{x}"
+            for x in ("X_idxs.npy", "Y_idxs.npy", "grid.npy", "sider.tsv")
+        ]
+        outputs.extend(kde_files)
+        params_run.append(f"--kde-model {','.join(kde_files)}")
+    elif mtype == "Seq":
+        # Inputs / Build params
+        paf = get_sample_paf(sample, "badread.cDNA")
+        params_build.append(f"--alignment {paf}")
+        inputs.append(paf)
+        fastqs = get_sample_fastqs(sample)
+        params_build.append(f"--reads {','.join(fastqs)}")
+        inputs.append(fastqs)
+        ref = get_sample_ref(sample, "cDNA")
+        params_build.append(f"--reference {ref}")
+        inputs.append(ref)
+        # Outputs / Run params
+        error = f"{preproc_d}/models/badread/{name}.error.gz"
+        params_run.append(f"--badread-error-model {error}")
+        outputs.append(error)
+        qscore = f"{preproc_d}/models/badread/{name}.qscore.gz"
+        params_run.append(f"--badread-qscore-model {qscore}")
+        outputs.append(qscore)
+    else:
+        raise ValueError(f"Invalid model type! {mtype}")
+    return model_details_t(
+        name=name,
+        sample=sample,
+        inputs=inputs,
+        outputs=outputs,
+        params_build=" ".join(params_build),
+        params_run=" ".join(params_run),
+    )
+
+
+models = dict()
+for model_type in config["models"]:
+    for model_name in config["models"][model_type]:
+        models[model_type, model_name] = get_model_details(
+            mtype=model_name,
+            name=model_type,
+        )
 
 
 def exprmnt_final_file(exprmnt):
@@ -50,9 +142,9 @@ def get_sample_ref_names(sample):
         step = config["TS_experiments"][sample]["pipeline"][0]
         rule_name = list(step)[0]
         step = step[rule_name]
-        # If 1st step is transcribe, then return its model's reference
+        # If 1st step is transcribe, then return the reference of its model's sample
         if rule_name == "Tsb":
-            return get_sample_ref_names(step["model"])
+            return get_sample_ref_names(models["Tsb", step["model"]].sample)
         # If 1st step is merge, then return the references of its sources
         if rule_name == "Mrg":
             ref_names = set()
@@ -74,6 +166,14 @@ def get_sample_ref(sample, ref_type):
     else:
         raise ValueError(f"Invalid reference type! {ref_type}")
     return f"{preproc_d}/refs/{ref_name}.{ref_type}.{file_type}"
+
+
+def get_sample_paf(sample, ref_type):
+    return f"{preproc_d}/minimap2/{sample}.{ref_type}.paf"
+
+
+def get_barcode_whitelist(name):
+    return config["refs"]["barcodes"][name]
 
 
 def get_sample_fastqs(name):
@@ -105,60 +205,9 @@ def get_merge_mdf_input(wc):
     return mdfs
 
 
-def get_sequencer_model(wc, model_type):
-    step = get_step(wc.exprmnt, f"{wc.prefix}.Seq")
-    model = dict()
-    model["name"] = step["model"]
-    if model["name"] in config["samples"] or model["name"] in config["TS_experiments"]:
-        model["input"] = f"{preproc_d}/models/badread/{model['name']}.{model_type}.gz"
-    else:
-        model["input"] = list()
-    return model
-
-
-def get_kde_model_input(wc):
-    step = get_step(wc.exprmnt, f"{wc.prefix}.Kde")
-    model = step["model"]
-    kde_input = [
-        f"{preproc_d}/models/truncate/{model}.{x}"
-        for x in [
-            "grid.npy",
-            "X_idxs.npy",
-            "Y_idxs.npy",
-            "sider.tsv",
-        ]
-    ]
-    return kde_input
-
-
-def format_gnu_time_string(
-    process="",
-    exprmnt="{wildcards.exprmnt}",
-    prefix="{wildcards.prefix}",
-    threads="{threads}",
-):
-    if config["benchmark_time"] == False:
-        return ""
-    fields = list()
-    fields.append((f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "%s", ""))
-    fields.append((f"{exprmnt}", "%s", ""))
-    fields.append((f"{prefix}", "%s", ""))
-    fields.append((f"{process}", "%s", ""))
-    fields.append(("%e", "%.2f", "/60"))
-    fields.append(("%U", "%.2f", "/60"))
-    fields.append(("%M", "%.2f", "/(1024*1024)"))
-    fields.append((f"{threads}", "%d", ""))
-    fields.append(("%S", "%.2f", "/60"))
-    fields.append((f"{config['enable_piping']}", "%s", ""))
-
-    time_format = ",".join([x[0] for x in fields])
-    printf_format = ",".join([x[1] for x in fields]) + "\\n"
-    printf_args = ",".join([f"${i}{x[2]}" for i, x in enumerate(fields, start=1)])
-
-    awk_cmd = (
-        'awk \'BEGIN{{FS=","}} {{printf "' + printf_format + '",' + printf_args + "}}'"
-    )
-    return f'$(which time) -f "{time_format}" -o >({awk_cmd} >> {{input.time}}) '
+def get_model(wc, rule_name):
+    model_name = get_step(wc.exprmnt, f"{wc.prefix}.{rule_name}")["model"]
+    return models[mtype, model_name]
 
 
 rule all:
@@ -211,238 +260,210 @@ rule sequence:
         obj=["build/obj/sequence.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        qscore_model=lambda wc: get_sequencer_model(wc, "qscore")["input"],
-        error_model=lambda wc: get_sequencer_model(wc, "error")["input"],
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
+        model=lambda wc: get_model(wc, "Seq").outputs,
     output:
         fastq=f"{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq",
     threads: 32
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Seq")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Seq")["params"],
         binary=config["exec"]["tksm"],
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        qscore_model=lambda wc: get_sequencer_model(wc, "qscore")["name"],
-        error_model=lambda wc: get_sequencer_model(wc, "error")["name"],
-        model_var=f"TKSM_MODELS={preproc_d}/models",
+        model=lambda wc: get_model(wc, "Seq").params_run,
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        "{params.model_var}"  
-        f" {format_gnu_time_string(process='sequence')}"
-        " {params.binary} sequence"
+        "{params.binary} sequence"
         " -i {input.mdf}"
         " --references {params.fastas}"
         " -o {output.fastq}"
         " --threads {threads}"
-        " --badread-error-model={params.error_model}"
-        " --badread-qscore-model={params.qscore_model}"
-        " {params.other}"
+        " {params.config}"
+        " {params.model}"
 
 
 rule filter:
     input:
         obj=["build/obj/filter.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flt.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Flt")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Flt")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='filter')}"
         "{params.binary} filter"
         " -i {input.mdf}"
         " -t {output.mdf}"
-        " {params.other}"
+        " {params.config}"
 
 
 rule truncate:
     input:
         obj=["build/obj/truncate.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        kde=get_kde_model_input,
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
+        model=lambda wc: get_model(wc, "Trc").outputs,
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Trc.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Trc")["params"],
-        kde=lambda wc: ",".join(get_kde_model_input(wc)),
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Trc")["params"],
+        model=lambda wc: get_model(wc, "Trc").params_run,
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='truncate')}"
         "{params.binary} truncate"
         " -i {input.mdf}"
-        " --kde-model={params.kde}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.config}"
+        " {params.model}"
 
 
 rule unsegment:
     input:
         obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Uns.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Uns")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Uns")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='unsegment')}"
         "{params.binary} unsegment"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.config}"
 
 
 rule shuffle:
     input:
         obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Shf.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Shf")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Shf")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='shuffle')}"
         "{params.binary} shuffle"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.config}"
 
 
 rule flip:
     input:
         obj=["build/obj/strand_man.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Flp.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Flp")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Flp")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='flip')}"
         "{params.binary} flip"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.config}"
 
 
 rule pcr:
     input:
         obj=["build/obj/pcr.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.PCR.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.PCR")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.PCR")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='pcr')}"
         "{params.binary} pcr"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.config}"
 
 
 rule tag:
     input:
         obj=["build/obj/tag.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Tag.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Tag")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Tag")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='tag')}"
         "{params.binary} tag"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.config}"
 
 
 rule single_cell_barcoder:
     input:
         obj=["build/obj/scb.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.SCB.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.SCB")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.SCB")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='scb')}"
         "{params.binary} scb"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.config}"
 
 
 rule polyA:
     input:
         obj=["build/obj/polyA.o", "build/obj/tksm.o"] if DEBUG else list(),
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.plA.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.plA")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.plA")["params"],
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='polyA')}"
         "{params.binary} polyA"
         " -i {input.mdf}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.config}"
 
 
 ### Entry rules ###
 rule transcribe:
     input:
         obj=["build/obj/transcribe.o", "build/obj/tksm.o"] if DEBUG else list(),
-        tsv=lambda wc: f"{preproc_d}/tksm_abundance/{get_step(wc.exprmnt, 'Tsb')['model']}.{get_step(wc.exprmnt, 'Tsb')['mode']}.tsv",
-        gtf=lambda wc: get_sample_ref(wc.exprmnt, "GTF"),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
+        model=lambda wc: get_model(wc, "Tsb").outputs,
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/Tsb.mdf"),
     params:
-        other=lambda wc: get_step(wc.exprmnt, f"Tsb")["params"],
+        config=lambda wc: get_step(wc.exprmnt, f"Tsb")["params"],
         binary=config["exec"]["tksm"],
+        model=lambda wc: get_model(wc, "Tsb").params_run,
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
-        f"{format_gnu_time_string(process='transcribe', prefix='')}"
         "{params.binary} transcribe"
-        " -a {input.tsv}"
-        " -g {input.gtf}"
         " -o {output.mdf}"
-        " {params.other}"
+        " {params.model}"
+        " {params.config}"
 
 
 if config["enable_piping"] == False:
@@ -450,11 +471,9 @@ if config["enable_piping"] == False:
     rule merge:
         input:
             mdfs=get_merge_mdf_input,
-            time=ancient(time_tsv) if config["benchmark_time"] else list(),
         output:
             mdf=pipe(f"{TS_d}/{{exprmnt}}/Mrg.mdf"),
         shell:
-            f"{format_gnu_time_string(process='merge', prefix='')}"
             "cat {input.mdfs} > {output.mdf}"
 
 else:
@@ -463,81 +482,67 @@ else:
         input:
             script="py/mdf_cat.py",
             mdfs=lambda wc: merge_to_numbered_sources[wc.exprmnt],
-            time=ancient(time_tsv) if config["benchmark_time"] else list(),
         output:
             mdf=pipe(f"{TS_d}/{{exprmnt}}/Mrg.mdf"),
         shell:
-            f"{format_gnu_time_string(process='merge', prefix='')}"
             "python {input.script} {input.mdfs}  {output.mdf}"
 
 
-### Preprocessing rules ###
-rule abundance:
+### Model rules ###
+rule model_transcribe:
     input:
         obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
-        paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
+        model=lambda wc: get_model(wc, "Tsb").inputs,
     output:
-        tsv=f"{preproc_d}/tksm_abundance/{{sample}}.Xpr.tsv",
+        model=lambda wc: get_model(wc, "Tsb").outputs,
     params:
         binary=config["exec"]["tksm"],
+        model=lambda wc: get_model(wc, "Tsb").params_build,
     shell:
-        f"{format_gnu_time_string(process='abundance', exprmnt='{wildcards.sample}', prefix='')}"
         "{params.binary} abundance"
-        " -p {input.paf}"
-        " -o {output.tsv}"
-
-
-rule abundance_sc:
-    input:
-        obj=["build/obj/abundance.o", "build/obj/tksm.o"] if DEBUG else list(),
-        paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
-        lr_matches=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
-    output:
-        tsv=f"{preproc_d}/tksm_abundance/{{sample}}.Xpr_sc.tsv",
-    params:
-        binary=config["exec"]["tksm"],
-    shell:
-        f"{format_gnu_time_string(process='abundance_sc', exprmnt='{wildcards.sample}', prefix='')}"
-        "{params.binary} abundance"
-        " -p {input.paf}"
-        " -m {input.lr_matches}"
-        " -o {output.tsv}"
+        " {params.model}"
 
 
 rule model_truncation:
     input:
         obj=["build/obj/model_truncation.o", "build/obj/tksm.o"] if DEBUG else list(),
-        paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
+        model=lambda wc: get_model(wc, "Trc").inputs,
     output:
-        x=f"{preproc_d}/models/truncate/{{sample}}.X_idxs.npy",
-        y=f"{preproc_d}/models/truncate/{{sample}}.Y_idxs.npy",
-        g=f"{preproc_d}/models/truncate/{{sample}}.grid.npy",
-        s=f"{preproc_d}/models/truncate/{{sample}}.sider.tsv",
+        model=lambda wc: get_model(wc, "Trc").outputs,
     params:
-        out_prefix=f"{preproc_d}/models/truncate/{{sample}}",
         binary=config["exec"]["tksm"],
+        model=lambda wc: get_model(wc, "Trc").params_build,
     threads: 32
     shell:
         f"{format_gnu_time_string(process='model_truncation', exprmnt='{wildcards.sample}', prefix='')}"
         "{params.binary} model-truncation"
-        " -i {input.paf}"
-        " -o {params.out_prefix}"
         " --threads {threads}"
+        " {params.model}"
 
 
+rule model_sequence:
+    input:
+        model=lambda wc: get_model(wc, "Seq").inputs,
+    output:
+        error_model=lambda wc: get_model(wc, "Seq").outputs[0],
+        qscore_model=lambda wc: get_model(wc, "Seq").outputs[1],
+    params:
+        model=lambda wc: get_model(wc, "Seq").params_build,
+    shell:
+        "badread qscore_model {params.model} > {output.error_model}"
+        " && "
+        "badread error_model {params.model} > {output.qscore_model}"
+
+
+### Preprocessing rules ###
 rule minimap_cdna:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         paf=f"{preproc_d}/minimap2/{{sample}}.cDNA.paf",
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='minimap_cdna', exprmnt='{wildcards.sample}', prefix='')}"
         "minimap2"
         " -t {threads}"
         " -x map-ont"
@@ -552,12 +557,10 @@ rule scTagger_match:
     input:
         lr_tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
         wl_tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         lr_tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_matches.tsv.gz",
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='scTagger_match', exprmnt='{wildcards.sample}', prefix='')}"
         "scTagger.py match_trie"
         " -lr {input.lr_tsv}"
         " -sr {input.wl_tsv}"
@@ -568,12 +571,10 @@ rule scTagger_match:
 rule scTagger_extract_bc:
     input:
         tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
-        wl=config["refs"]["10x_bc"],
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
+        wl=lambda wc: config["refs"][config["samples"][wc.sample]["cb_wl"]],
     output:
         tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.bc_whitelist.tsv.gz",
     shell:
-        f"{format_gnu_time_string(process='scTagger_extract_bc', exprmnt='{wildcards.sample}', prefix='')}"
         "scTagger.py extract_sr_bc_from_lr"
         " -i {input.tsv}"
         " -wl {input.wl}"
@@ -583,12 +584,10 @@ rule scTagger_extract_bc:
 rule scTagger_lr_seg:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         tsv=f"{preproc_d}/scTagger/{{sample}}/{{sample}}.lr_bc.tsv.gz",
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='scTagger_lr_seg', exprmnt='{wildcards.sample}', prefix='')}"
         "scTagger.py extract_lr_bc"
         " -r {input.reads}"
         " -o {output.tsv}"
@@ -599,12 +598,10 @@ rule minimap_cdna_for_badread_models:
     input:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
     output:
         paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
     threads: 32
     shell:
-        f"{format_gnu_time_string(process='minimap_cdna_for_badread_models', exprmnt='{wildcards.sample}', prefix='')}"
         "minimap2"
         " -t {threads}"
         " -x map-ont"
@@ -612,49 +609,6 @@ rule minimap_cdna_for_badread_models:
         " -o {output.paf}"
         " {input.ref}"
         " {input.reads}"
-
-
-rule badread_error_model:
-    input:
-        reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
-    output:
-        model=f"{preproc_d}/models/badread/{{sample}}.error.gz",
-    shell:
-        f"{format_gnu_time_string(process='badread_error_model', exprmnt='{wildcards.sample}', prefix='')}"
-        "badread error_model"
-        " --reads {input.reads}"
-        " --reference {input.ref}"
-        " --alignment {input.paf}"
-        " --max_alignments 250000"
-        " > {output.model}"
-
-
-rule badread_qscore_model:
-    input:
-        reads=lambda wc: get_sample_fastqs(wc.sample),
-        ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
-        paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
-        time=ancient(time_tsv) if config["benchmark_time"] else list(),
-    output:
-        model=f"{preproc_d}/models/badread/{{sample}}.qscore.gz",
-    shell:
-        f"{format_gnu_time_string(process='badread_qscore_model', exprmnt='{wildcards.sample}', prefix='')}"
-        "badread qscore_model"
-        " --reads {input.reads}"
-        " --reference {input.ref}"
-        " --alignment {input.paf}"
-        " --max_alignments 250000"
-        " > {output.model}"
-
-
-rule make_time:
-    output:
-        time_tsv,
-    shell:
-        'echo "Timestamp,Experiment,Prefix,Process,Real time (min),User time (min),Memory (GB),Threads,System time (min),Piped?" > {output}'
 
 
 rule cat_refs:
