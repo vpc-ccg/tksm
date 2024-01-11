@@ -33,7 +33,7 @@ TS_experiments:
         pipeline:
             - Tsb:
                 params: "--molecule-count 200000"
-                model: "N1"
+                model: "MMM"
             - Trc:
                 params: ""
                 model: "N1"
@@ -43,7 +43,7 @@ TS_experiments:
         pipeline:
             - Tsb:
                 params: "--molecule-count 100000"
-                model: "N1"
+                model: "N1_lr-br"
             - Trc:
                 params: ""
                 model: "N1"
@@ -95,14 +95,13 @@ samples:
 
 models:
     Tsb:
-        M:
+        MMM:
             sample: MCF7-sgnex
-            params: "--cb-count 500"
         N1_lr-br:
             sample: N1
-            lr-br: N1
+            lr-bc: N1
             params: ""
         N1_cb-gen:
             sample: N1
-            cb-txt: refs/barcodes/10x_bc
+            cb-txt: 10x
             params: "--cb-count 500"

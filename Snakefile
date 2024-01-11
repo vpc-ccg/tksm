@@ -18,8 +18,9 @@ DEBUG = False
 
 for sample in config["samples"]:
     for mtype in ["Tsb", "Trc", "Seq"]:
-        k = (mtype, sample)
-        if k not in config["models"]:
+        if mtype not in config["models"]:
+            config["models"][mtype] = dict()
+        if sample not in config["models"][mtype]:
             config["models"][mtype][sample] = {
                 "sample": sample,
                 "params": "",
@@ -45,8 +46,10 @@ def get_model_details(mtype, name):
     outputs = list()
     params_build = list()
     params_run = list()
-    params_build.append(model_dict.get("params", ""))
+    if "params" in model_dict:
+        params_build.append(model_dict["params"])
     if mtype == "Tsb":
+        assert set(model_dict.keys()) <= {"sample", "params", "cb-txt", "lr-bc"}
         # Inputs / Build params
         paf = get_sample_paf(sample, "cDNA")
         params_build.append(f"-p {paf}")
@@ -58,7 +61,7 @@ def get_model_details(mtype, name):
             params_build.append(f"--cb-txt {cb_txt}")
             inputs.append(cb_txt)
         if "lr-bc" in model_dict:
-            lr_matches_tsv = f"{preproc_d}/scTagger/{name}/{name}.lr_matches.tsv.gz"
+            lr_matches_tsv = f"{preproc_d}/scTagger/{sample}/{sample}.lr_matches.tsv.gz"
             params_build.append(f"--lr-bc {lr_matches_tsv}")
             inputs.append(lr_matches_tsv)
         # Outputs / Run params
@@ -66,7 +69,8 @@ def get_model_details(mtype, name):
         outputs.append(Xpr_tsv)
     elif mtype == "Trc":
         # Inputs / Build params
-        paf = get_sample_paf(model_sample, "cDNA")
+        assert set(model_dict.keys()) <= {"sample", "params"}
+        paf = get_sample_paf(sample, "cDNA")
         params_build.append(f"-i {paf}")
         inputs.append(paf)
         out_prefix = f"{preproc_d}/models/truncate/{name}"
@@ -80,12 +84,13 @@ def get_model_details(mtype, name):
         params_run.append(f"--kde-model {','.join(kde_files)}")
     elif mtype == "Seq":
         # Inputs / Build params
+        assert set(model_dict.keys()) <= {"sample", "params"}
         paf = get_sample_paf(sample, "badread.cDNA")
         params_build.append(f"--alignment {paf}")
         inputs.append(paf)
         fastqs = get_sample_fastqs(sample)
         params_build.append(f"--reads {','.join(fastqs)}")
-        inputs.append(fastqs)
+        inputs.extend(fastqs)
         ref = get_sample_ref(sample, "cDNA")
         params_build.append(f"--reference {ref}")
         inputs.append(ref)
@@ -106,15 +111,6 @@ def get_model_details(mtype, name):
         params_build=" ".join(params_build),
         params_run=" ".join(params_run),
     )
-
-
-models = dict()
-for model_type in config["models"]:
-    for model_name in config["models"][model_type]:
-        models[model_type, model_name] = get_model_details(
-            mtype=model_name,
-            name=model_type,
-        )
 
 
 def exprmnt_final_file(exprmnt):
@@ -214,10 +210,14 @@ def get_merge_mdf_input(wc):
 
 
 def get_model(wc, rule_name):
-    step = get_step(wc.exprmnt, f"{wc.prefix}.{rule_name}")
+    if hasattr(wc, "prefix"):
+        prefix = f"{wc.prefix}.{rule_name}"
+    else:
+        prefix = rule_name
+    step = get_step(wc.exprmnt, prefix)
     if "model" in step:
-        model_name = ["model"]
-        return models[mtype, model_name]
+        model_name = step["model"]
+        return models[rule_name, model_name]
     else:
         return model_details_t(
             name="",
@@ -226,6 +226,15 @@ def get_model(wc, rule_name):
             outputs=list(),
             params_build="",
             params_run="",
+        )
+
+
+models = dict()
+for model_type in config["models"]:
+    for model_name in config["models"][model_type]:
+        models[model_type, model_name] = get_model_details(
+            mtype=model_type,
+            name=model_name,
         )
 
 
@@ -278,7 +287,7 @@ rule sequence:
     input:
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        model=lambda wc: get_model(wc, "Seq").outputs,
+        model=lambda wc: get_model(wc=wc, rule_name="Seq").outputs,
     output:
         fastq=f"{TS_d}/{{exprmnt}}/{{prefix}}.Seq.fastq",
     threads: 32
@@ -286,7 +295,7 @@ rule sequence:
         config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Seq")["params"],
         binary=config["exec"]["tksm"],
         fastas=lambda wc: get_sample_ref(wc.exprmnt, "DNA"),
-        model=lambda wc: get_model(wc, "Seq").params_run,
+        model=lambda wc: get_model(wc=wc, rule_name="Seq").params_run,
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
@@ -319,12 +328,12 @@ rule filter:
 rule truncate:
     input:
         mdf=f"{TS_d}/{{exprmnt}}/{{prefix}}.mdf",
-        model=lambda wc: get_model(wc, "Trc").outputs,
+        model=lambda wc: get_model(wc=wc, rule_name="Trc").outputs,
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/{{prefix}}.Trc.mdf"),
     params:
         config=lambda wc: get_step(wc.exprmnt, f"{wc.prefix}.Trc")["params"],
-        model=lambda wc: get_model(wc, "Trc").params_run,
+        model=lambda wc: get_model(wc=wc, rule_name="Trc").params_run,
         binary=config["exec"]["tksm"],
     wildcard_constraints:
         exprmnt=exprmnts_re,
@@ -458,13 +467,13 @@ rule polyA:
 ### Entry rules ###
 rule transcribe:
     input:
-        model=lambda wc: get_model(wc, "Tsb").outputs,
+        model=lambda wc: get_model(wc=wc, rule_name="Tsb").outputs,
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/Tsb.mdf"),
     params:
         config=lambda wc: get_step(wc.exprmnt, f"Tsb")["params"],
         binary=config["exec"]["tksm"],
-        model=lambda wc: get_model(wc, "Tsb").params_run,
+        model=lambda wc: get_model(wc=wc, rule_name="Tsb").params_run,
     wildcard_constraints:
         exprmnt=exprmnts_re,
     shell:
@@ -499,24 +508,27 @@ else:
 ### Model rules ###
 rule model_transcribe:
     input:
-        model=lambda wc: get_model(wc, "Tsb").inputs,
+        model=lambda wc: models["Tsb", wc.model_name].inputs,
     output:
-        model=lambda wc: get_model(wc, "Tsb").outputs,
+        model=f"{preproc_d}/tksm_abundance/{{model_name}}.Xpr.tsv",
     params:
         binary=config["exec"]["tksm"],
-        model=lambda wc: get_model(wc, "Tsb").params_build,
+        model=lambda wc: models["Tsb", wc.model_name].params_build,
     shell:
         "{params.binary} abundance {params.model}"
 
 
 rule model_truncation:
     input:
-        model=lambda wc: get_model(wc, "Trc").inputs,
+        model=lambda wc: models["Trc", wc.model_name].inputs,
     output:
-        model=lambda wc: get_model(wc, "Trc").outputs,
+        model=[
+            f"{preproc_d}/models/truncate/{{model_name}}.{x}"
+            for x in ("X_idxs.npy", "Y_idxs.npy", "grid.npy", "sider.tsv")
+        ],
     params:
         binary=config["exec"]["tksm"],
-        model=lambda wc: get_model(wc, "Trc").params_build,
+        model=lambda wc: models["Trc", wc.model_name].params_build,
     threads: 32
     shell:
         "{params.binary} model-truncation {params.model} --threads {threads}"
@@ -524,12 +536,12 @@ rule model_truncation:
 
 rule model_sequence:
     input:
-        model=lambda wc: get_model(wc, "Seq").inputs,
+        model=lambda wc: models["Seq", wc.model_name].inputs,
     output:
-        error_model=lambda wc: get_model(wc, "Seq").outputs[0],
-        qscore_model=lambda wc: get_model(wc, "Seq").outputs[1],
+        error_model=f"{preproc_d}/models/badread/{{model_name}}.error.gz",
+        qscore_model=f"{preproc_d}/models/badread/{{model_name}}.qscore.gz",
     params:
-        model=lambda wc: get_model(wc, "Seq").params_build,
+        model=lambda wc: models["Seq", wc.model_name].params_build,
     shell:
         "badread qscore_model {params.model} > {output.error_model}"
         " && "
