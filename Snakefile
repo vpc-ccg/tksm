@@ -468,6 +468,7 @@ rule polyA:
 rule transcribe:
     input:
         model=lambda wc: get_model(wc=wc, rule_name="Tsb").outputs,
+        gtf=lambda wc: get_sample_ref(wc.exprmnt, "GTF"),
     output:
         mdf=pipe(f"{TS_d}/{{exprmnt}}/Tsb.mdf"),
     params:
@@ -478,6 +479,7 @@ rule transcribe:
         exprmnt=exprmnts_re,
     shell:
         "{params.binary} transcribe"
+        " -g {input.gtf}"
         " -o {output.mdf}"
         " {params.model}"
         " {params.config}"
