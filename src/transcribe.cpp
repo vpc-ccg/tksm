@@ -129,7 +129,8 @@ public:
         std::uniform_real_distribution<> dist(0, 1);
         std::ofstream outfile{output_file};
 
-        logi("Reading GTF files {}", fmt::join(gtf_files, ", "));
+        logi("Reading GTF files {}", fmt::format("{}",fmt::join(gtf_files, ", ")));
+        fmtlog::poll(true); 
         std::unordered_map<string, transcript> isoforms;
         for (auto& gtf_file : gtf_files) {
             isoforms.merge(read_gtf_transcripts_deep(gtf_file, default_depth));
