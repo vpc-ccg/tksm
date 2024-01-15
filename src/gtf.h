@@ -1,8 +1,9 @@
 #pragma once
-#include <unordered_map>
+
 #ifndef GTF_H
 #define GTF_H
 
+#include <unordered_map>
 #include <fstream>
 #include <map>
 #include <string>
@@ -304,7 +305,7 @@ read_gtf_transcripts_deep(const std::string &path2gtf, bool skip_lnc = true, boo
 
 inline auto
 read_gtf_transcripts(const std::string &path2gtf, int default_depth = 1) {
-    std::map<std::string, molecule_descriptor> isoforms;
+    std::unordered_map<std::string, molecule_descriptor> isoforms;
     std::ifstream gtfile(path2gtf);
     std::string buffer;
 
