@@ -54,7 +54,7 @@ def get_model_details(mtype, name):
         paf = get_sample_paf(sample, "cDNA")
         params_build.append(f"-p {paf}")
         inputs.append(paf)
-        Xpr_tsv = f"{preproc_d}/tksm_abundance/{name}.Xpr.tsv"
+        Xpr_tsv = f"{preproc_d}/models/transcribe/{name}.Xpr.tsv"
         params_build.append(f"-o {Xpr_tsv}")
         if "cb-txt" in model_dict:
             cb_txt = get_barcode_whitelist(model_dict["cb-txt"])
@@ -512,7 +512,7 @@ rule model_transcribe:
     input:
         model=lambda wc: models["Tsb", wc.model_name].inputs,
     output:
-        model=f"{preproc_d}/tksm_abundance/{{model_name}}.Xpr.tsv",
+        model=f"{preproc_d}/models/transcribe/{{model_name}}.Xpr.tsv",
     params:
         binary=config["exec"]["tksm"],
         model=lambda wc: models["Tsb", wc.model_name].params_build,
