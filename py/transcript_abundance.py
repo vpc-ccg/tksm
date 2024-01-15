@@ -333,10 +333,12 @@ def main():
             if args.cb_txt != "":
                 barcodes = parse_barcodes_txt(args.cb_txt)
                 assert len(barcodes) >= args.cb_count
-                barcodes = np.random.choice(
-                    barcodes,
-                    size=args.cb_count,
-                    replace=True,
+                barcodes: List[str] = list(
+                    np.random.choice(
+                        barcodes,
+                        size=args.cb_count,
+                        replace=True,
+                    )
                 )
             else:
                 barcodes = generate_barcodes_from_pattern(
