@@ -78,7 +78,7 @@ def get_model_details(mtype, name):
         # Outputs / Run params
         kde_files = [
             f"{out_prefix}.{x}"
-            for x in ("X_idxs.npy", "Y_idxs.npy", "grid.npy", "sider.tsv")
+            for x in ("grid.npy", "X_idxs.npy", "Y_idxs.npy", "sider.tsv")
         ]
         outputs.extend(kde_files)
         params_run.append(f"--kde-model {','.join(kde_files)}")
@@ -526,7 +526,7 @@ rule model_truncation:
     output:
         model=[
             f"{preproc_d}/models/truncate/{{model_name}}.{x}"
-            for x in ("X_idxs.npy", "Y_idxs.npy", "grid.npy", "sider.tsv")
+            for x in ("grid.npy", "X_idxs.npy", "Y_idxs.npy", "sider.tsv")
         ],
     params:
         binary=config["exec"]["tksm"],
