@@ -33,19 +33,17 @@ TS_experiments:
         pipeline:
             - Tsb:
                 params: "--molecule-count 200000"
-                model: "MCF7-sgnex"
-                mode: Xpr
+                model: "MMM"
             - Trc:
                 params: ""
-                model: "MCF7-sgnex"
+                model: "N1"
             - plA:
                 params: ""
     head_2:
         pipeline:
             - Tsb:
                 params: "--molecule-count 100000"
-                model: "N1"
-                mode: Xpr_sc
+                model: "N1_lr-br"
             - Trc:
                 params: ""
                 model: "N1"
@@ -67,8 +65,7 @@ TS_experiments:
             - Flp:
                 params: "-p 0.5"
             - Seq:
-                params: "--skip-qual-compute"
-                model: "nanopore2020"
+                params: "--skip-qual-compute --badread-model nanopore2020"
 
 exec:
     tksm: build/bin/tksm
@@ -82,22 +79,29 @@ refs:
         cDNA: data/refs/Homo_sapiens.GRCh38.cdna.chr21.fa
         DNA: data/refs/Homo_sapiens.GRCh38.dna.primary_assembly.chr21.fa
         GTF: data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
-    10x_bc: data/refs/3M-february-2018.txt.gz
+    barcodes:
+        10x: data/refs/3M-february-2018.txt.gz
 
 samples:
     "MCF7-sgnex":
         fastq:
             - data/samples/MCF7-sgnex.fastq.gz
         ref: Homo_sapiens
-    "MCF7-sgnex_chr21":
-        fastq:
-            - data/samples/MCF7-sgnex_subsample.fastq.gz
-        ref: Homo_sapiens_chr21
     "N1":
         fastq:
             - data/samples/N1.fastq
         ref: Homo_sapiens
-    "N1_chr21":
-        fastq:
-            - data/samples/N1_subsample.fastq.gz
-        ref: Homo_sapiens_chr21
+        cb_wl: 10x
+
+models:
+    Tsb:
+        MMM:
+            sample: MCF7-sgnex
+        N1_lr-br:
+            sample: N1
+            lr-bc: N1
+            params: ""
+        N1_cb-gen:
+            sample: N1
+            cb-txt: 10x
+            params: "--cb-count 500"

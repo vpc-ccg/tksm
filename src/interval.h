@@ -691,10 +691,11 @@ public:
 
     einterval(string chr, int start, int end, const bool plus_strand) : ginterval(chr, start, end, plus_strand) {}
     einterval(string chr, int start, int end, const string &strand) : ginterval(chr, start, end, strand) {}
-    
-    einterval(const einterval &ei, int start, int end): ginterval(ei.chr, ei.start + start, ei.start + end, ei.plus_strand) {
-        for(const base_mod &e : ei.errors){
-            if(e.position < start || e.position > end){
+
+    einterval(const einterval &ei, int start, int end)
+        : ginterval(ei.chr, ei.start + start, ei.start + end, ei.plus_strand) {
+        for (const base_mod &e : ei.errors) {
+            if (e.position < start || e.position > end) {
                 continue;
             }
             errors.emplace_back(e.position - start, e.base);
@@ -707,9 +708,6 @@ public:
     void add_error(const base_mod &error) { errors.emplace_back(error); }
 
     void add_errors(const vector<base_mod> &err) { errors.insert(errors.end(), err.begin(), err.end()); }
-
-
-
 
     void truncate(int start, int end) {
         sort_errors();
@@ -724,9 +722,15 @@ public:
             return;
         }
 
+        if (start > 0) {
+            for (auto &e : errors) {
+                e.position -= start;
+            }
+        }
+
         errors.erase(std::remove_if(errors.begin(), errors.end(),
                                     [start, end](const base_mod &error) {
-                                        return error.position < start || error.position >= end;
+                                        return error.position < 0 || error.position >= end - start;
                                     }),
                      errors.end());
     }

@@ -14,15 +14,17 @@ EXTERN_HEADER_PATH = extern/include
 BIN_PATH = ${BUILD_PATH}/bin
 
 INSTALL_PREFIX ?= ${BUILD_PATH}
-CXXFLAGS += -DINSTALL_PATH=\"${INSTALL_PREFIX}/bin\"
+INSTALL_PREFIX_ABS := $(abspath ${INSTALL_PREFIX})
+CXXFLAGS += -DINSTALL_PATH=\"${INSTALL_PREFIX_ABS}/bin\"
+MODELS_SRC_ABS := $(abspath py/tksm_models)
 
 GIT_VERSION:=$(shell git describe --dirty --always --tags)
 ifneq ($(GIT_VERSION),"")
 	CXXFLAGS += -DVERSION=\"${GIT_VERSION}\"
 endif
-TKSM_MODELS_PATH:=${INSTALL_PREFIX}/bin/tksm_models
-ifneq ($(TKSM_MODELS_PATH),"")
-	CXXFLAGS += -DTKSM_MODELS_PATH=\"${TKSM_MODELS_PATH}\"
+MODELS_INSTALL_PATH_ABS:=${INSTALL_PREFIX_ABS}/bin/tksm_models
+ifneq ($(MODELS_INSTALL_PATH_ABS),"")
+	CXXFLAGS += -DTKSM_MODELS_PATH=\"${MODELS_INSTALL_PATH_ABS}\"
 endif
 CXX?=g++
 
@@ -48,6 +50,7 @@ endif
 
 MAIN = $(SRC_PATH)/tksm.cpp
 EXEC = $(BIN_PATH)/tksm
+EXEC_ABS := $(abspath ${EXEC})
 MAIN_FILE =  tksm.cpp
 MAIN_OBJECT = $(OBJ_PATH)/tksm.o
 
@@ -99,9 +102,9 @@ py_header/%.h: py/%.py
 	@xxd -i $< | sed 's|unsigned|inline\ unsigned|g' >> $@
 
 install.sh:  Makefile
-	@echo mkdir -p ${INSTALL_PREFIX}/bin > $@
-	@echo cp ${EXEC} ${INSTALL_PREFIX}/bin >> $@
-	@echo cp py/tksm_models ${INSTALL_PREFIX}/bin -r >> $@
+	@echo mkdir -p ${INSTALL_PREFIX_ABS}/bin > $@
+	@echo cp ${EXEC_ABS} ${INSTALL_PREFIX_ABS}/bin >> $@
+	@echo cp ${MODELS_SRC_ABS} ${INSTALL_PREFIX_ABS}/bin -r >> $@
 	chmod +x $@
 
 .PHONY: clean
