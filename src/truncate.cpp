@@ -177,7 +177,7 @@ public:
                                     x_axis_index.begin(), x_axis_index.end());
         }
     }
-    cust    template <class Generator>
+    template <class Generator>
     result_type operator()(Generator &g, IndexType slice, bool smoothed= true) {
         auto iter = std::lower_bound(y_axis_index.begin(), y_axis_index.end(), slice);
         if (iter != y_axis_index.begin() && std::abs(*iter - slice) > std::abs(*(iter - 1) - slice)) {
