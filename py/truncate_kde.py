@@ -299,15 +299,6 @@ def printEndRatios(end_ratios, args):
         for w, v in zip(*np.histogram(end_ratios, bins=np.arange(0, 1.01, 0.01))):
             outfile.write(f"{w:d}\t{v:.5f}\n")
 
-def printModelCSVMTX(grid, x_labels, y_labels, end_ratios, args, sep=","):
-    print(grid.shape, x_labels.shape, y_labels.shape)
-    print()
-    with open(args.output, 'w') as hand:
-        print(f"{sep}ratio",end=sep,file=hand)
-        print(sep.join([str(x) for i, x in enumerate(x_labels[1:])]),file=hand)
-        for j, y in enumerate(y_labels[1:]):
-            print(f"{y}{sep}{end_ratios[j]}",end=sep,file=hand)
-            print(sep.join([f"{grid[i,j]}" for i, x in enumerate(x_labels[1:])]),file=hand)
 
 def printModelJson(grid, x_labels, y_labels, end_ratios, args, sep=","):
 
