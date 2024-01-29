@@ -23,8 +23,7 @@ using std::set;
 using std::string;
 using std::unordered_map;
 using std::vector;
-namespace sr  = std::ranges;
-namespace srv = std::ranges::views;
+namespace sr = std::ranges;
 
 string fusion_separator = "::";
 class locus {
@@ -438,7 +437,7 @@ read_fusions(std::istream &fusion_file) {
                 return EventType::TRANSLOCATION;
             }
         }();
-        chimeric_event fusion{chr1, start1, end1, orientation1, orientation2, chr2, et, event_name, count};
+        chimeric_event fusion{chr1, start1, end1, orientation1, orientation2, chr2, et, event_name, (int)count};
         fusions.push_back(fusion);
     }
     return fusions;

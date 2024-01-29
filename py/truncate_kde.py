@@ -11,6 +11,21 @@ import sys
 
 kde_vals = None
 
+from collections import namedtuple
+from typing import NamedTuple, Union
+
+import json
+
+class _SerialMTX(NamedTuple):
+    name : str
+    shape : list[int]
+    data : Union[ list[int], list[float]]
+    labels : Union[ list[int], list[float]]
+
+def SerialMTX(name, shape, data, labels):
+    assert np.sum(shape) == len(labels), f"Shape {shape} should match the label size {len(labels)} on {name}"
+    assert np.prod(shape) == len(data), f"Shape {shape} should match the data size {len(data)} on {name}"
+    return _SerialMTX(name, shape, data, labels)
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -277,12 +292,38 @@ def ComputeKDELikelihoods(len_values, args):
     return X_idxs, Y_idxs, P
 
 
-def PrintEndRatios(end_ratios, args):
+def printEndRatios(end_ratios, args):
     if args.end_ratio != -1:
         end_ratios = [args.end_ratio] * len(end_ratios)
     with open(f"{args.output}.sider.tsv", "w+") as outfile:
         for w, v in zip(*np.histogram(end_ratios, bins=np.arange(0, 1.01, 0.01))):
             outfile.write(f"{w:d}\t{v:.5f}\n")
+
+
+def printModelJson(grid, x_labels, y_labels, end_ratios, args, sep=","):
+
+    grid_mtx = SerialMTX (
+        "KDE_mtx",
+        list(grid.shape),
+        list(grid.flatten()),
+        [int(a) for a in list(x_labels[1:]) + list(y_labels[1:])]
+        )
+    
+    if args.end_ratio != -1:
+        end_ratios = [args.end_ratio] * len(end_ratios)
+
+    end_weights, end_labels = np.histogram(end_ratios, bins=np.arange(0, 1.01, 0.01))
+
+    er_mtx = SerialMTX (
+        "end_mtx",
+        [len(end_weights)],
+        [int(a) for a in end_weights],
+        list(end_labels[1:])
+    )
+    
+
+    with open(args.output, 'w') as hand:
+        json.dump([grid_mtx._asdict(), er_mtx._asdict()],hand,indent=4)
 
 
 def main():
@@ -297,13 +338,10 @@ def main():
         args.bandwidth = (
             args.bandwidth if args.bandwidth > 0 else CV_KDE_bandwidth(len_values, args)
         )
-        PrintEndRatios(end_ratios, args)
+
         X_idxs, Y_idxs, P = ComputeKDELikelihoods(len_values, args)
 
-        print("Writing output...")
-        np.save(f"{args.output}.X_idxs.npy", X_idxs)
-        np.save(f"{args.output}.Y_idxs.npy", Y_idxs)
-        np.save(f"{args.output}.grid.npy", P)
+        printModelJson(P, X_idxs, Y_idxs, end_ratios, args)
 
     elif args.model_separate:
         print("Modelling every truncation type")
@@ -354,12 +392,12 @@ def main():
         args.bandwidth = (
             args.bandwidth if args.bandwidth > 0 else CV_KDE_bandwidth(len_values, args)
         )
-        PrintEndRatios(end_ratios, args)
+
         X_idxs, Y_idxs, P = ComputeKDELikelihoods(len_values, args)
         print("Writing output...")
-        np.save(f"{args.output}.X_idxs.npy", X_idxs)
-        np.save(f"{args.output}.Y_idxs.npy", Y_idxs)
-        np.save(f"{args.output}.grid.npy", np.transpose(P))
+
+
+        printModelJson(P, X_idxs, Y_idxs, end_ratios, args)
 
 
 """
