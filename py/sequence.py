@@ -86,18 +86,22 @@ def parse_args():
     parser.add_argument(
         "--badread-error-model",
         type=str,
-        default="nanopore2020"
-        if "nanopore2020" in tksm_badread.ERROR_MODEL_PY.error_model_names
-        else "random",
+        default=(
+            "nanopore2020"
+            if "nanopore2020" in tksm_badread.ERROR_MODEL_PY.error_model_names
+            else "random"
+        ),
         help="Badread tail model name or file path. "
         + f"Available model names: [{', '.join(tksm_badread.ERROR_MODEL_PY.error_model_names)}]",
     )
     parser.add_argument(
         "--badread-qscore-model",
         type=str,
-        default="nanopore2020"
-        if "nanopore2020" in tksm_badread.QSCOREMODEL_PY.qscore_model_names
-        else "random",
+        default=(
+            "nanopore2020"
+            if "nanopore2020" in tksm_badread.QSCOREMODEL_PY.qscore_model_names
+            else "random"
+        ),
         help="Badread qscore model name or file path. "
         + f"Available model names: [{', '.join(tksm_badread.QSCOREMODEL_PY.qscore_model_names)}]",
     )
@@ -108,26 +112,22 @@ def parse_args():
         help="Badread tail model name or file path. "
         + f"Available model names: [{', '.join(tksm_badread.TAIL_NOISE_MODEL_PY.tail_model_names)}]",
     )
+
     class ListPrinter(argparse.Action):
-        def __call__(self, parser, namespace ,values, option_string):
-            txt =  '\n'.join([getattr(k, 'dest') for k in parser._actions]) 
+        def __call__(self, parser, namespace, values, option_string):
+            txt = "\n".join([getattr(k, "dest") for k in parser._actions])
             print(txt)
             parser.exit()
 
-    parser.add_argument(
-        "--list",
-        nargs=0,
-        action=ListPrinter
-    )
-
+    parser.add_argument("--list", nargs=0, action=ListPrinter)
 
     args = parser.parse_args()
-    
+
     if args.list:
 
         options = parser._actions
         for k in options:
-            print(getattr(k, 'dest'))  
+            print(getattr(k, "dest"))
         exit(0)
 
     # Process arguments and check for errors
@@ -201,7 +201,7 @@ def mdf_generator(f):
     # Each line after the header, and until the next header or end of file, is an interval description: <ref_id>\t<start:int>\t<end:int>\t<strand>\t<modifications>
     read_id = None
     intervals = list()
-
+    depth: int = 0
     for line in f:
         line = line.strip("\n").split("\t")
         if line[0][0] == "+":
@@ -370,7 +370,7 @@ if __name__ == "__main__":
                 print(v, file=target_outfiles[k])
 
         if args.threads > 1:
-            p.close()
+            p.close()  # type: ignore
 
     for v in target_outfiles.values():
         v.close()

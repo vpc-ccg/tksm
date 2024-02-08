@@ -11,21 +11,27 @@ import sys
 
 kde_vals = None
 
-from collections import namedtuple
-from typing import NamedTuple, Union
+from typing import NamedTuple, Union, List
 
 import json
 
+
 class _SerialMTX(NamedTuple):
-    name : str
-    shape : list[int]
-    data : Union[ list[int], list[float]]
-    labels : Union[ list[int], list[float]]
+    name: str
+    shape: List[int]
+    data: Union[List[int], List[float]]
+    labels: Union[List[int], List[float]]
+
 
 def SerialMTX(name, shape, data, labels):
-    assert np.sum(shape) == len(labels), f"Shape {shape} should match the label size {len(labels)} on {name}"
-    assert np.prod(shape) == len(data), f"Shape {shape} should match the data size {len(data)} on {name}"
+    assert np.sum(shape) == len(
+        labels
+    ), f"Shape {shape} should match the label size {len(labels)} on {name}"
+    assert np.prod(shape) == len(
+        data
+    ), f"Shape {shape} should match the data size {len(data)} on {name}"
     return _SerialMTX(name, shape, data, labels)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -84,18 +90,6 @@ def parse_args():
         action="store_true",
         help="Model read lengths instead of truncation lengths",
     )
-    parser.add_argument(
-        "--model-separate",
-        default=False,
-        action="store_true",
-        help="Model read lengths instead of truncation lengths",
-    )
-    parser.add_argument(
-        "--model-3D",
-        default=False,
-        action="store_true",
-        help="Model read lengths instead of truncation lengths",
-    )
 
     class ListPrinter(argparse.Action):
         def __call__(self, parser, namespace, values, option_string):
@@ -119,6 +113,7 @@ def parse_args():
 
 
 def score_samples_runner(xy):
+    assert kde_vals is not None
     return xy, kde_vals.score_samples(xy)
 
 
@@ -281,7 +276,7 @@ def ComputeKDELikelihoods(len_values, args):
         XY.append(xy)
         P.append(log_likelihood)
     if args.threads > 1:
-        p.close()
+        p.close()  # type: ignore
     XY = np.array(XY).reshape(len(linearized_grid), 2)
     X = np.array(XY)[:, 0]
     Y = np.array(XY)[:, 1]
@@ -302,28 +297,27 @@ def printEndRatios(end_ratios, args):
 
 def printModelJson(grid, x_labels, y_labels, end_ratios, args, sep=","):
 
-    grid_mtx = SerialMTX (
+    grid_mtx = SerialMTX(
         "KDE_mtx",
         list(grid.shape),
         list(grid.flatten()),
-        [int(a) for a in list(x_labels[1:]) + list(y_labels[1:])]
-        )
-    
+        [int(a) for a in list(x_labels[1:]) + list(y_labels[1:])],
+    )
+
     if args.end_ratio != -1:
         end_ratios = [args.end_ratio] * len(end_ratios)
 
     end_weights, end_labels = np.histogram(end_ratios, bins=np.arange(0, 1.01, 0.01))
 
-    er_mtx = SerialMTX (
+    er_mtx = SerialMTX(
         "end_mtx",
         [len(end_weights)],
         [int(a) for a in end_weights],
-        list(end_labels[1:])
+        list(end_labels[1:]),
     )
-    
 
-    with open(args.output, 'w') as hand:
-        json.dump([grid_mtx._asdict(), er_mtx._asdict()],hand,indent=4)
+    with open(args.output, "w") as hand:
+        json.dump([grid_mtx._asdict(), er_mtx._asdict()], hand, indent=4)
 
 
 def main():
@@ -342,47 +336,6 @@ def main():
         X_idxs, Y_idxs, P = ComputeKDELikelihoods(len_values, args)
 
         printModelJson(P, X_idxs, Y_idxs, end_ratios, args)
-
-    elif args.model_separate:
-        print("Modelling every truncation type")
-        trc5, trc3, tlens = get_truncation_lens_paired_with_transcript_lens_X4(
-            args.input
-        )
-
-        args.bandwidth = (
-            args.bandwidth if args.bandwidth > 0 else CV_KDE_bandwidth(len_values, args)
-        )
-
-        for strand, trunc_lens, transcript_lens in zip(["+", "-"], trc5, tlens):
-            len_values = np.vstack([transcript_lens, trunc_lens]).T
-            print(f"Writing output {strand}-5'...")
-            X_idxs, Y_idxs, P = ComputeKDELikelihoods(len_values, args)
-            np.save(f"{args.output}.grid{strand}5.npy", P)
-        for strand, trunc_lens, transcript_lens in zip(["+", "-"], trc3, tlens):
-            len_values = np.vstack([transcript_lens, trunc_lens]).T
-            print(f"Writing output {strand}-3'...")
-            X_idxs, Y_idxs, P = ComputeKDELikelihoods(len_values, args)
-            np.save(f"{args.output}.grid{strand}3.npy", P)
-
-        np.save(f"{args.output}.X_idxs.npy", X_idxs)
-        np.save(f"{args.output}.Y_idxs.npy", Y_idxs)
-    elif args.model_3D:
-        print("Modelling 3D truncation type")
-        trc5, trc3, tlens = get_truncation_lens_paired_with_transcript_lens_53(
-            args.input
-        )
-        bins, edges = np.histogramdd(
-            (trc5, trc3, tlens),
-            bins=args.grid_step,
-            density=True,
-            range=(
-                (args.grid_start, args.grid_end),
-                (args.grid_start, args.grid_end),
-                (args.grid_start, args.grid_end),
-            ),
-        )
-        np.save(f"{args.output}.grid.npy", bins)
-        np.save(f"{args.output}.edges.npy", edges)
     else:
         print("Modelling truncation lengths", file=sys.stderr)
         tlens, alens, end_ratios = get_truncation_lens_paired_with_transcript_lens(
@@ -396,23 +349,8 @@ def main():
         X_idxs, Y_idxs, P = ComputeKDELikelihoods(len_values, args)
         print("Writing output...")
 
-
         printModelJson(P, X_idxs, Y_idxs, end_ratios, args)
 
-
-"""
-    print(f"Using bandwidth = {args.bandwidth}")
-    
-    X_idxs, Y_idxs, P = ComputeKDELikelihoods(len_values, args)
-
-    print("Writing output...")
-    np.save(f"{args.output}.X_idxs.npy", X_idxs)
-    np.save(f"{args.output}.Y_idxs.npy", Y_idxs)
-    if args.model_lengths:
-        np.save(f"{args.output}.grid.npy", P)
-    else:
-        np.save(f"{args.output}.grid.npy", np.transpose(P))
-"""
 
 if __name__ == "__main__":
     main()
