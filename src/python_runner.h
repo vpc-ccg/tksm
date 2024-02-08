@@ -37,10 +37,14 @@ public:
     auto cend() const { return modules.cend(); }
 };
 
+#define ARRAY_LENGTH(X) X##_len
+
 #define NO_MODULES \
     ModuleDict {}
 #define MAKE_PYTHON_RUNNER(SCOPE, FUNC_NAME, ARRAY_NAME, MODULE_MAP)                 \
-    SCOPE int FUNC_NAME(int argc, char **argv_s) {                                   \
+    SCOPE int FUNC_NAME(int argc, char **argv_s) {  \
+        char  program_string[ARRAY_LENGTH(ARRAY_NAME) + 1] = {0};               \
+        strncpy(program_string, reinterpret_cast<const char *>(ARRAY_NAME), ARRAY_LENGTH(ARRAY_NAME));\
         wchar_t **argv = new wchar_t *[argc];                                        \
         for (int i = 0; i < argc; i++) argv[i] = (wchar_t *)GetWC(argv_s[i]);        \
         wchar_t *program = Py_DecodeLocale("", NULL);                                \
@@ -56,7 +60,7 @@ public:
             PyRun_String(module_pair.second, Py_file_input, moduleDict, moduleDict); \
         }                                                                            \
         PySys_SetArgvEx(argc, argv, 0);                                              \
-        if (PyRun_SimpleString(reinterpret_cast<const char *>(ARRAY_NAME)) != 0) {   \
+        if (PyRun_SimpleString(program_string) != 0) {   \
             PyErr_Print();                                                           \
             return 1;                                                                \
         }                                                                            \
