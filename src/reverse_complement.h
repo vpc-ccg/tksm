@@ -66,7 +66,7 @@ public:
             push_back(table[*it]);
         }
     }
-    complement_string(const complement_string &seq) {
+    complement_string(const complement_string &seq) : std::string{} {
         reserve(seq.crend() - seq.crbegin());
         for (auto it = seq.crbegin(); it != seq.crend(); ++it) {
             push_back(table[*it]);

@@ -774,7 +774,8 @@ public:
           _depth(other._depth),
           _segments(other._segments.begin(), other._segments.end()),
           meta{other.meta} {}
-
+    
+    molecule_descriptor & operator=(const molecule_descriptor&) = default;
     molecule_descriptor(const transcript &trans)
         : _id(trans.info.at("transcript_id")), _reversed(!trans.plus_strand), _depth(trans.get_abundance()) {
         for (const gtf &gi : trans.cget_exons()) {
