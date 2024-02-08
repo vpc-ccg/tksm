@@ -1050,4 +1050,3 @@ class TAIL_NOISE_MODEL_PY:
             return lambda: int(mult * self.distributions[pos]())
 
 ### END OF TAIL_NOISE_MODEL_PY ###
-

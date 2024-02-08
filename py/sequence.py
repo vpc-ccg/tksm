@@ -374,4 +374,3 @@ if __name__ == "__main__":
 
     for v in target_outfiles.values():
         v.close()
-
