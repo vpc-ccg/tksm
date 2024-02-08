@@ -73,15 +73,12 @@ def get_model_details(mtype, name):
         paf = get_sample_paf(sample, "cDNA")
         params_build.append(f"-i {paf}")
         inputs.append(paf)
-        out_prefix = f"{preproc_d}/models/truncate/{name}"
-        params_build.append(f"-o {out_prefix}")
+        model_path = f"{preproc_d}/models/truncate/{name}.json"
+        params_build.append(f"-o {model_path}")
         # Outputs / Run params
-        kde_files = [
-            f"{out_prefix}.{x}"
-            for x in ("grid.npy", "X_idxs.npy", "Y_idxs.npy", "sider.tsv")
-        ]
-        outputs.extend(kde_files)
-        params_run.append(f"--kde-model {','.join(kde_files)}")
+
+        outputs.append(model_path)
+        params_run.append(f"--kde-model {model_path}")
     elif mtype == "Seq":
         # Inputs / Build params
         assert set(model_dict.keys()) <= {"sample", "params"}
@@ -525,8 +522,7 @@ rule model_truncation:
         model=lambda wc: models["Trc", wc.model_name].inputs,
     output:
         model=[
-            f"{preproc_d}/models/truncate/{{model_name}}.{x}"
-            for x in ("grid.npy", "X_idxs.npy", "Y_idxs.npy", "sider.tsv")
+            f"{preproc_d}/models/truncate/{{model_name}}.json"
         ],
     params:
         binary=config["exec"]["tksm"],
