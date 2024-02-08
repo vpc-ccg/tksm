@@ -1,10 +1,6 @@
 import argparse
-from datetime import datetime
 import queue
-import sys
 import threading
-
-from tqdm import tqdm
 
 
 ### Multithreaded version of cat specifically for MDF files
@@ -39,14 +35,8 @@ def main():
 
     done = [False for _ in input_queues]
     md_count = 0
-    last_time = datetime.now()
     with open(args.output_file, "w") as outfile:
         while True:
-            # if (datetime.now() - last_time).total_seconds() > 2:
-            #     last_time = datetime.now()
-            #     sys.stderr.write(
-            #         f"[mdf_cat.py] {[int(x) for x in done]} files; {tuple(x.split('/')[-1] for x in args.input_files)}; {md_count} MDs to {args.output_file.split('/')[-2:]}.\n"
-            #     )
             for idx, (d, q) in enumerate(zip(done, input_queues)):
                 if d:
                     continue
