@@ -23,7 +23,7 @@
 #include "util.h"
 #include "mutate.h"
 #include "append_noise.h"
-
+#include "cut.h"
 
 using std::set;
 using std::string;
@@ -48,6 +48,7 @@ vector<std::pair<string, string>> kisims = {
     {"random-wgs", "Simulates random WGS reads"},
     {"unsegment", "Concatenate adjacent molecules with random probability"},
     {"mutate", "Mutate molecules given mutations"},
+    {"cut", "Cut the molecules in a random position, linearize circular molecules"},
 };
 
 vector<std::pair<string,string>> utility = {
@@ -178,6 +179,9 @@ main(int argc, char **argv) {
     }
     else if (kisim == "unsegment") {
         return Unsegment_module{argc - 1, argv + 1}.run();
+    }
+    else if (kisim == "cut"){
+        return Cut_module{argc - 1, argv + 1}.run();
     }
     else if (kisim == "mutate"){
         return Mutate_module{argc - 1, argv + 1}.run();
