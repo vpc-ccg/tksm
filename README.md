@@ -489,7 +489,7 @@ The implemented conditions are:
 - `size`: Filters molecules w.r.t their size [<, >, <=, >= , ==, !=].
 - `locus`: is similar to `samtools view` selection. If any of the molecule's intervals overlaps with the specified location or range, TKSM will consider the condition fulfilled.
 - `id`: Check if id of a molecule matches the given regular expression ([Ecmascript](https://en.cppreference.com/w/cpp/regex/ecmascript) format) 
-
+- `rand`: Randomly split the molecules with the given probability
 Examples:
 
 - `-c "info CB"`: Checks if a molecule has a non-empty `CB` comment

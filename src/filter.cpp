@@ -18,11 +18,14 @@ using std::vector;
 
 #include "pimpl.h"
 
+template<class RAND_GEN>
 class FilterCondition {
 public:
     std::function<bool(const molecule_descriptor &)> cond_func;
+    RAND_GEN &rand_gen;
     bool negate;
-    FilterCondition(const string &condition, bool negate=false): negate{negate} {
+
+    FilterCondition(RAND_GEN &rand_gen, const string &condition, bool negate=false): rand_gen{rand_gen}, negate{negate} {
         const vector<string> fields = rsplit(condition, " ");
         if (fields.size() != 2) {
             throw std::runtime_error("Invalid condition: " + condition);
@@ -119,6 +122,14 @@ public:
                 return std::regex_match(md.get_id(), id_regex);
             };
         }
+        else if (condition_type_str == "rand") {
+            double prob = stod(condition_expression_str);
+
+            cond_func = [prob, &rand_gen] (const molecule_descriptor &md){
+                std::uniform_real_distribution<> dist(0,1);
+                return dist(rand_gen) > prob;
+            };
+        }
     }
     bool operator()(const molecule_descriptor &md) const { return cond_func(md) != negate; }
 };
@@ -142,11 +153,11 @@ class Filter_module::impl : public tksm_module {
             )(
                 "c,if",
                 "Comma separated conditions to filter (and)",
-                cxxopts::value<vector<string>>()->default_value("")
+                cxxopts::value<vector<string>>()
             )(
                 "n,not",
                 "Comma separated negated conditions to filter (and)",
-                cxxopts::value<vector<string>>()->default_value("")
+                cxxopts::value<vector<string>>()
              )(
                 "negate",
                 "Negate the conjuction of the condition(s)",
@@ -204,14 +215,15 @@ public:
             output_files.emplace_back(args["false-output"].as<string>());
         }
 
-        vector<FilterCondition> conditions;
-
-        for (const auto &condition : args["if"].as<vector<string>>()) {
-            conditions.emplace_back(condition);
-        }
-        for (const auto &condition : args["not"].as<vector<string>>()) {
-            conditions.emplace_back(condition, true);
-        }
+        vector<FilterCondition<decltype(rand_gen)>> conditions;
+        if(args["if"].count() > 0)
+            for (const auto &condition : args["if"].as<vector<string>>()) {
+                conditions.emplace_back(rand_gen,condition);
+            }
+        if(args["not"].count() > 0)
+            for (const auto &condition : args["not"].as<vector<string>>()) {
+                conditions.emplace_back(rand_gen,condition, true);
+            }
         if(args["or"].as<bool>() == true){
             for (const auto &md : stream_mdf(input_file)) {
                 bool flag = false;
@@ -266,13 +278,14 @@ public:
         }
         string connector = args["or"].as<bool>() ? " or " : " and ";
         vector<string> conditions;
-
-        for(const string &s:args["if"].as<vector<string>>()){
-            conditions.push_back(fmt::format("({})", s));
-        }
-        for(const string &s:args["not"].as<vector<string>>()){
-            conditions.push_back(fmt::format("~({})", s));
-        }
+        if(args["if"].count()>0)
+            for(const string &s:args["if"].as<vector<string>>()){
+                conditions.push_back(fmt::format("({})", s));
+            }
+        if(args["not"].count()>0)
+            for(const string &s:args["not"].as<vector<string>>()){
+                conditions.push_back(fmt::format("~({})", s));
+            }
         logi("Conditions: {}", fmt::join(conditions, connector));
 
         // Other parameters logs are here
