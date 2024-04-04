@@ -89,7 +89,7 @@ public:
 };
 
 class PCR_module::impl : public tksm_module {
-    cxxopts::ParseResult parse(int argc, char **argv) {
+    ParseResult parse(int argc, char **argv) {
         string preset_string =
             "presets (Cha, R. S., & Thilly, W. G. (1993). Specificity, efficiency, and fidelity of PCR. Genome "
             "Research, 3(3), S18-S29.)\n";
@@ -140,7 +140,7 @@ class PCR_module::impl : public tksm_module {
         {"T4", {3.0 * std::pow(0.1, 6), 0.56}},         {"Vent", {4.5 * std::pow(0.1, 5), 0.70}},
     };
 
-    cxxopts::ParseResult args;
+    ParseResult args;
 
 public:
     impl(int argc, char **argv) : tksm_module{"PCR", "PCR amplification module"}, args(parse(argc, argv)) {}

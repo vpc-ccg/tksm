@@ -52,7 +52,7 @@ inline std::pair<molecule_descriptor, molecule_descriptor> split_molecule(molecu
     return {md1,md2};
 }
 class Cut_module::impl : public tksm_module {
-    cxxopts::ParseResult parse(int argc, char **argv) {
+    ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
             (
@@ -69,7 +69,7 @@ class Cut_module::impl : public tksm_module {
         return options.parse(argc, argv);
     }
 
-    cxxopts::ParseResult args;
+    ParseResult args;
 
 public:
     impl(int argc, char **argv) : tksm_module{"<MODULE>", "<MODULE> description"}, args(parse(argc, argv)) {}

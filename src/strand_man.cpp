@@ -19,7 +19,7 @@ using std::vector;
 #include "pimpl.h"
 
 class StrandMan_module::impl : public tksm_module {
-    cxxopts::ParseResult parse(int argc, char **argv) {
+    ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
             (
@@ -40,7 +40,7 @@ class StrandMan_module::impl : public tksm_module {
         return options.parse(argc, argv);
     }
 
-    cxxopts::ParseResult args;
+    ParseResult args;
 
     std::uniform_real_distribution<double> dist{0.0, 1.0};
 

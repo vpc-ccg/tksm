@@ -35,13 +35,14 @@ public:
 
 using tksm_submodule = tksm_submodule_base<std::mt19937>;
 
-template <class RAND_GENERATOR>
+
+
 class tksm_module_base {
 protected:
     vector<string> added;
     struct OptionAdder : public cxxopts::OptionAdder {
-        tksm_module_base<RAND_GENERATOR> *owner;
-        OptionAdder(cxxopts::OptionAdder &&opt, tksm_module_base<RAND_GENERATOR> *owner) : cxxopts::OptionAdder(opt), owner{owner} {}
+        tksm_module_base *owner;
+        OptionAdder(cxxopts::OptionAdder &&opt, tksm_module_base *owner) : cxxopts::OptionAdder(opt), owner{owner} {}
         OptionAdder &operator () (const string &opt, const string &help, const std::shared_ptr<const cxxopts::Value>& value 
       = ::cxxopts::value<bool>(),
     std::string arg_help = ""){
@@ -50,23 +51,30 @@ protected:
             return *this;
         }
     };
+    struct ParseResult : public cxxopts::ParseResult {
+        ParseResult() = default;
+        ParseResult(const ParseResult&) = default;
+        ParseResult(const cxxopts::ParseResult &pr) : cxxopts::ParseResult{pr} {}
+
+    };
     struct Options : public cxxopts::Options {
-        tksm_module_base<RAND_GENERATOR> *owner;
-        Options (const string &name, const string &desc, tksm_module_base<RAND_GENERATOR> *owner) : cxxopts::Options{name ,desc }, owner{owner} {}
+        tksm_module_base *owner;
+        Options (const string &name, const string &desc, tksm_module_base *owner) : cxxopts::Options{name ,desc }, owner{owner} {}
         OptionAdder add_options(const std::string &group=""){
             return OptionAdder{cxxopts::Options::add_options(group), owner};
         }
-
     };
+    
+
     string program_name;
     string program_description;
     Options options;
-    RAND_GENERATOR rand_gen;
+    std::mt19937 rand_gen;
 
     virtual int validate_arguments() = 0;
 
 public:
-    void print_option_names(const cxxopts::ParseResult &result) const{
+    void print_option_names(const ParseResult &result) const{
         for(const auto&lines : added){
             fmt::print("{}\n",rsplit(lines,",").back());
         }
@@ -103,7 +111,7 @@ public:
         // clang-format on
     };
     virtual ~tksm_module_base() = default;
-    int process_utility_arguments(const cxxopts::ParseResult &args) {
+    int process_utility_arguments(const ParseResult &args) {
         int seed = args["seed"].as<int>();
         rand_gen.seed(seed);
 
@@ -123,14 +131,14 @@ public:
 
         return help_or_version_is_used(args);
     }
-    int list(const cxxopts::ParseResult &args) const{
+    int list(const ParseResult &args) const{
         if(args.count("list") > 0){
             print_option_names(args);
             return 1;
         }
         return 0;
     }
-    int help_or_version_is_used(const cxxopts::ParseResult &args) const {
+    int help_or_version_is_used(const ParseResult &args) const {
         // Used fmt to print
         if (args.count("help") > 0) {
             fmt::print("{}\n", options.help());
@@ -151,6 +159,6 @@ public:
     virtual void describe_program() = 0;
 };
 
-using tksm_module = tksm_module_base<std::mt19937>;
+using tksm_module = tksm_module_base;
 
 #endif
