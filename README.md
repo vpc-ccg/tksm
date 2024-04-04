@@ -478,14 +478,17 @@ The `Flt` module has these arguments:
 | -     | -                 | - |
 | `-t`  | `--true-output`   | Output MDF file for molecules that pass the filter. |
 | `-f`  | `--false-output`  | Output MDF file for molecules that fail the filter. |
-| `-c`  | `--condition`     | Comma separated conditions to filter (and-ed together). |
+| `-c`  | `--if`            | Comma separated conditions to filter (and-ed together). |
+| `-n`  | `--not`           | Comma separated negated conditions to filter (and-ed together). |
 |       | `--negate`        | Negate the conjunction of the condition(s). |
+|       | `--or`            | Use `or` instead of `and` to combine multiple conditions|
 
 The implemented conditions are:
 
 - `info`: Check if a non-empty info tag exists in a molecule.
 - `size`: Filters molecules w.r.t their size [<, >, <=, >= , ==, !=].
 - `locus`: is similar to `samtools view` selection. If any of the molecule's intervals overlaps with the specified location or range, TKSM will consider the condition fulfilled.
+- `id`: Check if id of a molecule matches the given regular expression ([Ecmascript](https://en.cppreference.com/w/cpp/regex/ecmascript) format) 
 
 Examples:
 
@@ -495,6 +498,8 @@ Examples:
 - `-c "locus chr1:1000"`: Selects molecules that overlap with chr1 position 1000
 - `-c "locus chr1:1000-1500"`: Selects molecules that overlap with chr1 between position 1000 and 1500.
 - `-c "locus AGATCGGAAGAGCGTCGTGTAG"`: Selects molecules with this "*contig*". While this is not a real contig name, modules such as `Tag` and `SCB` add put the sequence of the tag as the contig name ([see above](#mdf-format))
+
+Multiple conditions can be passed by either separating by comma or calling `--if` or `--not` multiple times.
 
 #### PCR
 The `PCR` module is used to simulate PCR amplification.

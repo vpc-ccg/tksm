@@ -21,7 +21,8 @@ using std::vector;
 class FilterCondition {
 public:
     std::function<bool(const molecule_descriptor &)> cond_func;
-    FilterCondition(const string &condition) {
+    bool negate;
+    FilterCondition(const string &condition, bool negate=false): negate{negate} {
         const vector<string> fields = rsplit(condition, " ");
         if (fields.size() != 2) {
             throw std::runtime_error("Invalid condition: " + condition);
@@ -112,8 +113,14 @@ public:
                 };
             }
         }
+        else if (condition_type_str == "id") {
+            const std::regex id_regex{condition_expression_str};
+            cond_func = [id_regex] (const molecule_descriptor &md){
+                return std::regex_match(md.get_id(), id_regex);
+            };
+        }
     }
-    bool operator()(const molecule_descriptor &md) const { return cond_func(md); }
+    bool operator()(const molecule_descriptor &md) const { return cond_func(md) != negate; }
 };
 
 class Filter_module::impl : public tksm_module {
@@ -133,14 +140,23 @@ class Filter_module::impl : public tksm_module {
                 "output mdf file",
                 cxxopts::value<string>()
             )(
-                "c,condition",
+                "c,if",
                 "Comma separated conditions to filter (and)",
-                cxxopts::value<vector<string>>()
+                cxxopts::value<vector<string>>()->default_value("")
+            )(
+                "n,not",
+                "Comma separated negated conditions to filter (and)",
+                cxxopts::value<vector<string>>()->default_value("")
              )(
                 "negate",
                 "Negate the conjuction of the condition(s)",
                 cxxopts::value<bool>()->default_value("false")->implicit_value("true")
-             )
+             )(
+                "or",
+                "use or operation to combine conditions instead of and",
+                cxxopts::value<bool>()->default_value("false")->implicit_value("true")
+              )
+
             ;
         // clang-format on
         return options.parse(argc, argv);
@@ -155,7 +171,7 @@ public:
     ~impl() = default;
 
     int validate_arguments() {
-        std::vector<string> mandatory = {"input", "true-output", "condition"};
+        std::vector<string> mandatory = {"input", "true-output"};
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
@@ -189,26 +205,50 @@ public:
         }
 
         vector<FilterCondition> conditions;
-        for (const auto &condition : args["condition"].as<vector<string>>()) {
+
+        for (const auto &condition : args["if"].as<vector<string>>()) {
             conditions.emplace_back(condition);
         }
-
-        for (const auto &md : stream_mdf(input_file)) {
-            bool flag = true;
-            for (const auto &condition : conditions) {
-                if (!condition(md)) {
-                    flag = false;
-                    break;
+        for (const auto &condition : args["not"].as<vector<string>>()) {
+            conditions.emplace_back(condition, true);
+        }
+        if(args["or"].as<bool>() == true){
+            for (const auto &md : stream_mdf(input_file)) {
+                bool flag = false;
+                for (const auto &condition : conditions) {
+                    if (condition(md)) {
+                        flag = true;
+                        break;
+                    }
+                }
+                if (args["negate"].as<bool>()) {
+                    flag = !flag;
+                }
+                if (flag) {
+                    output_files[0] << md;
+                }
+                else if (args.count("false-output")) {
+                    output_files[1] << md;
                 }
             }
-            if (args["negate"].as<bool>()) {
-                flag = !flag;
-            }
-            if (flag) {
-                output_files[0] << md;
-            }
-            else if (args.count("false-output")) {
-                output_files[1] << md;
+        }else{
+            for (const auto &md : stream_mdf(input_file)) {
+                bool flag = true;
+                for (const auto &condition : conditions) {
+                    if (!condition(md)) {
+                        flag = false;
+                        break;
+                    }
+                }
+                if (args["negate"].as<bool>()) {
+                    flag = !flag;
+                }
+                if (flag) {
+                    output_files[0] << md;
+                }
+                else if (args.count("false-output")) {
+                    output_files[1] << md;
+                }
             }
         }
         for (auto &output_file : output_files) {
@@ -224,7 +264,17 @@ public:
         if (args.count("false-output")) {
             logi("False output file: {}", args["false-output"].as<string>());
         }
-        logi("Conditions: {}", fmt::join(args["condition"].as<vector<string>>(), " and "));
+        string connector = args["or"].as<bool>() ? " or " : " and ";
+        vector<string> conditions;
+
+        for(const string &s:args["if"].as<vector<string>>()){
+            conditions.push_back(fmt::format("({})", s));
+        }
+        for(const string &s:args["not"].as<vector<string>>()){
+            conditions.push_back(fmt::format("~({})", s));
+        }
+        logi("Conditions: {}", fmt::join(conditions, connector));
+
         // Other parameters logs are here
         fmtlog::poll(true);
     }
