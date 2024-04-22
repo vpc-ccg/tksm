@@ -10,6 +10,7 @@
 
 #include "generator.h"
 #include "interval.h"
+#include "util.h"
 
 using std::istream;
 using std::ostream;

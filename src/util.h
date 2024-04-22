@@ -11,6 +11,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <iostream>
+
 #define FMTLOG_HEADER_ONLY
 #include <fmtlog/fmtlog.h>
 

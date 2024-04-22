@@ -17,6 +17,7 @@ using json = nlohmann::json;
 #include "mdf.h"
 #include "module.h"
 #include "pimpl.h"
+#include <iostream>
 
 using std::ifstream;
 

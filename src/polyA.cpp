@@ -2,6 +2,7 @@
 
 #include <cxxopts.hpp>
 #include <variant>
+#include <ranges>
 
 #include "interval.h"
 #include "mdf.h"

@@ -85,6 +85,7 @@ public:
           program_description(program_description),
           options{program_name, program_description, this} {
         // clang-format off
+        options.add_options("main");
         options.add_options("utility")
             (
                 "h,help",
