@@ -17,7 +17,7 @@ using std::string;
 using std::vector;
 
 class Splicer_module::impl : public tksm_module {
-    ParseResult parse(int argc, char** argv) {
+    cxxopts::ParseResult parse(int argc, char** argv) {
         // clang-format off
         options.add_options("main")
         (
@@ -62,7 +62,7 @@ class Splicer_module::impl : public tksm_module {
         return options.parse(argc, argv);
     }
 
-    auto process_file_weights(const ParseResult& args) {
+    auto process_file_weights(const cxxopts::ParseResult& args) {
         auto W = args["weights"].as<vector<double>>();
         if (W.size() == 1) {
             return vector<double>(W.size(), W[0] / args["abundance"].as<vector<string>>().size());
@@ -77,7 +77,7 @@ class Splicer_module::impl : public tksm_module {
     }
 
     Fusion_submodule fusion_submodule;
-    ParseResult args;
+    cxxopts::ParseResult args;
 
     friend class Fusion_submodule;
 

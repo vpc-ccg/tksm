@@ -17,7 +17,7 @@ using namespace std::string_literals;
 
 class PolyA_module::impl : public tksm_module {
 private:
-    ParseResult parse(int argc, char **argv) {
+    cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options()
             (
@@ -57,7 +57,7 @@ private:
         auto result = options.parse(argc, argv);
         return result;
     }
-    ParseResult args;
+    cxxopts::ParseResult args;
 
     int validate_arguments() {
         vector<string> mandatory = {"input", "output"};

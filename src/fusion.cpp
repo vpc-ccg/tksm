@@ -23,8 +23,6 @@ using std::set;
 using std::string;
 using std::unordered_map;
 using std::vector;
-
-using cxxopts::ParseResult;
 namespace sr = std::ranges;
 
 string fusion_separator = "::";
@@ -634,7 +632,7 @@ class Fusion_submodule : public tksm_submodule {
 
     auto get_fusions(const auto &genes,           // string->gtf map
                      const auto &expression_map,  // string->double map
-                     const ParseResult &args) {
+                     const cxxopts::ParseResult &args) {
         unsigned fusion_count      = args["fusion-count"].as<int>();
         double translocation_ratio = args["translocation-ratio"].as<double>();
 
@@ -833,7 +831,7 @@ public:
         add_options(opt);
     }
     ~Fusion_submodule() = default;
-    submodule_status receive_arguments(const ParseResult &args) override {
+    submodule_status receive_arguments(const cxxopts::ParseResult &args) override {
         if (args["fusion-count"].as<int>() == 0 && args["fusion-file"].count() == 0) {
             return update_status(submodule_status::DONT_RUN);
         }
@@ -844,7 +842,7 @@ public:
     template <class TopModule>
     auto run(TopModule *top_module, vector<std::tuple<string, double, string>> &abundances,
              unordered_map<string, transcript> &transcript_templates) -> int {
-        ParseResult &args = top_module->args;
+        cxxopts::ParseResult &args = top_module->args;
 
         vector<string> gtf_files                    = args["gtf"].as<vector<string>>();
         [[maybe_unused]] size_t fusion_count        = args["fusion-count"].as<int>();
@@ -888,7 +886,7 @@ public:
         return 0;
     }
 
-    void describe_program(const ParseResult &args) override {
+    void describe_program(const cxxopts::ParseResult &args) override {
         if (status != submodule_status::RUN) {
             return;
         }

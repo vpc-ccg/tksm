@@ -15,7 +15,7 @@ using std::string;
 using std::vector;
 
 class TAG_module::impl : public tksm_module {
-    ParseResult parse(int argc, char **argv) {
+    cxxopts::ParseResult parse(int argc, char **argv) {
         // clang-format off
         options.add_options("main")
             (
@@ -39,7 +39,7 @@ class TAG_module::impl : public tksm_module {
         return options.parse(argc, argv);
     }
 
-    ParseResult args;
+    cxxopts::ParseResult args;
 
 public:
     impl(int argc, char **argv) : tksm_module{"umi", "TAGging module"}, args(parse(argc, argv)) {}

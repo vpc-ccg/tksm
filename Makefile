@@ -34,7 +34,7 @@ else
 	CXX_OPT ?= -O0 -g
 endif
 CXX_STD ?=c++20
-CXXFLAGS += -std=$(CXX_STD) -Wall  $(CXX_OPT) $(CXX_DBG) -fsanitize=undefined  
+CXXFLAGS += -std=$(CXX_STD) -Wall  $(CXX_OPT) $(CXX_DBG) 
 LDFLAGS += -lz -lpthread -lfmt $(LD_DBG) -flto=auto
 
 
@@ -54,7 +54,7 @@ EXEC_ABS := $(abspath ${EXEC})
 MAIN_FILE =  tksm.cpp
 MAIN_OBJECT = $(OBJ_PATH)/tksm.o
 
-SRC_FILES =  tag.cpp truncate.cpp transcribe.cpp scb.cpp sequence.cpp polyA.cpp pcr.cpp model_truncation.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp shuffle.cpp unsegment.cpp append_noise.cpp mutate.cpp cut.cpp 
+SRC_FILES =  tag.cpp truncate.cpp transcribe.cpp scb.cpp sequence.cpp polyA.cpp pcr.cpp model_truncation.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp shuffle.cpp unsegment.cpp append_noise.cpp mutate.cpp cut.cpp
 
 #Append SRC_PATH to SRC_FILES
 SRC_FILES := $(addprefix $(SRC_PATH)/,$(SRC_FILES))
