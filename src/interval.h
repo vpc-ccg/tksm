@@ -256,6 +256,7 @@ public:
     molecule_descriptor *drop_comment(const string &key) ;
     // TODO add key verification
     const vector<string> &get_comment(const string &key) const ;
+    bool has_comment(const string &key) const;
 
     molecule_descriptor *depth(int depth) ;
     molecule_descriptor *prepend_segment(const einterval &i) ;

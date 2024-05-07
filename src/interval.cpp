@@ -322,6 +322,8 @@ transcript::get_comment() const {
     return comment;
 }
 
+
+
 auto
 transcript::operator==(const transcript &other) const -> bool {
     return exons == other.exons && info.at("transcript_id") == other.info.at("transcript_id") &&
@@ -647,6 +649,10 @@ molecule_descriptor::get_comment(const string &key) const {
     return meta.at(key);
 }
 
+bool
+molecule_descriptor::has_comment(const string &key) const {
+    return meta.contains(key);
+}
 molecule_descriptor *
 molecule_descriptor::depth(int depth) {
     _depth = depth;

@@ -24,6 +24,7 @@
 #include "mutate.h"
 #include "append_noise.h"
 #include "cut.h"
+#include "size_selection.h"
 
 using std::set;
 using std::string;
@@ -49,6 +50,7 @@ vector<std::pair<string, string>> kisims = {
     {"unsegment", "Concatenate adjacent molecules with random probability"},
     {"mutate", "Mutate molecules given mutations"},
     {"cut", "Cut the molecules in a random position, linearize circular molecules"},
+    {"size-selection", "Size selection module selects molecules greater than some size smoothed out by sigmoid function"},
 };
 
 vector<std::pair<string,string>> utility = {
@@ -197,6 +199,9 @@ main(int argc, char **argv) {
     }
     else if (kisim == "random-wgs") {
         return RWGS_module{argc - 1, argv + 1}.run();
+    }
+    else if (kisim == "size-selection"){
+        return Size_selection_module{argc-1, argv+1}.run();
     }
     else {
         fmt::print(stderr, "Unknown kisim: {}\n", kisim);
