@@ -2,16 +2,11 @@
 #define UTIL_H
 
 #include <fmt/core.h>
-
-#include <algorithm>
-#include <array>
 #include <map>
-#include <ostream>
-#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <iostream>
+
 
 #define FMTLOG_HEADER_ONLY
 #include <fmtlog/fmtlog.h>
@@ -22,7 +17,6 @@ public:
 };
 
 using std::map;
-using std::ostream;
 using std::string;
 using std::vector;
 
@@ -35,7 +29,7 @@ static const string ASCII_ART = R"(
   |   |  |    _  | _____| || ||_|| |   
   |___|  |___| |_||_______||_|   |_|
 )";
-
+/*
 class num2seq {
 public:
     std::array<char, 4> table{{'A', 'T', 'C', 'G'}};
@@ -51,48 +45,7 @@ public:
         return st.str();
     }
 };
-
-class fmt2seq {
-public:
-    std::array<char, 4> table{{'A', 'T', 'C', 'G'}};
-    std::array<string, 128> lookup;
-    string fmt;
-    fmt2seq(const string &fmt) : fmt(fmt) {
-#define set_l(A, B) lookup[A[0]] = B
-#define set_sl(A, B) set_l(#A, #B)
-        set_sl(A, A);
-        set_sl(G, G);
-        set_sl(T, T);
-        set_sl(C, C);
-        set_sl(U, U);
-        set_sl(R, GA);
-        set_sl(Y, TC);
-        set_sl(K, GT);
-        set_sl(M, AC);
-        set_sl(S, GC);
-        set_sl(W, AT);
-        set_sl(B, GTC);
-        set_sl(D, GAT);
-        set_sl(H, ACT);
-        set_sl(V, GCA);
-        set_sl(N, AGCT);
-#undef set_l
-#undef set_sl
-    }
-    template <class RANDGEN>
-    string operator[](RANDGEN &gen) const {
-        std::stringstream st;
-
-        for (char c : fmt) {
-            string buffer;
-
-            std::sample(lookup[c].begin(), lookup[c].end(), std::back_inserter(buffer), 1, gen);
-            st << buffer;
-        }
-        return st.str();
-    }
-};
-
+*/
 class LogLevels {
 public:
     static std::string log_choices() {
@@ -126,18 +79,7 @@ report_missing_parameter(const std::string &param_name) {
     loge("Missing parameter: {}", param_name);
 }
 
-template <class B>
-inline void
-print_tsv(std::ostream &ost, B b) {
-    ost << b << "\n";
-}
 
-template <class B, class... A>
-inline void
-print_tsv(std::ostream &ost, B b, A... a) {
-    ost << b << "\t";
-    print_tsv(ost, a...);
-}
 
 template <class ITER>
 inline std::string

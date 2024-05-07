@@ -2,7 +2,8 @@
 #define _MODULE_H_
 
 #include <cxxopts.hpp>
-
+#include <iostream>
+#include <random>
 #include "util.h"
 
 template <class RAND_GENERATOR>

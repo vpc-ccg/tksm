@@ -18,6 +18,18 @@
 using std::string;
 using std::vector;
 
+template <class B>
+inline void
+print_tsv(std::ostream &ost, B b) {
+    ost << b << "\n";
+}
+
+template <class B, class... A>
+inline void
+print_tsv(std::ostream &ost, B b, A... a) {
+    ost << b << "\t";
+    print_tsv(ost, a...);
+}
 interval::interval() : start(0), end(0) {}
 interval::interval(int start, int end) : start(start), end(end) {}
 interval::interval(const interval &i1, const interval &i2)

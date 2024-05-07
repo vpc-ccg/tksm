@@ -111,9 +111,7 @@ public:
     int run() {
         sigmoid_function<> foo{0,10};
         
-        for(int i =0; i < 100; ++i){
-            std::cout << foo(-50+i) << "\n";
-        }
+
         return 0;
         if (process_utility_arguments(args)) {
             return 0;
