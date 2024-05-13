@@ -66,17 +66,17 @@ class Size_selection_module::impl : public tksm_module {
                 "output mdf file",
                 cxxopts::value<string>()
             )(
-                "l,location",
+                "location",
                 "",
-                cxxopts::value<int>()
+                cxxopts::value<int>()->default_value("500")
              )(
-                 "s,scale",
+                 "scale",
                  "",
-                 cxxopts::value<int>()
+                 cxxopts::value<int>()->default_value("100")
               )
              (
                 "f,function",
-                "",
+                "Only 'sigmoid' function is available at the moment",
                 cxxopts::value<string>()->default_value("sigmoid")
              )
             ;
@@ -109,10 +109,8 @@ public:
         return 0;
     }
     int run() {
-        sigmoid_function<> foo{0,10};
-        
 
-        return 0;
+
         if (process_utility_arguments(args)) {
             return 0;
         }
@@ -126,13 +124,20 @@ public:
         string output_file = args["output"].as<string>();
 
         ifstream input(input_file);
+        ofstream output(output_file);
         
 
+        double location = args["location"].as<int>();
+        double scale = args["scale"].as<int>();
 
-        ofstream output(output_file);
-
-        for (auto &md : stream_mdf(input)) {
-            output << md;
+        sigmoid_function<> foo{location, scale};
+        std::uniform_real_distribution<> z1dist{0,1};
+        for (auto &md : stream_mdf(input, true)) {
+            double p = foo(md.size());
+            fmt::print("{} {}\n",p, md.size());
+            if(z1dist(rand_gen) < p){
+                output << md;
+            }
         }
         return 0;
     }

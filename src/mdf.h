@@ -63,7 +63,7 @@ stream_mdf(FILE *file, bool unroll = false){
 }
 */
 inline generator<molecule_descriptor>
-stream_mdf(std::istream &ist, bool unroll = false) {
+stream_mdf(std::istream &ist, bool unroll = true) {
     string buffer;
     buffer.reserve(1000);
     std::getline(ist, buffer);
