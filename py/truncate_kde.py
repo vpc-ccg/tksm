@@ -50,7 +50,7 @@ def parse_args():
         "--output",
         type=str,
         required=True,
-        help="Path prefix for the output files: <>.X_idxs.npy, <>.Y_idxs.npy, <>.grid.npy, <>.sider.tsv",
+        help="Path prefix for the output JSON model (e.g. sample.json).",
     )
     parser.add_argument(
         "-b",
@@ -300,7 +300,7 @@ def printModelJson(grid, x_labels, y_labels, end_ratios, args, sep=","):
     grid_mtx = SerialMTX(
         "KDE_mtx",
         list(grid.shape),
-        list(grid.flatten()),
+        list(grid.T.flatten()),
         [int(a) for a in list(x_labels[1:]) + list(y_labels[1:])],
     )
 
