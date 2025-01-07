@@ -38,7 +38,7 @@ TS_experiments:
                 params: ""
                 model: "N1"
             - plA:
-                params: ""
+                params: "--normal=15,7.5"
     head_2:
         pipeline:
             - Tsb:
@@ -48,7 +48,7 @@ TS_experiments:
                 params: ""
                 model: "N1"
             - plA:
-                params: ""
+                params: "--normal=15,7.5"
             - SCB:
                 params: ""
             - Tag:
@@ -65,7 +65,7 @@ TS_experiments:
             - Flp:
                 params: "-p 0.5"
             - Seq:
-                params: "--skip-qual-compute --badread-model nanopore2020"
+                params: "--skip-qual-compute --badread-error-model nanopore2023"
 
 exec:
     tksm: build/bin/tksm
@@ -81,6 +81,7 @@ refs:
         GTF: data/refs/Homo_sapiens.GRCh38.108.chr21.gtf
     barcodes:
         10x: data/refs/3M-february-2018.txt.gz
+    10x: data/refs/3M-february-2018.txt.gz
 
 samples:
     "MCF7-sgnex":
