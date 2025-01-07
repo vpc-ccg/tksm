@@ -62,7 +62,7 @@ def get_model_details(mtype, name):
             inputs.append(cb_txt)
         if "lr-bc" in model_dict:
             lr_matches_tsv = f"{preproc_d}/scTagger/{sample}/{sample}.lr_matches.tsv.gz"
-            params_build.append(f"--lr-bc {lr_matches_tsv}")
+            params_build.append(f"--lr-br {lr_matches_tsv}")
             inputs.append(lr_matches_tsv)
         # Outputs / Run params
         params_run.append(f"-a {Xpr_tsv}")
