@@ -82,7 +82,7 @@ def get_model_details(mtype, name):
     elif mtype == "Seq":
         # Inputs / Build params
         assert set(model_dict.keys()) <= {"sample", "params"}
-        paf = get_sample_paf(sample, "badread.cDNA")
+        paf = get_badread_paf(sample, "badread.cDNA")
         params_build.append(f"--alignment {paf}")
         inputs.append(paf)
         fastqs = get_sample_fastqs(sample)
@@ -171,6 +171,9 @@ def get_sample_ref(sample, ref_type):
 
 def get_sample_paf(sample, ref_type):
     return f"{preproc_d}/minimap2/{sample}.{ref_type}.paf"
+
+def get_badread_paf(sample, ref_type):
+    return f"{preproc_d}/minimap2/{sample}.{ref_type}.paf.gz"
 
 
 def get_barcode_whitelist(name):
@@ -541,9 +544,9 @@ rule model_sequence:
     params:
         model=lambda wc: models["Seq", wc.model_name].params_build,
     shell:
-        "badread qscore_model {params.model} > {output.error_model}"
+        "badread error_model {params.model} > {output.error_model}"
         " && "
-        "badread error_model {params.model} > {output.qscore_model}"
+        "badread qscore_model {params.model} > {output.qscore_model}" 
 
 
 ### Preprocessing rules ###
@@ -611,16 +614,15 @@ rule minimap_cdna_for_badread_models:
         reads=lambda wc: get_sample_fastqs(wc.sample),
         ref=lambda wc: get_sample_ref(wc.sample, "cDNA"),
     output:
-        paf=f"{preproc_d}/badread/{{sample}}.badread.cDNA.paf",
+        paf=f"{preproc_d}/minimap2/{{sample}}.badread.cDNA.paf.gz",
     threads: 32
     shell:
         "minimap2"
         " -t {threads}"
         " -x map-ont"
         " -c"
-        " -o {output.paf}"
         " {input.ref}"
-        " {input.reads}"
+        " {input.reads} | gzip > {output.paf}"
 
 
 rule cat_refs:
