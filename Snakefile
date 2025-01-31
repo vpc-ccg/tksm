@@ -16,6 +16,8 @@ exprmnts_re = "|".join([re.escape(x) for x in config["TS_experiments"]])
 
 DEBUG = False
 
+if "models" not in config:
+    config["models"] = {}
 for sample in config["samples"]:
     for mtype in ["Tsb", "Trc", "Seq"]:
         if mtype not in config["models"]:
