@@ -23,7 +23,7 @@
 #include "util.h"
 #include "mutate.h"
 #include "append_noise.h"
-
+#include "plasmids.h"
 
 using std::set;
 using std::string;
@@ -48,6 +48,7 @@ vector<std::pair<string, string>> kisims = {
     {"random-wgs", "Simulates random WGS reads"},
     {"unsegment", "Concatenate adjacent molecules with random probability"},
     {"mutate", "Mutate molecules given mutations"},
+    {"plasmid", "Given plasmid contigs, generate molecules"}
 };
 
 vector<std::pair<string,string>> utility = {
@@ -182,8 +183,12 @@ main(int argc, char **argv) {
     else if (kisim == "mutate"){
         return Mutate_module{argc - 1, argv + 1}.run();
     }
+
     else if (kisim == "tail-noise"){
         return AppendNoise_module{argc-1, argv+1}.run();
+    }
+    else if (kisim == "plasmid"){
+        return plasmids_module{argc-1, argv+1}.run();
     }
     else if (kisim == "model-errors") {
         fmt::print("Model errors using Badread\n");
