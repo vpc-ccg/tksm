@@ -209,7 +209,8 @@ public:
             molecule_descriptor mol{ fmt::format("{}_{}:{}-{}{}", index, ref_names_index[ref_index], ref_pos,
                                        ref_pos + frag_len, plus_strand ? "+" : "-"),
                                      true };
-            mol.append_segment({ ref_names_index[ref_index], ref_pos, std::min((int)ref_lens[ref_index], ref_pos + frag_len),
+            mol.append_segment({ ref_names_index[ref_index], ref_pos,
+                                 std::min((int) ref_lens[ref_index], ref_pos + frag_len),
                                  true });
             if (args["circular"].as<bool>() && frag_len > ref_lens[ref_index] - ref_pos) {
                 mol.append_segment(
@@ -223,7 +224,7 @@ public:
             output << mol;
             generated_bases += frag_len;
             ++index;
-        } // run
+        }
 
         return 0;
     } // run

@@ -38,7 +38,7 @@ class plasmids_module::impl : public tksm_module {
                 cxxopts::value<string>()
             )(
                 "output-ref",
-                "output mdf file",
+                "output fasta reference file",
                 cxxopts::value<string>()
             )(
                 "length-threshold",
@@ -54,7 +54,7 @@ class plasmids_module::impl : public tksm_module {
                 cxxopts::value<vector<double>>()->default_value("80,40")
             )(
                 "large-plasmid-many-copy-probability",
-                "Small plasmid can be either few or many copy. This parameter decides if a small plasmid is many copy",
+                "Large plasmid can be either few or many copy. This parameter decides if a small plasmid is many copy",
                 cxxopts::value<double>()->default_value("0.01")
             )(
                 "small-plasmid-many-copy-probability",
@@ -148,7 +148,7 @@ public:
             while(kseq_read(seq) >= 0){
                 int copy_count = std::max( 1, generate_copy_count(seq->seq.l));
                 molecule_descriptor md{fmt::format("{}_{}",seq->name.s,index), true};
-                md.append_segment({string{seq->name.s}, 0, seq->seq.l, true})->depth(copy_count);
+                md.append_segment({string{seq->name.s}, 0, (int) seq->seq.l, true})->depth(copy_count);
                 output << md;
                 ref_output << fmt::format(">{} {}\n{}\n", seq->name.s, seq->comment.s, seq->seq.s);
                 ++index;
