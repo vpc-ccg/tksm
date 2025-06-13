@@ -2,7 +2,8 @@
 #define _MODULE_H_
 
 #include <cxxopts.hpp>
-
+#include <iostream>
+#include <random>
 #include "util.h"
 
 template <class RAND_GENERATOR>
@@ -77,6 +78,7 @@ public:
           program_description(program_description),
           options{program_name, program_description, this} {
         // clang-format off
+        options.add_options("main");
         options.add_options("utility")
             (
                 "h,help",

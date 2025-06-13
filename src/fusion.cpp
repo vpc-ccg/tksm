@@ -25,6 +25,20 @@ using std::unordered_map;
 using std::vector;
 namespace sr = std::ranges;
 
+
+template <class B>
+inline void
+print_tsv(std::ostream &ost, B b) {
+    ost << b << "\n";
+}
+
+template <class B, class... A>
+inline void
+print_tsv(std::ostream &ost, B b, A... a) {
+    ost << b << "\t";
+    print_tsv(ost, a...);
+}
+
 string fusion_separator = "::";
 class locus {
     string chr;

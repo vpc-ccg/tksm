@@ -25,6 +25,9 @@
 #include "append_noise.h"
 #include "plasmids.h"
 #include "fa2mdf.h"
+#include "cut.h"
+#include "size_selection.h"
+
 
 using std::set;
 using std::string;
@@ -35,31 +38,57 @@ using std::vector;
 #endif
 
 // clang-format off
+
 vector<std::pair<string, string> > kisims = {
-    { "transcribe", "Builds RNA transcript molecules given abundances"            },
-    { "tag",        "Adds a tag to each molecule given tag pattern"               },
-    { "polyA",      "Adds polyA tail to each molecule"                            },
-    { "scb",        "Adds single cell barcode (from CB tags added by transcribe)" },
-    { "pcr",        "Simulates PCR amplification"                                 },
-    { "flip",       "Simulates strand flipping"                                   },
-    { "truncate",   "Simulates read truncation"                                   },
-    { "shuffle",    "Shuffles an mdf file"                                        },
-    { "tail-noise", "Adds noise sequence to the molecules"                        },
-    { "sequence",   "Simulates reads given molecules"                             },
-    { "random-wgs", "Simulates random WGS reads"                                  },
-    { "fa2mdf",     "Generate MDF from indexed fasta (each contig 1 molecule)"    },
-    { "unsegment",  "Concatenate adjacent molecules with random probability"      },
-    { "mutate",     "Mutate molecules given mutations"                            },
-    { "plasmid",    "Given plasmid contigs, generate molecules"                   }
+    { "transcribe",
+      "Builds RNA transcript molecules given abundances" },
+    { "tag",
+      "Adds a tag to each molecule given tag pattern" },
+    { "polyA",
+      "Adds polyA tail to each molecule"     },
+    { "scb",
+      "Adds single cell barcode (from CB tags added by transcribe)"      },
+    { "pcr",
+      "Simulates PCR amplification" },
+    { "flip",
+      "Simulates strand flipping"   },
+    { "truncate",
+      "Simulates read truncation" },
+    { "shuffle",
+      "Shuffles an mdf file"      },
+    { "tail-noise",
+      "Adds noise sequence to the molecules" },
+    { "sequence",
+      "Simulates reads given molecules" },
+    { "random-wgs",
+      "Simulates random WGS reads" },
+    { "fa2mdf",
+      "Generate MDF from indexed fasta (each contig 1 molecule)"    },
+    { "unsegment",
+      "Concatenate adjacent molecules with random probability"  },
+    { "mutate",
+      "Mutate molecules given mutations" },
+    { "plasmid",
+      "Given plasmid contigs, generate molecules"   },
+    { "cut",
+      "Cut the molecules in a random position, linearize circular molecules"    },
+    { "size-selection",
+      "Size selection module selects molecules greater than some size smoothed out by sigmoid function"  },
 };
 
 vector<std::pair<string, string> > utility = {
-    { "abundance",        "Computes the abundance of a long read RNA-seq experiment" },
-    { "model-truncation", "Kernel density estimation"                                },
-    { "model-errors",     "Models sequencing errors"                                 },
-    { "model-qscores",    "Models sequencing quality scores"                         },
-    { "head",             "Prints the first n molecules of a file"                   },
-    { "filter",           "Filters a file based on a condition"                      },
+    { "abundance",
+      "Computes the abundance of a long read RNA-seq experiment"      },
+    { "model-truncation",
+      "Kernel density estimation" },
+    { "model-errors",
+      "Models sequencing errors"    },
+    { "model-qscores",
+      "Models sequencing quality scores" },
+    { "head",
+      "Prints the first n molecules of a file"     },
+    { "filter",
+      "Filters a file based on a condition" },
 };
 
 vector<string> info = {
@@ -121,10 +150,10 @@ int main(int argc, char ** argv){
     if (kisim == "version") {
         fmt::print("Version: {}\n", VERSION);
         return 0;
-    } else if (kisim == "help")   {
+    } else if (kisim == "help") {
         help(argv, stdout);
         return 0;
-    } else if (kisim == "list")   {
+    } else if (kisim == "list") {
         for (const auto &kv : kisims) {
             fmt::print("{}\n", kv.first);
         }
@@ -134,49 +163,53 @@ int main(int argc, char ** argv){
         for (const auto &k : info) {
             fmt::print("{}\n", k);
         }
-    } else if (kisim == "abundance")   {
+    } else if (kisim == "abundance") {
         return Abundance_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "transcribe")   {
+    } else if (kisim == "transcribe") {
         return Splicer_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "tag")   {
+    } else if (kisim == "tag") {
         return TAG_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "polyA")   {
+    } else if (kisim == "polyA") {
         return PolyA_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "scb")   {
+    } else if (kisim == "scb") {
         return SingleCellBarcoder_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "pcr")   {
+    } else if (kisim == "pcr") {
         return PCR_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "truncate")   {
+    } else if (kisim == "truncate") {
         return Truncate_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "flip")   {
+    } else if (kisim == "flip") {
         return StrandMan_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "sequence")   {
+    } else if (kisim == "sequence") {
         return Sequencer_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "model-truncation")   {
+    } else if (kisim == "model-truncation") {
         return KDE_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "head")   {
+    } else if (kisim == "head") {
         return Head_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "filter")   {
+    } else if (kisim == "filter") {
         return Filter_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "shuffle")   {
+    } else if (kisim == "shuffle") {
         return Shuffle_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "unsegment")   {
+    } else if (kisim == "unsegment") {
         return Unsegment_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "mutate")   {
+    } else if (kisim == "cut") {
+        return Cut_module{ argc - 1, argv + 1 }.run();
+    } else if (kisim == "mutate") {
         return Mutate_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "tail-noise")   {
+    } else if (kisim == "tail-noise") {
         return AppendNoise_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "plasmid")   {
-        return plasmids_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "model-errors")   {
+    } else if (kisim == "model-errors") {
         fmt::print("Model errors using Badread\n");
-    } else if (kisim == "model-qscores")   {
+    } else if (kisim == "model-qscores") {
         fmt::print("Model qscores using Badread\n");
-    } else if (kisim == "random-wgs")   {
-        return RWGS_module{ argc - 1, argv + 1 }.run();
-    } else if (kisim == "fa2mdf")   {
+    } else if (kisim == "plasmid") {
+        return plasmids_module{ argc - 1, argv + 1 }.run();
+    } else if (kisim == "fa2mdf") {
         return FA2MDF_module{ argc - 1, argv + 1 }.run();
-    } else   {
+    } else if (kisim == "random-wgs") {
+        return RWGS_module{ argc - 1, argv + 1 }.run();
+    } else if (kisim == "size-selection") {
+        return Size_selection_module{ argc - 1, argv + 1 }.run();
+    } else {
         fmt::print(stderr, "Unknown kisim: {}\n", kisim);
         return 1;
     }

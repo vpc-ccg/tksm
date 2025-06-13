@@ -1,10 +1,6 @@
-# Check lld exists
 
-LLD_EXISTS := $(shell command -v ld.lld 2> /dev/null)
+#XXXFLAGS += -fuse-ld=mold
 
-ifdef LLD_EXISTS
-	CXXFLAGS += -fuse-ld=lld
-endif
 
 SRC_PATH = src
 BUILD_PATH = build
@@ -54,7 +50,8 @@ EXEC_ABS := $(abspath ${EXEC})
 MAIN_FILE =  tksm.cpp
 MAIN_OBJECT = $(OBJ_PATH)/tksm.o
 
-SRC_FILES =  tag.cpp truncate.cpp transcribe.cpp scb.cpp sequence.cpp polyA.cpp pcr.cpp model_truncation.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp shuffle.cpp unsegment.cpp append_noise.cpp mutate.cpp plasmids.cpp
+
+SRC_FILES =  tag.cpp truncate.cpp transcribe.cpp scb.cpp sequence.cpp polyA.cpp pcr.cpp model_truncation.cpp abundance.cpp strand_man.cpp filter.cpp random_wgs.cpp shuffle.cpp unsegment.cpp append_noise.cpp mutate.cpp cut.cpp interval.cpp size_selection.cpp plasmids.cpp fa2mdf.cpp mdf.cpp
 
 #Append SRC_PATH to SRC_FILES
 SRC_FILES := $(addprefix $(SRC_PATH)/,$(SRC_FILES))

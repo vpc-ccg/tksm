@@ -18,10 +18,14 @@ using std::vector;
 
 #include "pimpl.h"
 
+template<class RAND_GEN>
 class FilterCondition {
 public:
     std::function<bool(const molecule_descriptor &)> cond_func;
-    FilterCondition(const string &condition) {
+    RAND_GEN &rand_gen;
+    bool negate;
+
+    FilterCondition(RAND_GEN &rand_gen, const string &condition, bool negate=false): rand_gen{rand_gen}, negate{negate} {
         const vector<string> fields = rsplit(condition, " ");
         if (fields.size() != 2) {
             throw std::runtime_error("Invalid condition: " + condition);
@@ -112,8 +116,22 @@ public:
                 };
             }
         }
+        else if (condition_type_str == "id") {
+            const std::regex id_regex{condition_expression_str};
+            cond_func = [id_regex] (const molecule_descriptor &md){
+                return std::regex_match(md.get_id(), id_regex);
+            };
+        }
+        else if (condition_type_str == "rand") {
+            double prob = stod(condition_expression_str);
+
+            cond_func = [prob, &rand_gen] (const molecule_descriptor &md){
+                std::uniform_real_distribution<> dist(0,1);
+                return dist(rand_gen) > prob;
+            };
+        }
     }
-    bool operator()(const molecule_descriptor &md) const { return cond_func(md); }
+    bool operator()(const molecule_descriptor &md) const { return cond_func(md) != negate; }
 };
 
 class Filter_module::impl : public tksm_module {
@@ -133,14 +151,23 @@ class Filter_module::impl : public tksm_module {
                 "output mdf file",
                 cxxopts::value<string>()
             )(
-                "c,condition",
+                "c,if",
                 "Comma separated conditions to filter (and)",
+                cxxopts::value<vector<string>>()
+            )(
+                "n,not",
+                "Comma separated negated conditions to filter (and)",
                 cxxopts::value<vector<string>>()
              )(
                 "negate",
                 "Negate the conjuction of the condition(s)",
                 cxxopts::value<bool>()->default_value("false")->implicit_value("true")
-             )
+             )(
+                "or",
+                "use or operation to combine conditions instead of and",
+                cxxopts::value<bool>()->default_value("false")->implicit_value("true")
+              )
+
             ;
         // clang-format on
         return options.parse(argc, argv);
@@ -155,7 +182,7 @@ public:
     ~impl() = default;
 
     int validate_arguments() {
-        std::vector<string> mandatory = {"input", "true-output", "condition"};
+        std::vector<string> mandatory = {"input", "true-output"};
         int missing_parameters        = 0;
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
@@ -188,27 +215,52 @@ public:
             output_files.emplace_back(args["false-output"].as<string>());
         }
 
-        vector<FilterCondition> conditions;
-        for (const auto &condition : args["condition"].as<vector<string>>()) {
-            conditions.emplace_back(condition);
-        }
-
-        for (const auto &md : stream_mdf(input_file)) {
-            bool flag = true;
-            for (const auto &condition : conditions) {
-                if (!condition(md)) {
-                    flag = false;
-                    break;
+        vector<FilterCondition<decltype(rand_gen)>> conditions;
+        if(args["if"].count() > 0)
+            for (const auto &condition : args["if"].as<vector<string>>()) {
+                conditions.emplace_back(rand_gen,condition);
+            }
+        if(args["not"].count() > 0)
+            for (const auto &condition : args["not"].as<vector<string>>()) {
+                conditions.emplace_back(rand_gen,condition, true);
+            }
+        if(args["or"].as<bool>() == true){
+            for (const auto &md : stream_mdf(input_file)) {
+                bool flag = false;
+                for (const auto &condition : conditions) {
+                    if (condition(md)) {
+                        flag = true;
+                        break;
+                    }
+                }
+                if (args["negate"].as<bool>()) {
+                    flag = !flag;
+                }
+                if (flag) {
+                    output_files[0] << md;
+                }
+                else if (args.count("false-output")) {
+                    output_files[1] << md;
                 }
             }
-            if (args["negate"].as<bool>()) {
-                flag = !flag;
-            }
-            if (flag) {
-                output_files[0] << md;
-            }
-            else if (args.count("false-output")) {
-                output_files[1] << md;
+        }else{
+            for (const auto &md : stream_mdf(input_file)) {
+                bool flag = true;
+                for (const auto &condition : conditions) {
+                    if (!condition(md)) {
+                        flag = false;
+                        break;
+                    }
+                }
+                if (args["negate"].as<bool>()) {
+                    flag = !flag;
+                }
+                if (flag) {
+                    output_files[0] << md;
+                }
+                else if (args.count("false-output")) {
+                    output_files[1] << md;
+                }
             }
         }
         for (auto &output_file : output_files) {
@@ -224,7 +276,18 @@ public:
         if (args.count("false-output")) {
             logi("False output file: {}", args["false-output"].as<string>());
         }
-        logi("Conditions: {}", fmt::join(args["condition"].as<vector<string>>(), " and "));
+        string connector = args["or"].as<bool>() ? " or " : " and ";
+        vector<string> conditions;
+        if(args["if"].count()>0)
+            for(const string &s:args["if"].as<vector<string>>()){
+                conditions.push_back(fmt::format("({})", s));
+            }
+        if(args["not"].count()>0)
+            for(const string &s:args["not"].as<vector<string>>()){
+                conditions.push_back(fmt::format("~({})", s));
+            }
+        logi("Conditions: {}", fmt::join(conditions, connector));
+
         // Other parameters logs are here
         fmtlog::poll(true);
     }
