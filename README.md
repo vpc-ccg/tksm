@@ -419,15 +419,17 @@ The cellular barcode for each molecule is added as a comment to the molecule hea
 ```bash
 tksm random-wgs [arguments]
 ```
-
+Generates MDF file with a whole genome shotgun of the given reference sequences.
 The `Wgs` module has following arguments:
 
-| -r | --reference arg | Whole genome reference file (indexed with samtools faidx)|
-| | --frag-len-dist arg | quoted string of distribution parameters formatted as "<distribution> <param>...". Example: "normal 350 50" will simulate normal distribution with mean 350 and stdev 50. Implemented dists: [normal, lognormal, uniform, exponential]. |
+| short | long | Description |
+| - | - | - |
+| -r | --reference arg | Whole genome reference file (indexed with samtools faidx) |
+| | --frag-len-dist arg | quoted string of distribution parameters formatted as "[distribution] [params]...". Example: "normal 350 50" will simulate normal distribution with mean 350 and stdev 50. Implemented dists: [normal, lognormal, uniform, exponential]. |
 | -o | --output arg | Output mdf file |
-| |--base-count arg | Number of bases to be simulated|
-| |--depth | Genome depth to be simulated |
-| |--circular | Simulate circular genomes |
+| | --base-count arg | Number of bases to be simulated|
+| | --depth | Genome depth to be simulated |
+| | --circular | Simulate circular genomes |
 
 Either `--base-count` or `--depth` should be used.
 
