@@ -22,31 +22,35 @@ using std::vector;
 #include "pimpl.h"
 
 class RWGS_module::impl : public tksm_module {
-    cxxopts::ParseResult parse(int argc, char **argv) {
+    cxxopts::ParseResult parse(int argc, char ** argv){
         // clang-format off
         options.add_options("main")
-            (
-                "r,reference",
-                "Whole genome reference file",
-                cxxopts::value<string>()
-            )(
-                "frag-len-dist",
-                "Fragment length distribution",
-                cxxopts::value<string>()
-            )(
-                "o,output",
-                "output mdf file",
-                cxxopts::value<string>()
-            )(
-                "base-count",
-                "Number of bases to generate",
-                cxxopts::value<int64_t>()
-             )(
-                 "depth",
-                 "Depth of coverage",
-                 cxxopts::value<double>()
-              )
-            ;
+        (
+            "r,reference",
+            "Whole genome reference file",
+            cxxopts::value<string> ()
+        )(
+            "frag-len-dist",
+            "Fragment length distribution",
+            cxxopts::value<string> ()
+        )(
+            "o,output",
+            "output mdf file",
+            cxxopts::value<string> ()
+        )(
+            "base-count",
+            "Number of bases to generate",
+            cxxopts::value<int64_t> ()
+        )(
+            "depth",
+            "Depth of coverage",
+            cxxopts::value<double> ()
+        )(
+            "circular",
+            "Contigs are considered to be circular",
+            cxxopts::value<bool> ()->default_value("false")->implicit_value("true")
+          )
+        ;
         // clang-format on
         return options.parse(argc, argv);
     }
@@ -54,47 +58,46 @@ class RWGS_module::impl : public tksm_module {
     cxxopts::ParseResult args;
 
 public:
-    impl(int argc, char **argv) : tksm_module{"<RWGS>", "<RWGS> description"}, args(parse(argc, argv)) {}
+    impl(int argc, char ** argv) : tksm_module{"<RWGS>", "<RWGS> description"}, args(parse(argc, argv)){ }
 
     ~impl() = default;
 
-    set<string> implemented_dists = {"normal", "uniform", "lognormal", "exponential"};
+    set<string> implemented_dists = { "normal", "uniform", "lognormal", "exponential" };
 
     auto parse_dist_str(const string &st) const -> std::tuple<string, int64_t, int64_t> {
         string frag_len_dist;
         int64_t frag_len_dist_mean;
-        int64_t frag_len_dist_std{0};
+        int64_t frag_len_dist_std{ 0 };
 
         std::istringstream parse_dist(args["frag-len-dist"].as<string>());
+
         parse_dist >> frag_len_dist >> frag_len_dist_mean;
         if (frag_len_dist != "exponential") {
             parse_dist >> frag_len_dist_std;
         }
-        return {frag_len_dist, frag_len_dist_mean, frag_len_dist_std};
+        return { frag_len_dist, frag_len_dist_mean, frag_len_dist_std };
     }
+
     auto get_dist(string dist_name, int64_t a, int64_t b) const
-        -> std::variant<std::normal_distribution<double>, std::uniform_real_distribution<double>,
-                        std::lognormal_distribution<double>, std::exponential_distribution<double>> {
+    -> std::variant<std::normal_distribution<double>, std::uniform_real_distribution<double>,
+      std::lognormal_distribution<double>, std::exponential_distribution<double> > {
         if (dist_name == "normal") {
             return std::normal_distribution<double>(a, b);
-        }
-        else if (dist_name == "uniform") {
+        } else if (dist_name == "uniform") {
             return std::uniform_real_distribution<double>(a, b);
-        }
-        else if (dist_name == "lognormal") {
+        } else if (dist_name == "lognormal") {
             return std::lognormal_distribution<double>(a, b);
-        }
-        else if (dist_name == "exponential") {
+        } else if (dist_name == "exponential") {
             return std::exponential_distribution<double>(a);
-        }
-        else {
+        } else {
             throw std::invalid_argument("Invalid distribution name");
         }
     }
 
-    int validate_arguments() {
-        std::vector<string> mandatory = {"reference", "output", "frag-len-dist"};
+    int validate_arguments(){
+        std::vector<string> mandatory = { "reference", "output", "frag-len-dist" };
         int missing_parameters        = 0;
+
         for (string &param : mandatory) {
             if (args.count(param) == 0) {
                 loge("{} is required!", param);
@@ -114,7 +117,7 @@ public:
         }
 
         auto [frag_len_dist, frag_len_dist_mean, frag_len_dist_std] =
-            parse_dist_str(args["frag-len-dist"].as<string>());
+          parse_dist_str(args["frag-len-dist"].as<string>());
         if (implemented_dists.find(frag_len_dist) == implemented_dists.end()) {
             loge("Invalid fragment length distribution");
             return 1;
@@ -124,8 +127,9 @@ public:
             return 1;
         }
         return 0;
-    }
-    int run() {
+    } // validate_arguments
+
+    int run(){
         if (process_utility_arguments(args)) {
             return 0;
         }
@@ -169,22 +173,21 @@ public:
         int64_t base_count = 0;
         if (args.count("base-count") > 0) {
             base_count = args["base-count"].as<int64_t>();
-        }
-        else if (args.count("depth") > 0) {
+        } else if (args.count("depth") > 0) {
             double depth = args["depth"].as<double>();
-            base_count   = depth * ref_length;
+            base_count = depth * ref_length;
         }
 
         auto [frag_len_dist, frag_len_dist_mean, frag_len_dist_std] =
-            parse_dist_str(args["frag-len-dist"].as<string>());
+          parse_dist_str(args["frag-len-dist"].as<string>());
         auto frag_length_dist = get_dist(frag_len_dist, frag_len_dist_mean, frag_len_dist_std);
         auto position_dist    = std::uniform_int_distribution<int64_t>(0, ref_length - 1);
-        auto strand_dist      = std::uniform_int_distribution<int64_t>(0, 1);
+        auto strand_dist      = std::uniform_int_distribution<int64_t>(0, 2);
 
         ofstream output(output_file);
 
         int64_t generated_bases = 0;
-        int64_t index           = 0;
+        int64_t index = 0;
         while (generated_bases < base_count) {
             int64_t pos       = position_dist(rand_gen);
             int64_t ref_index = 0;
@@ -193,31 +196,47 @@ public:
             }
             int ref_pos  = pos - ref_lens_so_far[ref_index] + ref_lens[ref_index];
             int frag_len = std::visit([&](auto &&arg) { return arg(rand_gen); }, frag_length_dist);
-            if (frag_len > ref_lens[ref_index] - ref_pos) {
-                frag_len = ref_lens[ref_index] - ref_pos;
+            if (args["circular"].as<bool>()) {
+                if (frag_len > ref_lens[ref_index]) {
+                    frag_len = ref_lens[ref_index];
+                }
+            } else {
+                if (frag_len > ref_lens[ref_index] - ref_pos) {
+                    frag_len = ref_lens[ref_index] - ref_pos;
+                }
             }
             bool plus_strand = strand_dist(rand_gen) == 0;
-            molecule_descriptor mol{fmt::format("{}_{}:{}-{}{}", index, ref_names_index[ref_index], ref_pos,
-                                                ref_pos + frag_len, plus_strand ? "+" : "-"),
-                                    plus_strand};
-            mol.append_segment({ref_names_index[ref_index], ref_pos, ref_pos + frag_len, plus_strand});
+            molecule_descriptor mol{ fmt::format("{}_{}:{}-{}{}", index, ref_names_index[ref_index], ref_pos,
+                                       ref_pos + frag_len, plus_strand ? "+" : "-"),
+                                     true };
+            mol.append_segment({ ref_names_index[ref_index], ref_pos,
+                                 std::min((int) ref_lens[ref_index], ref_pos + frag_len),
+                                 true });
+            if (args["circular"].as<bool>() && frag_len > ref_lens[ref_index] - ref_pos) {
+                mol.append_segment(
+                    { ref_names_index[ref_index], 0, frag_len - (int) ref_lens[ref_index] + ref_pos, true }
+                );
+            }
+            if (!plus_strand) {
+                mol = flip_molecule(mol);
+            }
+
             output << mol;
             generated_bases += frag_len;
             ++index;
         }
 
         return 0;
-    }
+    } // run
 
-    void describe_program() {
+    void describe_program(){
         logi("Running [RWGS]");
         logi("Reference file: {}", args["reference"].as<string>());
         logi("Output file: {}", args["output"].as<string>());
 
         if (args.count("base-count") > 0) {
             logi("Base count: {}", args["base-count"].as<int64_t>());
-        }
-        else if (args.count("depth") > 0) {
+        } else if (args.count("depth") > 0) {
             logi("Depth: {}", args["depth"].as<double>());
         }
 

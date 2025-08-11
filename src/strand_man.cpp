@@ -10,6 +10,8 @@
 #include "mdf.h"
 #include "module.h"
 #include "util.h"
+#include <ranges>
+
 
 using std::ifstream;
 using std::ofstream;

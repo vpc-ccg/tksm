@@ -79,6 +79,7 @@ There are four types of modules: entry-point modules, core modules, utility modu
 | Utility | `Badread`| Build base-level quality and error models using Badread     |
 | Utility | `KDE`    | Build truncation model                                      |
 | Entry   | `Tsb`    | Generate transcripts molecules from GTF and expression data |
+| Entry   | `Wgs`    | Generate fragments with length distribution Whole genome shotgun |
 | Entry   | `Mrg`    | Merge output of one or more pipelines into a single MDF     |
 | Core    | `plA`    | Add polyA tail to molecules                                 |
 | Core    | `Trc`    | Truncate the molecules                                      |
@@ -414,6 +415,24 @@ The `Tsb` outputs an MDF file with a record for each transcript molecule sampled
 The cellular barcode for each molecule is added as a comment to the molecule header line:
 `CB=<cellular_barcode>;` or `CB;` if the molecule has no cellular barcode. 
 
+#### Random Whole Genome Shotgun
+```bash
+tksm random-wgs [arguments]
+```
+Generates MDF file with a whole genome shotgun of the given reference sequences.
+The `Wgs` module has following arguments:
+
+| short | long | Description |
+| - | - | - |
+| -r | --reference arg | Whole genome reference file (indexed with samtools faidx) |
+| | --frag-len-dist arg | quoted string of distribution parameters formatted as "[distribution] [params]...". Example: "normal 350 50" will simulate normal distribution with mean 350 and stdev 50. Implemented dists: [normal, lognormal, uniform, exponential]. |
+| -o | --output arg | Output mdf file |
+| | --base-count arg | Number of bases to be simulated|
+| | --depth | Genome depth to be simulated |
+| | --circular | Simulate circular genomes |
+
+Either `--base-count` or `--depth` should be used.
+
 #### Merging
 The `Mrg` module concatenates a list of MDFs into a single MDF.
 It is phoney module; it is really just a `cat` Linux command that is run by Snakemake.
@@ -478,14 +497,18 @@ The `Flt` module has these arguments:
 | -     | -                 | - |
 | `-t`  | `--true-output`   | Output MDF file for molecules that pass the filter. |
 | `-f`  | `--false-output`  | Output MDF file for molecules that fail the filter. |
-| `-c`  | `--condition`     | Comma separated conditions to filter (and-ed together). |
+| `-c`  | `--if`            | Comma separated conditions to filter (and-ed together). |
+| `-n`  | `--not`           | Comma separated negated conditions to filter (and-ed together). |
 |       | `--negate`        | Negate the conjunction of the condition(s). |
+|       | `--or`            | Use `or` instead of `and` to combine multiple conditions|
 
 The implemented conditions are:
 
 - `info`: Check if a non-empty info tag exists in a molecule.
 - `size`: Filters molecules w.r.t their size [<, >, <=, >= , ==, !=].
 - `locus`: is similar to `samtools view` selection. If any of the molecule's intervals overlaps with the specified location or range, TKSM will consider the condition fulfilled.
+- `id`: Check if id of a molecule matches the given regular expression ([Ecmascript](https://en.cppreference.com/w/cpp/regex/ecmascript) format) 
+- `rand`: Randomly split the molecules with the given probability
 
 Examples:
 
@@ -495,6 +518,8 @@ Examples:
 - `-c "locus chr1:1000"`: Selects molecules that overlap with chr1 position 1000
 - `-c "locus chr1:1000-1500"`: Selects molecules that overlap with chr1 between position 1000 and 1500.
 - `-c "locus AGATCGGAAGAGCGTCGTGTAG"`: Selects molecules with this "*contig*". While this is not a real contig name, modules such as `Tag` and `SCB` add put the sequence of the tag as the contig name ([see above](#mdf-format))
+
+Multiple conditions can be passed by either separating by comma or calling `--if` or `--not` multiple times.
 
 #### PCR
 The `PCR` module is used to simulate PCR amplification.
