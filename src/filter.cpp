@@ -122,6 +122,11 @@ public:
                 return std::regex_match(md.get_id(), id_regex);
             };
         }
+        else if (condition_type_str == "strand"){
+            cond_func = [condition_expression_str] (const molecule_descriptor &md){
+                return !(md.cget_segments()[0].plus_strand ^ (condition_expression_str == "+" )); 
+            };
+        }
         else if (condition_type_str == "rand") {
             double prob = stod(condition_expression_str);
 

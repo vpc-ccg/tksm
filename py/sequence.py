@@ -12,7 +12,7 @@ import gzip
 
 from tqdm import tqdm
 import tksm_badread
-
+from random import sample
 
 def set_tksm_models_dicts(env_var="TKSM_MODELS"):
     var = os.getenv(env_var)
@@ -112,6 +112,12 @@ def parse_args():
         help="Badread tail model name or file path. "
         + f"Available model names: [{', '.join(tksm_badread.TAIL_NOISE_MODEL_PY.tail_model_names)}]",
     )
+    parser.add_argument(
+        "--replace-non-agtc",
+        action='store_true',
+        default=False,
+        help="Replace non AGTC characters according to IUPAC list"
+    )
 
     class ListPrinter(argparse.Action):
         def __call__(self, parser, namespace, values, option_string):
@@ -164,8 +170,17 @@ def parse_args():
         parser.error("Must specify either --output or --perfect.")
     return args
 
-
-def generate_fasta(fasta):
+cm = {'W':['A','T'], 'S':['C','G'],'M':['A','C'],'K':['G','T'],'R':['A','G'],'Y':['C','T'],
+      'B':['C','G','T'],'D':['A','G','T'],'H':['A','C','T'],'V':['A','C','G'],
+      'N':['A','C','G','T']}
+def charmap(c):
+    if c in {'A','G','T','C','a','g','t','c','U','u'}:
+        return c
+    elif c.upper() in cm:
+        return sample(cm[c.upper()],1)[0] 
+    else:
+        return sample(cm['N'],1)[0]
+def generate_fasta(fasta, replace_non_agtc):
     name = ""
     seq = list()
     if fasta.endswith(".gz"):
@@ -182,15 +197,18 @@ def generate_fasta(fasta):
             seq = list()
             name = l[1:].split(" ")[0]
         else:
-            seq.append(l)
+            if replace_non_agtc:
+                seq.append("".join([charmap(c) for c in l]))
+            else:
+                seq.append(l)
     yield (name, "".join(seq))
 
 
-def get_reference_seqs(reference):
+def get_reference_seqs(reference, replace_non_agtc=False):
     reference_seqs = dict()
     for ref in reference:
         print(f"Loading reference {ref}...")
-        reference_seqs.update({name: seq for name, seq in generate_fasta(ref)})
+        reference_seqs.update({name: seq for name, seq in generate_fasta(ref, replace_non_agtc)})
     return reference_seqs
 
 
@@ -323,7 +341,7 @@ def mdf_to_seq(mdf, targets=dict()):
 if __name__ == "__main__":
     set_tksm_models_dicts()
     args = parse_args()
-    reference_seqs = get_reference_seqs(args.references)
+    reference_seqs = get_reference_seqs(args.references, args.replace_non_agtc)
 
     targets = dict()
     target_outfiles = dict()
