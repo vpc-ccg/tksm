@@ -79,6 +79,7 @@ There are four types of modules: entry-point modules, core modules, utility modu
 | Utility | `Badread`| Build base-level quality and error models using Badread     |
 | Utility | `KDE`    | Build truncation model                                      |
 | Entry   | `Tsb`    | Generate transcripts molecules from GTF and expression data |
+| Entry   | `Wgs`    | Generate fragments with length distribution Whole genome shotgun |
 | Entry   | `Mrg`    | Merge output of one or more pipelines into a single MDF     |
 | Core    | `plA`    | Add polyA tail to molecules                                 |
 | Core    | `Trc`    | Truncate the molecules                                      |
@@ -413,6 +414,22 @@ Each record in the fusion file represents a deletion event...
 The `Tsb` outputs an MDF file with a record for each transcript molecule sampled from the GTF file.
 The cellular barcode for each molecule is added as a comment to the molecule header line:
 `CB=<cellular_barcode>;` or `CB;` if the molecule has no cellular barcode. 
+
+#### Random Whole Genome Shotgun
+```bash
+tksm random-wgs [arguments]
+```
+
+The `Wgs` module has following arguments:
+
+| -r | --reference arg | Whole genome reference file (indexed with samtools faidx)|
+| | --frag-len-dist arg | quoted string of distribution parameters formatted as "<distribution> <param>...". Example: "normal 350 50" will simulate normal distribution with mean 350 and stdev 50. Implemented dists: [normal, lognormal, uniform, exponential]. |
+| -o | --output arg | Output mdf file |
+| |--base-count arg | Number of bases to be simulated|
+| |--depth | Genome depth to be simulated |
+| |--circular | Simulate circular genomes |
+
+Either `--base-count` or `--depth` should be used.
 
 #### Merging
 The `Mrg` module concatenates a list of MDFs into a single MDF.
